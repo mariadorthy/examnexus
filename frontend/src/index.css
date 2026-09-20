@@ -1,0 +1,297 @@
+@import "tailwindcss";
+
+/* =========================================================
+   ExamNexus Global Theme
+   =========================================================
+
+   LearnLens-inspired:
+   Soft • Sophisticated • Olive • Warm Neutral
+
+   IMPORTANT:
+   Change colors ONLY in :root below.
+
+   All pages/components should use semantic classes such as:
+
+   bg-primary
+   bg-sidebar
+   bg-accent
+   bg-background
+   bg-surface
+
+   text-primary
+   text-text
+   text-text-muted
+   text-accent
+
+   border-border
+
+   This keeps the entire application consistent.
+   ========================================================= */
+
+
+/* =========================================================
+   GLOBAL COLOR VARIABLES
+   ========================================================= */
+
+:root {
+
+  /* -------------------------------------------------------
+     Primary Brand
+     ------------------------------------------------------- */
+
+  --color-primary: #35412D;
+  --color-primary-hover: #293323;
+
+
+  /* -------------------------------------------------------
+     Sidebar
+     ------------------------------------------------------- */
+
+  --color-sidebar: #35412D;
+  --color-sidebar-hover: #293323;
+
+
+  /* -------------------------------------------------------
+     Secondary Olive
+     ------------------------------------------------------- */
+
+  --color-secondary: #68764A;
+
+
+  /* -------------------------------------------------------
+     Accent / Sage
+     ------------------------------------------------------- */
+
+  --color-accent: #8B9868;
+  --color-accent-light: #E6E9DC;
+
+
+  /* -------------------------------------------------------
+     Backgrounds
+     ------------------------------------------------------- */
+
+  --color-background: #F7F8F5;
+  --color-surface: #FFFFFF;
+  --color-surface-muted: #FAFBF9;
+
+
+  /* -------------------------------------------------------
+     Text
+     ------------------------------------------------------- */
+
+  --color-text: #171A16;
+  --color-text-muted: #697066;
+  --color-text-light: #92988E;
+
+
+  /* -------------------------------------------------------
+     Borders
+     ------------------------------------------------------- */
+
+  --color-border: #DDE1D9;
+
+
+  /* -------------------------------------------------------
+     Status Colors
+     ------------------------------------------------------- */
+
+  --color-success: #607A4A;
+  --color-warning: #B29A5A;
+  --color-danger: #A85D55;
+
+
+  /* -------------------------------------------------------
+     Font
+     ------------------------------------------------------- */
+
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+
+  color: var(--color-text);
+  background: var(--color-background);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+
+/* =========================================================
+   BACKGROUND UTILITY CLASSES
+   ========================================================= */
+
+.bg-primary {
+  background-color: var(--color-primary);
+}
+
+.bg-primary-hover {
+  background-color: var(--color-primary-hover);
+}
+
+.bg-sidebar {
+  background-color: var(--color-sidebar);
+}
+
+.bg-sidebar-hover {
+  background-color: var(--color-sidebar-hover);
+}
+
+.bg-secondary {
+  background-color: var(--color-secondary);
+}
+
+.bg-accent {
+  background-color: var(--color-accent);
+}
+
+.bg-accent-light {
+  background-color: var(--color-accent-light);
+}
+
+.bg-background {
+  background-color: var(--color-background);
+}
+
+.bg-surface {
+  background-color: var(--color-surface);
+}
+
+.bg-surface-muted {
+  background-color: var(--color-surface-muted);
+}
+
+.bg-success {
+  background-color: var(--color-success);
+}
+
+.bg-warning {
+  background-color: var(--color-warning);
+}
+
+.bg-danger {
+  background-color: var(--color-danger);
+}
+
+
+/* =========================================================
+   TEXT UTILITY CLASSES
+   ========================================================= */
+
+.text-primary {
+  color: var(--color-primary);
+}
+
+.text-primary-hover {
+  color: var(--color-primary-hover);
+}
+
+.text-sidebar {
+  color: var(--color-sidebar);
+}
+
+.text-sidebar-hover {
+  color: var(--color-sidebar-hover);
+}
+
+.text-secondary {
+  color: var(--color-secondary);
+}
+
+.text-accent {
+  color: var(--color-accent);
+}
+
+.text-accent-light {
+  color: var(--color-accent-light);
+}
+
+.text-text {
+  color: var(--color-text);
+}
+
+.text-text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-text-light {
+  color: var(--color-text-light);
+}
+
+.text-success {
+  color: var(--color-success);
+}
+
+.text-warning {
+  color: var(--color-warning);
+}
+
+.text-danger {
+  color: var(--color-danger);
+}
+
+
+/* =========================================================
+   BORDER UTILITY CLASSES
+   ========================================================= */
+
+.border-border {
+  border-color: var(--color-border);
+}
+
+
+/* =========================================================
+   GLOBAL RESET
+   ========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+
+/* =========================================================
+   BODY
+   ========================================================= */
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+}
+
+
+/* =========================================================
+   FORM ELEMENTS
+   ========================================================= */
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+
+/* =========================================================
+   TEXT SELECTION
+   ========================================================= */
+
+::selection {
+  background-color: var(--color-accent-light);
+  color: var(--color-primary);
+}
