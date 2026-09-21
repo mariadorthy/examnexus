@@ -1,34 +1,14 @@
+import { get, post } from "./api";
+
 const API_URL =
-  `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/departments/`;
+  `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/departments`;
 
 export async function getDepartments() {
-  const response = await fetch(API_URL);
-
-  if (!response.ok) {
-    throw new Error("Failed to load departments.");
-  }
-
-  return await response.json();
+  return await get("/departments");
 }
 
 export async function createDepartment(data) {
-  const response = await fetch(API_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
-
-  const result = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      result.message || "Failed to create department."
-    );
-  }
-
-  return result;
+  return await post("/departments", data);
 }
 
 export async function updateDepartment(id, data) {

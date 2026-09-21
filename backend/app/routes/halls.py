@@ -1,11 +1,12 @@
 from flask import Blueprint, request
 from app import db
 from app.models.hall import Hall
-
+from app.auth.decorators import roles_required
 halls_bp = Blueprint("halls", __name__)
 
 
 @halls_bp.route("/", methods=["GET"])
+@roles_required("admin")
 def get_halls():
     halls = Hall.query.all()
 
@@ -31,6 +32,7 @@ def get_halls():
 
 
 @halls_bp.route("/", methods=["POST"])
+@roles_required("admin")
 def create_hall():
     data = request.get_json()
 

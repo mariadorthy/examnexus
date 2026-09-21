@@ -1,4 +1,6 @@
 from flask import Blueprint, request
+from werkzeug.security import generate_password_hash
+
 from app import db
 from app.models.student import Student
 from app.auth.decorators import roles_required
@@ -38,7 +40,7 @@ def create_student():
         name=data["name"],
         course_id=data["course_id"],
         email=data["email"],
-        password_hash=data["password_hash"],
+        password_hash=generate_password_hash(data["password"]),
         batch=data["batch"],
         semester=data["semester"]
     )

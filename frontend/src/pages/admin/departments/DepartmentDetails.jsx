@@ -7,6 +7,7 @@ import {
   Loader2,
 } from "lucide-react";
 
+import { get } from "../../../services/api";
 
 const API_URL =
   "http://127.0.0.1:5000/api/departments";
@@ -46,23 +47,9 @@ function DepartmentDetails({
       setError("");
 
 
-      const response = await fetch(
-        `${API_URL}/${departmentId}`
-      );
-
-
-      const data = await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.message ||
-          "Failed to load department."
-        );
-
-      }
-
+      const data = await get(
+  `/departments/${department.id}`
+);
 
       setDepartment(data);
 

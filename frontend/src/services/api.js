@@ -84,3 +84,58 @@ export async function post(
 
   return parseResponse(response);
 }
+
+export async function put(
+  endpoint,
+  data
+) {
+  const token = getToken();
+
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers.Authorization =
+      `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `${API_URL}/api${endpoint}`,
+    {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(data),
+    }
+  );
+
+  return parseResponse(response);
+}
+
+
+export async function patch(
+  endpoint,
+  data
+) {
+  const token = getToken();
+
+  const headers = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers.Authorization =
+      `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `${API_URL}/api${endpoint}`,
+    {
+      method: "PATCH",
+      headers,
+      body: JSON.stringify(data),
+    }
+  );
+
+  return parseResponse(response);
+}

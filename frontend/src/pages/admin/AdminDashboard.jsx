@@ -14,7 +14,7 @@ import {
 import { useEffect, useState } from "react";
 
 import AdminSidebar from "../../components/AdminSidebar";
-
+import { get } from "../../services/api";
 function AdminDashboard({
   user,
   onLogout,
@@ -88,21 +88,13 @@ function AdminDashboard({
       setLoading(true);
       setError("");
 
-      const response = await fetch(
-        "http://127.0.0.1:5000/api/dashboard/"
-      );
+      const data = await get("/dashboard/");
 
-      if (!response.ok) {
-        throw new Error("Failed to load dashboard data.");
-      }
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(
-          data.message || "Failed to load dashboard data."
-        );
-      }
+if (!data.success) {
+  throw new Error(
+    data.message || "Failed to load dashboard data."
+  );
+}
 
       /* ================================================= */
       /* STATISTICS */

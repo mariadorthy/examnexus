@@ -1,11 +1,12 @@
 from flask import Blueprint, request
 from app import db
 from app.models.subject import Subject
-
+from app.auth.decorators import roles_required
 subjects_bp = Blueprint("subjects", __name__)
 
 
 @subjects_bp.route("/", methods=["GET"])
+@roles_required("admin")
 def get_subjects():
     subjects = Subject.query.all()
 
@@ -24,6 +25,7 @@ def get_subjects():
 
 
 @subjects_bp.route("/", methods=["POST"])
+@roles_required("admin")
 def create_subject():
     data = request.get_json()
 

@@ -2,11 +2,12 @@ from flask import Blueprint
 from app.models.allocation import Allocation
 from app.services.allocation import generate_allocation
 from app.services.validation import validate_allocation
-
+from app.auth.decorators import roles_required
 allocations_bp = Blueprint("allocations", __name__)
 
 
 @allocations_bp.route("/generate/<int:examination_id>", methods=["POST"])
+@roles_required("admin")
 def generate(examination_id):
 
     existing = Allocation.query.filter_by(
@@ -25,6 +26,7 @@ def generate(examination_id):
 
 
 @allocations_bp.route("/<int:examination_id>", methods=["GET"])
+@roles_required("admin")
 def get_allocations(examination_id):
 
     allocations = Allocation.query.filter_by(
@@ -45,6 +47,7 @@ def get_allocations(examination_id):
 
 
 @allocations_bp.route("/validate/<int:examination_id>", methods=["GET"])
+@roles_required("admin")
 def validate(examination_id):
 
     result = validate_allocation(examination_id)
@@ -55,6 +58,7 @@ def validate(examination_id):
 
 
 @allocations_bp.route("/summary/<int:examination_id>", methods=["GET"])
+@roles_required("admin")
 def summary(examination_id):
 
     allocations = Allocation.query.filter_by(

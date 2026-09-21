@@ -5,7 +5,7 @@ import {
   Loader2,
 } from "lucide-react";
 
-
+import { post, put } from "../../../services/api";
 const API_URL =
   "http://127.0.0.1:5000/api/departments";
 
@@ -87,44 +87,21 @@ function DepartmentForm({
 
       setLoading(true);
 
-
-      const url = isEdit
-        ? `${API_URL}/${department.id}`
-        : API_URL;
-
-
-      const response = await fetch(
-        url,
-        {
-          method: isEdit ? "PUT" : "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            department_code: code,
-            department_name: name,
-          }),
-        }
-      );
-
-
-      const data = await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.message ||
-          (
-            isEdit
-              ? "Failed to update department."
-              : "Failed to create department."
-          )
-        );
-
+const data = isEdit
+  ? await put(
+      `/departments/${department.id}`,
+      {
+        department_code: code,
+        department_name: name,
       }
+    )
+  : await post(
+      "/departments",
+      {
+        department_code: code,
+        department_name: name,
+      }
+    );
 
 
       onSuccess();

@@ -1,7 +1,7 @@
 from flask import Blueprint, request
 from app import db
 from app.models.department import Department
-
+from app.auth.decorators import roles_required
 
 departments_bp = Blueprint(
     "departments",
@@ -14,6 +14,7 @@ departments_bp = Blueprint(
 # =========================================================
 
 @departments_bp.route("", methods=["GET"])
+@roles_required("admin")
 def get_departments():
 
     departments = Department.query.order_by(
@@ -37,6 +38,7 @@ def get_departments():
 # =========================================================
 
 @departments_bp.route("", methods=["POST"])
+@roles_required("admin")
 def create_department():
 
     data = request.get_json() or {}
@@ -107,6 +109,7 @@ def create_department():
 # =========================================================
 
 @departments_bp.route("/<int:department_id>", methods=["GET"])
+@roles_required("admin")
 def get_department(department_id):
 
     department = Department.query.get_or_404(
@@ -142,6 +145,7 @@ def get_department(department_id):
 # =========================================================
 
 @departments_bp.route("/<int:department_id>", methods=["PUT"])
+@roles_required("admin")
 def update_department(department_id):
 
     department = Department.query.get_or_404(
@@ -217,6 +221,7 @@ def update_department(department_id):
     "/<int:department_id>/status",
     methods=["PATCH"]
 )
+@roles_required("admin")
 def toggle_department_status(department_id):
 
     department = Department.query.get_or_404(

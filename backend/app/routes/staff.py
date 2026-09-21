@@ -1,4 +1,6 @@
 from flask import Blueprint, request
+from werkzeug.security import generate_password_hash
+
 from app import db
 from app.models.staff import Staff
 from app.auth.decorators import roles_required
@@ -47,7 +49,7 @@ def create_staff():
         gender=data.get("gender"),
         availability=data.get("availability", True),
         assigned_batch=data.get("assigned_batch"),
-        password_hash=data["password_hash"],
+        password_hash=generate_password_hash(data["password"]),
         image=data.get("image")
     )
 

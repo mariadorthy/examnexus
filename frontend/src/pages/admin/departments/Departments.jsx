@@ -14,8 +14,7 @@ import {
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import DepartmentForm from "./DepartmentForm";
-
-
+import { get, patch } from "../../../services/api";
 const API_URL = "http://127.0.0.1:5000/api/departments";
 
 
@@ -60,13 +59,7 @@ function Departments({
       setLoading(true);
       setError("");
 
-      const response = await fetch(API_URL);
-
-      if (!response.ok) {
-        throw new Error("Failed to load departments.");
-      }
-
-      const data = await response.json();
+      const data = await get("/departments");
 
       setDepartments(data);
 
@@ -132,35 +125,12 @@ function Departments({
 
       setStatusLoading(department.id);
 
-
-      const response = await fetch(
-        `${API_URL}/${department.id}/status`,
+      await patch(
+        `/departments/${department.id}/status`,
         {
-          method: "PATCH",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            is_active: !department.is_active,
-          }),
+          is_active: !department.is_active,
         }
       );
-
-
-      const data = await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.message ||
-          "Failed to update department status."
-        );
-
-      }
-
 
       await loadDepartments();
 
@@ -189,23 +159,9 @@ function Departments({
       setDetailsLoading(true);
 
 
-      const response = await fetch(
-        `${API_URL}/${department.id}`
+      const data = await get(
+        `/departments/${department.id}`
       );
-
-
-      const data = await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.message ||
-          "Failed to load department details."
-        );
-
-      }
-
 
       setViewingDepartment(data);
 
@@ -313,10 +269,10 @@ function Departments({
                 type="button"
                 onClick={() => {
 
-  setEditingDepartment(null);
-  setShowForm(true);
+                  setEditingDepartment(null);
+                  setShowForm(true);
 
-}}
+                }}
                 className="
                   flex
                   w-full
@@ -801,31 +757,31 @@ function Departments({
 
       {showForm && (
 
-  <DepartmentForm
-    department={null}
-    onClose={() => setShowForm(false)}
-    onSuccess={handleFormSuccess}
-  />
+        <DepartmentForm
+          department={null}
+          onClose={() => setShowForm(false)}
+          onSuccess={handleFormSuccess}
+        />
 
-)}
+      )}
 
 
-{editingDepartment && (
+      {editingDepartment && (
 
-  <DepartmentForm
-    department={editingDepartment}
-    onClose={() =>
-      setEditingDepartment(null)
-    }
-    onSuccess={handleFormSuccess}
-  />
+        <DepartmentForm
+          department={editingDepartment}
+          onClose={() =>
+            setEditingDepartment(null)
+          }
+          onSuccess={handleFormSuccess}
+        />
 
-)}
+      )}
 
-{viewingDepartment && (
+      {viewingDepartment && (
 
-  <div
-    className="
+        <div
+          className="
       fixed
       inset-0
       z-[60]
@@ -836,19 +792,19 @@ function Departments({
       p-4
       backdrop-blur-sm
     "
-    onMouseDown={(event) => {
+          onMouseDown={(event) => {
 
-      if (
-        event.target === event.currentTarget
-      ) {
-        setViewingDepartment(null);
-      }
+            if (
+              event.target === event.currentTarget
+            ) {
+              setViewingDepartment(null);
+            }
 
-    }}
-  >
+          }}
+        >
 
-    <div
-      className="
+          <div
+            className="
         w-full
         max-w-2xl
         overflow-hidden
@@ -856,11 +812,11 @@ function Departments({
         bg-surface
         shadow-2xl
       "
-    >
+          >
 
-      {/* HEADER */}
+            {/* HEADER */}
 
-      <div className="
+            <div className="
         flex
         items-center
         justify-between
@@ -870,9 +826,9 @@ function Departments({
         py-5
       ">
 
-        <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
 
-          <div className="
+                <div className="
             flex
             h-11
             w-11
@@ -882,37 +838,37 @@ function Departments({
             bg-accent-light
             text-primary
           ">
-            <Building2 size={21} />
-          </div>
+                  <Building2 size={21} />
+                </div>
 
-          <div>
+                <div>
 
-            <h2 className="
+                  <h2 className="
               text-lg
               font-bold
               text-text
             ">
-              Department Details
-            </h2>
+                    Department Details
+                  </h2>
 
-            <p className="
+                  <p className="
               text-sm
               text-text-muted
             ">
-              Department information and courses.
-            </p>
+                    Department information and courses.
+                  </p>
 
-          </div>
+                </div>
 
-        </div>
+              </div>
 
 
-        <button
-          type="button"
-          onClick={() =>
-            setViewingDepartment(null)
-          }
-          className="
+              <button
+                type="button"
+                onClick={() =>
+                  setViewingDepartment(null)
+                }
+                className="
             rounded-lg
             p-2
             text-text-muted
@@ -920,24 +876,24 @@ function Departments({
             hover:bg-surface-muted
             hover:text-text
           "
-        >
-          <X size={20} />
-        </button>
+              >
+                <X size={20} />
+              </button>
 
-      </div>
+            </div>
 
 
-      {/* DETAILS */}
+            {/* DETAILS */}
 
-      <div className="p-6">
+            <div className="p-6">
 
-        <div className="
+              <div className="
           grid
           gap-4
           sm:grid-cols-2
         ">
 
-          <div className="
+                <div className="
             rounded-xl
             border
             border-border
@@ -945,29 +901,29 @@ function Departments({
             p-4
           ">
 
-            <p className="
+                  <p className="
               text-xs
               font-semibold
               uppercase
               tracking-wider
               text-text-muted
             ">
-              Department Code
-            </p>
+                    Department Code
+                  </p>
 
-            <p className="
+                  <p className="
               mt-2
               text-lg
               font-bold
               text-primary
             ">
-              {viewingDepartment.department_code}
-            </p>
+                    {viewingDepartment.department_code}
+                  </p>
 
-          </div>
+                </div>
 
 
-          <div className="
+                <div className="
             rounded-xl
             border
             border-border
@@ -975,33 +931,33 @@ function Departments({
             p-4
           ">
 
-            <p className="
+                  <p className="
               text-xs
               font-semibold
               uppercase
               tracking-wider
               text-text-muted
             ">
-              Status
-            </p>
+                    Status
+                  </p>
 
-            <p className="
+                  <p className="
               mt-2
               text-lg
               font-bold
               text-text
             ">
-              {viewingDepartment.is_active
-                ? "Active"
-                : "Inactive"}
-            </p>
+                    {viewingDepartment.is_active
+                      ? "Active"
+                      : "Inactive"}
+                  </p>
 
-          </div>
+                </div>
 
-        </div>
+              </div>
 
 
-        <div className="
+              <div className="
           mt-4
           rounded-xl
           border
@@ -1010,48 +966,48 @@ function Departments({
           p-4
         ">
 
-          <p className="
+                <p className="
             text-xs
             font-semibold
             uppercase
             tracking-wider
             text-text-muted
           ">
-            Department Name
-          </p>
+                  Department Name
+                </p>
 
-          <p className="
+                <p className="
             mt-2
             text-lg
             font-bold
             text-text
           ">
-            {viewingDepartment.department_name}
-          </p>
+                  {viewingDepartment.department_name}
+                </p>
 
-        </div>
+              </div>
 
 
-        {/* COURSES */}
+              {/* COURSES */}
 
-        <div className="mt-6">
+              <div className="mt-6">
 
-          <div className="
+                <div className="
             flex
             items-center
             justify-between
             mb-3
           ">
 
-            <h3 className="
+                  <h3 className="
               text-base
               font-bold
               text-text
             ">
-              Courses
-            </h3>
+                    Courses
+                  </h3>
 
-            <span className="
+                  <span className="
               rounded-full
               bg-accent-light
               px-3
@@ -1060,27 +1016,27 @@ function Departments({
               font-semibold
               text-primary
             ">
-              {viewingDepartment.course_count || 0}
-            </span>
+                    {viewingDepartment.course_count || 0}
+                  </span>
 
-          </div>
+                </div>
 
 
-          {viewingDepartment.courses?.length ? (
+                {viewingDepartment.courses?.length ? (
 
-            <div className="
+                  <div className="
               overflow-hidden
               rounded-xl
               border
               border-border
             ">
 
-              {viewingDepartment.courses.map(
-                (course) => (
+                    {viewingDepartment.courses.map(
+                      (course) => (
 
-                  <div
-                    key={course.id}
-                    className="
+                        <div
+                          key={course.id}
+                          className="
                       flex
                       items-center
                       justify-between
@@ -1090,58 +1046,57 @@ function Departments({
                       p-4
                       last:border-b-0
                     "
-                  >
+                        >
 
-                    <div>
+                          <div>
 
-                      <p className="
+                            <p className="
                         text-sm
                         font-semibold
                         text-text
                       ">
-                        {course.course_name}
-                      </p>
+                              {course.course_name}
+                            </p>
 
-                      <p className="
+                            <p className="
                         mt-1
                         text-xs
                         text-text-muted
                       ">
-                        {course.course_code}
-                        {" • "}
-                        {course.course_abbreviation}
-                      </p>
+                              {course.course_code}
+                              {" • "}
+                              {course.course_abbreviation}
+                            </p>
 
-                    </div>
+                          </div>
 
 
-                    <span className={`
+                          <span className={`
                       rounded-full
                       px-3
                       py-1
                       text-xs
                       font-semibold
-                      ${
-                        course.is_active
-                          ? "bg-accent-light text-success"
-                          : "bg-danger/10 text-danger"
-                      }
+                      ${course.is_active
+                              ? "bg-accent-light text-success"
+                              : "bg-danger/10 text-danger"
+                            }
                     `}>
-                      {course.is_active
-                        ? "Active"
-                        : "Inactive"}
-                    </span>
+                            {course.is_active
+                              ? "Active"
+                              : "Inactive"}
+                          </span>
+
+                        </div>
+
+                      )
+                    )}
 
                   </div>
 
-                )
-              )}
+                ) : (
 
-            </div>
-
-          ) : (
-
-            <div className="
+                  <div className="
               rounded-xl
               border
               border-dashed
@@ -1150,36 +1105,36 @@ function Departments({
               text-center
             ">
 
-              <p className="
+                    <p className="
                 text-sm
                 font-semibold
                 text-text
               ">
-                No courses assigned
-              </p>
+                      No courses assigned
+                    </p>
 
-              <p className="
+                    <p className="
                 mt-1
                 text-xs
                 text-text-muted
               ">
-                Courses belonging to this department
-                will appear here.
-              </p>
+                      Courses belonging to this department
+                      will appear here.
+                    </p>
+
+                  </div>
+
+                )}
+
+              </div>
 
             </div>
 
-          )}
+          </div>
 
         </div>
 
-      </div>
-
-    </div>
-
-  </div>
-
-)}
+      )}
 
     </div>
   );

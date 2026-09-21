@@ -1,11 +1,12 @@
 from flask import Blueprint, request
 from app import db
 from app.models.course import Course
-
+from app.auth.decorators import roles_required
 courses_bp = Blueprint("courses", __name__)
 
 
 @courses_bp.route("/", methods=["GET"])
+@roles_required("admin")
 def get_courses():
     courses = Course.query.all()
 
@@ -25,6 +26,7 @@ def get_courses():
 
 
 @courses_bp.route("/", methods=["POST"])
+@roles_required("admin")
 def create_course():
     data = request.get_json()
 

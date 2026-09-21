@@ -1,11 +1,12 @@
 from flask import Blueprint, request
 from app import db
 from app.models.examination import Examination
-
+from app.auth.decorators import roles_required
 examinations_bp = Blueprint("examinations", __name__)
 
 
 @examinations_bp.route("/", methods=["GET"])
+@roles_required("admin")
 def get_examinations():
     examinations = Examination.query.all()
 
@@ -26,6 +27,7 @@ def get_examinations():
 
 
 @examinations_bp.route("/", methods=["POST"])
+@roles_required("admin")
 def create_examination():
     data = request.get_json()
 
