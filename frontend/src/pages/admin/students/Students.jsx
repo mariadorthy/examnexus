@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import StudentForm from "./StudentForm";
+import { get } from "../../../services/api";
 
 const API_URL =
   "http://127.0.0.1:5000/api/students/";
@@ -39,30 +40,16 @@ function Students() {
       setError("");
 
       const [
-        studentsResponse,
-        coursesResponse,
-      ] = await Promise.all([
-        fetch(API_URL),
-        fetch(COURSES_API_URL),
-      ]);
+  studentsData,
+  coursesData,
+] = await Promise.all([
+  get("/students/"),
+  get("/courses/"),
+]);
 
-      if (
-        !studentsResponse.ok ||
-        !coursesResponse.ok
-      ) {
-        throw new Error(
-          "Failed to load students."
-        );
-      }
-
-      const studentsData =
-        await studentsResponse.json();
-
-      const coursesData =
-        await coursesResponse.json();
-
-      setStudents(studentsData);
-      setCourses(coursesData);
+setStudents(studentsData);
+setCourses(coursesData);
+     
     } catch (err) {
       console.error("Students error:", err);
 

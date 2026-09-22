@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { Save, X } from "lucide-react";
-
-const API_URL =
-  "http://127.0.0.1:5000/api/examinations/";
+import { post } from "../../services/api";
 
 function ExaminationForm({
   examination,
@@ -151,36 +149,19 @@ function ExaminationForm({
         return;
       }
 
-      const response = await fetch(API_URL, {
-        method: "POST",
-
-        headers: {
-          "Content-Type": "application/json",
-        },
-
-        body: JSON.stringify({
-          subject_id: Number(
-            formData.subject_id
-          ),
-          exam_date: formData.exam_date,
-          session: formData.session.trim(),
-          start_time: formData.start_time,
-          end_time: formData.end_time,
-          duration_minutes: Number(
-            formData.duration_minutes
-          ),
-          exam_type: formData.exam_type.trim(),
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          data.message ||
-            "Failed to create examination."
-        );
-      }
+      await post("/examinations/", {
+  subject_id: Number(
+    formData.subject_id
+  ),
+  exam_date: formData.exam_date,
+  session: formData.session.trim(),
+  start_time: formData.start_time,
+  end_time: formData.end_time,
+  duration_minutes: Number(
+    formData.duration_minutes
+  ),
+  exam_type: formData.exam_type.trim(),
+});
 
       onSuccess();
     } catch (err) {

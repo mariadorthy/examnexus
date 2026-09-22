@@ -7,7 +7,6 @@ from app.auth.decorators import roles_required
 
 students_bp = Blueprint("students", __name__)
 
-
 @students_bp.route("/", methods=["GET"])
 @roles_required("admin")
 def get_students():

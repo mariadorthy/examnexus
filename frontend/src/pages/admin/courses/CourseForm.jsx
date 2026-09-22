@@ -4,7 +4,7 @@ import {
   BookOpen,
   Loader2,
 } from "lucide-react";
-
+import { post } from "../../../services/api";
 
 const API_URL =
   "http://127.0.0.1:5000/api/courses/";
@@ -173,65 +173,19 @@ function CourseForm({
 
       setLoading(true);
 
+const data = await post("/courses/", {
+  course_code: formData.course_code.trim().toUpperCase(),
+  course_name: formData.course_name.trim(),
+  course_abbreviation:
+    formData.course_abbreviation.trim().toUpperCase(),
+  program_level: formData.program_level.trim(),
+  department_id: Number(formData.department_id),
+  study_shift: formData.study_shift,
+  session: formData.session.trim(),
+  total_semesters: totalSemesters,
+});
 
-      const response = await fetch(
-        API_URL,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-
-            course_code:
-              formData.course_code
-                .trim()
-                .toUpperCase(),
-
-            course_name:
-              formData.course_name.trim(),
-
-            course_abbreviation:
-              formData.course_abbreviation
-                .trim()
-                .toUpperCase(),
-
-            program_level:
-              formData.program_level.trim(),
-
-            department_id:
-              Number(formData.department_id),
-
-            study_shift:
-              formData.study_shift,
-
-            session:
-              formData.session.trim(),
-
-            total_semesters:
-              totalSemesters,
-
-          }),
-        }
-      );
-
-
-      const data = await response.json();
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          data.message ||
-          "Failed to create course."
-        );
-
-      }
-
-
-      onSuccess();
+onSuccess();
 
     } catch (err) {
 

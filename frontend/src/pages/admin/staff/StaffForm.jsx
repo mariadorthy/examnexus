@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { post } from "../../services/api";
 import {
   ArrowLeft,
   Save,
@@ -31,7 +32,7 @@ function StaffForm({
         ? staff.availability
         : true,
     assigned_batch: staff?.assigned_batch || "",
-    password_hash: "",
+   password: "",
     image: staff?.image || "",
   });
 
@@ -73,7 +74,7 @@ function StaffForm({
       return;
     }
 
-    if (!isEditing && !formData.password_hash.trim()) {
+    if (!isEditing && !formData.password.trim()) {
       setError("Please enter a password.");
       return;
     }
@@ -94,44 +95,26 @@ function StaffForm({
         );
       }
 
-      const response = await fetch(
-        `${API_URL}/api/staff/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: formData.name.trim(),
-            department_id: Number(
-              formData.department_id
-            ),
-            email: formData.email.trim().toLowerCase(),
-            contact_no:
-              formData.contact_no.trim() || null,
-            designation:
-              formData.designation.trim(),
-            assigned_courses:
-              formData.assigned_courses.trim() || null,
-            gender: formData.gender || null,
-            availability: formData.availability,
-            assigned_batch:
-              formData.assigned_batch.trim() || null,
-            password_hash:
-              formData.password_hash,
-            image:
-              formData.image.trim() || null,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          result.message || "Failed to create staff."
-        );
-      }
+      const result = await post("/staff/", {
+  name: formData.name.trim(),
+  department_id: Number(
+    formData.department_id
+  ),
+  email: formData.email.trim().toLowerCase(),
+  contact_no:
+    formData.contact_no.trim() || null,
+  designation:
+    formData.designation.trim(),
+  assigned_courses:
+    formData.assigned_courses.trim() || null,
+  gender: formData.gender || null,
+  availability: formData.availability,
+  assigned_batch:
+    formData.assigned_batch.trim() || null,
+  password: formData.password,
+  image:
+    formData.image.trim() || null,
+});
 
       onSuccess();
     } catch (err) {
@@ -357,9 +340,9 @@ function StaffForm({
                     ? "New Password"
                     : "Password"
                 }
-                name="password_hash"
+                name="password"
                 type="password"
-                value={formData.password_hash}
+                value={formData.password}
                 onChange={handleChange}
                 placeholder="Enter password"
                 required={!isEditing}

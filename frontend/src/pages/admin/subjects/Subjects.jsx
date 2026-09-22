@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 import SubjectForm from "./SubjectForm";
-
+import { get } from "../../../services/api";
 const API_URL =
   "http://127.0.0.1:5000/api/subjects/";
 
@@ -38,27 +38,12 @@ function Subjects() {
       setError("");
 
       const [
-        subjectsResponse,
-        coursesResponse,
+        subjectsData,
+        coursesData,
       ] = await Promise.all([
-        fetch(API_URL),
-        fetch(COURSES_API_URL),
+        get("/subjects/"),
+        get("/courses/"),
       ]);
-
-      if (
-        !subjectsResponse.ok ||
-        !coursesResponse.ok
-      ) {
-        throw new Error(
-          "Failed to load subjects."
-        );
-      }
-
-      const subjectsData =
-        await subjectsResponse.json();
-
-      const coursesData =
-        await coursesResponse.json();
 
       setSubjects(subjectsData);
       setCourses(coursesData);
@@ -395,11 +380,10 @@ function Subjects() {
                       <td className="px-6 py-4">
 
                         <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            subject.is_active
+                          className={`rounded-full px-3 py-1 text-xs font-semibold ${subject.is_active
                               ? "bg-green-50 text-success"
                               : "bg-red-50 text-danger"
-                          }`}
+                            }`}
                         >
                           {subject.is_active
                             ? "Active"

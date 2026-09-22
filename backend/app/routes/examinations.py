@@ -4,7 +4,6 @@ from app.models.examination import Examination
 from app.auth.decorators import roles_required
 examinations_bp = Blueprint("examinations", __name__)
 
-
 @examinations_bp.route("/", methods=["GET"])
 @roles_required("admin")
 def get_examinations():

@@ -7,7 +7,6 @@ from app.auth.decorators import roles_required
 
 staff_bp = Blueprint("staff", __name__)
 
-
 @staff_bp.route("/", methods=["GET"])
 @roles_required("admin")
 def get_staff():

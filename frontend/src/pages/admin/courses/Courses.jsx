@@ -6,7 +6,7 @@ import {
   RefreshCw,
   X,
 } from "lucide-react";
-
+import { get } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import CourseForm from "./CourseForm";
@@ -71,16 +71,14 @@ function Courses({ user, onLogout }) {
       }
 
 
-      const coursesData =
-        await coursesResponse.json();
+      const [coursesData, departmentsData] =
+  await Promise.all([
+    get("/courses/"),
+    get("/departments/"),
+  ]);
 
-      const departmentsData =
-        await departmentsResponse.json();
-
-
-      setCourses(coursesData);
-
-      setDepartments(departmentsData);
+setCourses(coursesData);
+setDepartments(departmentsData);
 
     } catch (err) {
 

@@ -11,12 +11,7 @@ import {
 } from "lucide-react";
 
 import ExaminationForm from "./ExaminationForm";
-
-const API_URL =
-  "http://127.0.0.1:5000/api/examinations/";
-
-const SUBJECTS_API_URL =
-  "http://127.0.0.1:5000/api/subjects/";
+import { get } from "../../services/api";
 
 function Examinations() {
   const [examinations, setExaminations] = useState([]);
@@ -41,15 +36,10 @@ function Examinations() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(API_URL);
+      const data = await get("/examinations/");
 
-      if (!response.ok) {
-        throw new Error("Failed to load examinations.");
-      }
+setExaminations(data);
 
-      const data = await response.json();
-
-      setExaminations(data);
     } catch (err) {
       console.error("Examinations error:", err);
 
@@ -65,15 +55,9 @@ function Examinations() {
     try {
       setSubjectsLoading(true);
 
-      const response = await fetch(SUBJECTS_API_URL);
+      const data = await get("/subjects/");
 
-      if (!response.ok) {
-        throw new Error("Failed to load subjects.");
-      }
-
-      const data = await response.json();
-
-      setSubjects(data);
+setSubjects(data);
     } catch (err) {
       console.error("Subjects error:", err);
     } finally {

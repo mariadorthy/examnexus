@@ -3,6 +3,7 @@ import {
   X,
   GraduationCap,
 } from "lucide-react";
+import { post } from "../../../services/api";
 
 const API_URL =
   "http://127.0.0.1:5000/api/students/";
@@ -18,8 +19,8 @@ function StudentForm({
     name: "",
     course_id: "",
     email: "",
-    password_hash: "",
-    contact_no: "",
+  password: "",
+      contact_no: "",
     gender: "",
     disability: "",
     batch: "",
@@ -54,7 +55,7 @@ function StudentForm({
          * return password_hash, so it remains empty
          * when editing.
          */
-        password_hash: "",
+          password: "",
 
         contact_no:
           student.contact_no || "",
@@ -117,7 +118,7 @@ function StudentForm({
       return;
     }
 
-    if (!isEditing && !formData.password_hash) {
+    if (!isEditing && !formData.password) {
       setError("Password is required.");
       return;
     }
@@ -186,9 +187,9 @@ function StudentForm({
        * plain password and hash it server-side.
        */
 
-      if (formData.password_hash) {
-        payload.password_hash =
-          formData.password_hash;
+      if (formData.password) {
+        payload.password =
+          formData.password;
       }
 
       /*
@@ -217,29 +218,7 @@ function StudentForm({
           );
         }
       } else {
-        const response = await fetch(
-          API_URL,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify(payload),
-          }
-        );
-
-        if (!response.ok) {
-          const responseData =
-            await response.json().catch(
-              () => null
-            );
-
-          throw new Error(
-            responseData?.message ||
-              "Failed to create student."
-          );
-        }
+        await post("/students/", payload);
       }
 
       onSuccess();
@@ -463,8 +442,8 @@ function StudentForm({
 
               <input
                 type="password"
-                name="password_hash"
-                value={formData.password_hash}
+                name="password"
+                value={formData.password}
                 onChange={handleChange}
                 placeholder={
                   isEditing

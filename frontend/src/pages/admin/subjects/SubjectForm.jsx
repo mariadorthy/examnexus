@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, BookOpen } from "lucide-react";
+import { post } from "../../../services/api";
 
 const API_URL =
   "http://127.0.0.1:5000/api/subjects/";
@@ -125,30 +126,8 @@ function SubjectForm({
           );
         }
       } else {
-        const response = await fetch(
-          API_URL,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify(payload),
-          }
-        );
-
-        if (!response.ok) {
-          const responseData =
-            await response.json().catch(
-              () => null
-            );
-
-          throw new Error(
-            responseData?.message ||
-              "Failed to create subject."
-          );
-        }
-      }
+      await post("/subjects/", payload);
+    }
 
       onSuccess();
     } catch (err) {

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 
 import StaffForm from "./StaffForm";
-
+import { get } from "../../services/api";
 const API_URL =
   import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
 
@@ -36,22 +36,15 @@ function Staff() {
       setLoading(true);
       setError("");
 
-      const [staffResponse, departmentsResponse] =
-        await Promise.all([
-          fetch(`${API_URL}/api/staff/`),
-          fetch(`${API_URL}/api/departments/`),
-        ]);
+      const [staffData, departmentsData] =
+  await Promise.all([
+    get("/staff/"),
+    get("/departments/"),
+  ]);
 
-      if (!staffResponse.ok || !departmentsResponse.ok) {
-        throw new Error("Failed to load staff data.");
-      }
-
-      const staffData = await staffResponse.json();
-      const departmentsData = await departmentsResponse.json();
-
-      setStaffMembers(staffData);
-      setDepartments(departmentsData);
-    } catch (err) {
+setStaffMembers(staffData);
+setDepartments(departmentsData);
+} catch (err) {
       console.error("Staff loading error:", err);
 
       setError(
