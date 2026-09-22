@@ -10,13 +10,15 @@ import {
 
 import SubjectForm from "./SubjectForm";
 import { get } from "../../../services/api";
-const API_URL =
-  "http://127.0.0.1:5000/api/subjects/";
-
-const COURSES_API_URL =
-  "http://127.0.0.1:5000/api/courses/";
-
-function Subjects() {
+import AdminSidebar from "../../../components/AdminSidebar";
+import AdminTopbar from "../../../components/AdminTopbar";
+function Subjects({
+  user,
+  onLogout,
+  onNavigate,
+}) {
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
   const [subjects, setSubjects] = useState([]);
   const [courses, setCourses] = useState([]);
 
@@ -155,6 +157,28 @@ function Subjects() {
 
   return (
     <div className="min-h-screen bg-background">
+
+    <AdminSidebar
+      user={user}
+      onLogout={onLogout}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      activePage="Subjects"
+      onNavigate={onNavigate}
+    />
+
+    <main className="lg:ml-72">
+
+      <AdminTopbar
+        user={user}
+        title="Subjects"
+        section="Administration"
+        onOpenSidebar={() =>
+          setSidebarOpen(true)
+        }
+      />
+
+      <div className="p-5 md:p-8">
 
       {/* ================================================= */}
       {/* HEADER */}
@@ -456,6 +480,8 @@ function Subjects() {
         />
       )}
 
+</div>
+</main>
     </div>
   );
 }

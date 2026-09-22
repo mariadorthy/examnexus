@@ -2,6 +2,7 @@ from datetime import date
 
 from flask import Blueprint
 from app.auth.decorators import roles_required
+from app.auth.security import decode_access_token
 from app.models.student import Student
 from app.models.staff import Staff
 from app.models.course import Course
@@ -186,3 +187,77 @@ def get_dashboard():
 
         "system_status": system_status
     }
+
+@dashboard_bp.route("/staff", methods=["GET"])
+@roles_required("staff")
+def get_staff_dashboard():
+    from flask import request
+    from app.auth.security import decode_access_token
+
+    payload = decode_access_token()
+    staff_id = payload.get("sub")
+
+    staff = Staff.query.get(staff_id)
+
+    if not staff:
+        return {
+            "success": False,
+            "message": "Staff user not found."
+        }, 404
+
+    if not staff.is_active:
+        return {
+            "success": False,
+            "message": "This account is inactive."
+        }, 403
+
+    return {
+        "success": True,
+        "user": {
+            "id": staff.id,
+            "name": staff.name,
+            "email": staff.email,
+            "role": "staff",
+            "designation": staff.designation,
+            "department_id": staff.department_id,
+            "availability": staff.availability,
+            "assigned_batch": staff.assigned_batch
+        }
+    }, 200
+
+
+@dashboard_bp.route("/student", methods=["GET"])
+@roles_required("student")
+def get_student_dashboard():
+    payload = decode_access_token()
+    student_id = payload.get("sub")
+
+    student = Student.query.get(student_id)
+
+    if not student:
+        return {
+            "success": False,
+            "message": "Student user not found."
+        }, 404
+
+    if not student.is_active:
+        return {
+            "success": False,
+            "message": "This account is inactive."
+        }, 403
+
+    return {
+        "success": True,
+        "user": {
+            "id": student.id,
+            "student_id": student.student_id,
+            "name": student.name,
+            "email": student.email,
+            "role": "student",
+            "course_id": student.course_id,
+            "batch": student.batch,
+            "semester": student.semester,
+            "class_name": student.class_name,
+            "session": student.session
+        }
+    }, 200

@@ -12,11 +12,18 @@ import {
 } from "lucide-react";
 
 import StaffForm from "./StaffForm";
-import { get } from "../../services/api";
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+import { get } from "../../../services/api";
+import AdminSidebar from "../../../components/AdminSidebar";
+import AdminTopbar from "../../../components/AdminTopbar";
 
-function Staff() {
+function Staff({
+  user,
+  onLogout,
+  onNavigate,
+}) {
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
+
   const [staffMembers, setStaffMembers] = useState([]);
   const [departments, setDepartments] = useState([]);
 
@@ -39,7 +46,7 @@ function Staff() {
       const [staffData, departmentsData] =
   await Promise.all([
     get("/staff/"),
-    get("/departments/"),
+    get("/departments"),
   ]);
 
 setStaffMembers(staffData);
@@ -133,6 +140,30 @@ setDepartments(departmentsData);
 
   return (
     <div className="min-h-screen bg-background">
+
+
+    <AdminSidebar
+      user={user}
+      onLogout={onLogout}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      activePage="Staff"
+      onNavigate={onNavigate}
+    />
+
+    <main className="lg:ml-72">
+
+      <AdminTopbar
+        user={user}
+        title="Staff"
+        section="Administration"
+        onOpenSidebar={() =>
+          setSidebarOpen(true)
+        }
+      />
+
+      <div className="p-5 md:p-8">
+
       {/* Header */}
 
       <div className="border-b border-border bg-surface">
@@ -424,6 +455,8 @@ setDepartments(departmentsData);
           </div>
         </div>
       </div>
+            </div>
+    </main>
     </div>
   );
 }

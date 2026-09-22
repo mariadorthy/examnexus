@@ -10,14 +10,16 @@ import {
 
 import StudentForm from "./StudentForm";
 import { get } from "../../../services/api";
+import AdminSidebar from "../../../components/AdminSidebar";
+import AdminTopbar from "../../../components/AdminTopbar";
 
-const API_URL =
-  "http://127.0.0.1:5000/api/students/";
-
-const COURSES_API_URL =
-  "http://127.0.0.1:5000/api/courses/";
-
-function Students() {
+function Students({
+  user,
+  onLogout,
+  onNavigate,
+}) {
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
 
@@ -158,6 +160,28 @@ setCourses(coursesData);
 
   return (
     <div className="min-h-screen bg-background">
+
+    <AdminSidebar
+      user={user}
+      onLogout={onLogout}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      activePage="Students"
+      onNavigate={onNavigate}
+    />
+
+    <main className="lg:ml-72">
+
+      <AdminTopbar
+        user={user}
+        title="Students"
+        section="Administration"
+        onOpenSidebar={() =>
+          setSidebarOpen(true)
+        }
+      />
+
+      <div className="p-5 md:p-8">
 
       {/* ================================================= */}
       {/* HEADER */}
@@ -487,7 +511,8 @@ setCourses(coursesData);
           onSuccess={handleFormSuccess}
         />
       )}
-
+      </div>
+    </main>
     </div>
   );
 }

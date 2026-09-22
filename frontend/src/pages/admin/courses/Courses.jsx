@@ -15,7 +15,8 @@ import CourseForm from "./CourseForm";
 const API_URL = "http://127.0.0.1:5000/api/courses";
 
 
-function Courses({ user, onLogout }) {
+function Courses({ user, onLogout,  onNavigate,
+ }) {
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -36,68 +37,32 @@ function Courses({ user, onLogout }) {
   // =====================================================
   // LOAD COURSES + DEPARTMENTS
   // =====================================================
+const loadCourses = async () => {
+  try {
+    setLoading(true);
+    setError("");
 
-  const loadCourses = async () => {
+    const [
+      coursesData,
+      departmentsData,
+    ] = await Promise.all([
+      get("/courses/"),
+      get("/departments"),
+    ]);
 
-    try {
+    setCourses(coursesData);
+    setDepartments(departmentsData);
 
-      setLoading(true);
-      setError("");
+  } catch (err) {
+    console.error("Courses error:", err);
 
-
-      const [
-        coursesResponse,
-        departmentsResponse,
-      ] = await Promise.all([
-
-        fetch(
-          "http://127.0.0.1:5000/api/courses/"
-        ),
-
-        fetch(
-          "http://127.0.0.1:5000/api/departments/"
-        ),
-
-      ]);
-
-
-      if (
-        !coursesResponse.ok ||
-        !departmentsResponse.ok
-      ) {
-        throw new Error(
-          "Failed to load course data."
-        );
-      }
-
-
-      const [coursesData, departmentsData] =
-  await Promise.all([
-    get("/courses/"),
-    get("/departments/"),
-  ]);
-
-setCourses(coursesData);
-setDepartments(departmentsData);
-
-    } catch (err) {
-
-      console.error(
-        "Courses error:",
-        err
-      );
-
-      setError(
-        "Unable to load courses. Please make sure the backend is running."
-      );
-
-    } finally {
-
-      setLoading(false);
-
-    }
-  };
-
+    setError(
+      "Unable to load courses. Please make sure the backend is running."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   useEffect(() => {
 
@@ -194,11 +159,12 @@ setDepartments(departmentsData);
       {/* ================================================= */}
 
       <AdminSidebar
-        user={user}
-        onLogout={onLogout}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        activePage="Courses"
+  user={user}
+  onLogout={onLogout}
+  sidebarOpen={sidebarOpen}
+  setSidebarOpen={setSidebarOpen}
+  activePage="Courses"
+  onNavigate={onNavigate}
       />
 
 
@@ -713,6 +679,5 @@ setDepartments(departmentsData);
     </div>
   );
 }
-
 
 export default Courses;

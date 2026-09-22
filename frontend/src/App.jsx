@@ -3,7 +3,16 @@ import { useState } from "react";
 import Login from "./pages/auth/Login";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import Departments from "./pages/admin/departments/Departments";
-
+import Courses from "./pages/admin/courses/Courses";
+import Subjects from "./pages/admin/subjects/Subjects";
+import Students from "./pages/admin/students/Students";
+import Staff from "./pages/admin/staff/Staff";
+import Examinations from "./pages/admin/examinations/Examinations";
+import ExamRegistrations from "./pages/admin/registrations/ExamRegistrations";
+import Halls from "./pages/admin/halls/Halls";
+import Allocations from "./pages/admin/allocations/Allocations";
+import StaffDashboard from "./pages/staff/StaffDashboard";
+import StudentDashboard from "./pages/student/StudentDashboard";
 import {
   getStoredUser,
   logout,
@@ -66,6 +75,85 @@ function App() {
     }
 
 
+if (adminPage === "Courses") {
+  return (
+    <Courses
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
+
+if (adminPage === "Subjects") {
+  return (
+    <Subjects
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
+
+if (adminPage === "Students") {
+  return (
+    <Students
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
+
+if (adminPage === "Staff") {
+  return (
+    <Staff
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
+
+if (adminPage === "Examinations") {
+  return (
+    <Examinations
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
+
+if (adminPage === "Registrations") {
+  return (
+    <ExamRegistrations
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
+
+if (adminPage === "Halls") {
+  return (
+    <Halls
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
+
+if (adminPage === "Allocations") {
+  return (
+    <Allocations
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
     return (
       <AdminDashboard
         user={user}
@@ -80,9 +168,10 @@ function App() {
   if (user.role === "staff") {
 
     return (
-      <div>
-        Staff dashboard
-      </div>
+      <StaffDashboard
+      user={user}
+      onLogout={handleLogout}
+    />
     );
 
   }
@@ -91,9 +180,10 @@ function App() {
   if (user.role === "student") {
 
     return (
-      <div>
-        Student dashboard
-      </div>
+       <StudentDashboard
+      user={user}
+      onLogout={handleLogout}
+    />
     );
 
   }

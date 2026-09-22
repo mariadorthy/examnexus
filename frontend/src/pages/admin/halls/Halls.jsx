@@ -11,11 +11,17 @@ import {
 } from "lucide-react";
 
 import HallForm from "./HallForm";
+import { get } from "../../../services/api";
+import AdminSidebar from "../../../components/AdminSidebar";
+import AdminTopbar from "../../../components/AdminTopbar";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
-
-function Halls() {
+function Halls({
+  user,
+  onLogout,
+  onNavigate,
+}) {
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
   const [halls, setHalls] = useState([]);
   const [courses, setCourses] = useState([]);
 
@@ -35,21 +41,14 @@ function Halls() {
       setLoading(true);
       setError("");
 
-      const [hallsResponse, coursesResponse] =
-        await Promise.all([
-          fetch(`${API_URL}/api/halls/`),
-          fetch(`${API_URL}/api/courses/`),
-        ]);
+      const [hallsData, coursesData] =
+  await Promise.all([
+    get("/halls/"),
+    get("/courses/"),
+  ]);
 
-      if (!hallsResponse.ok || !coursesResponse.ok) {
-        throw new Error("Failed to load hall data.");
-      }
-
-      const hallsData = await hallsResponse.json();
-      const coursesData = await coursesResponse.json();
-
-      setHalls(hallsData);
-      setCourses(coursesData);
+setHalls(hallsData);
+setCourses(coursesData);
     } catch (err) {
       console.error("Hall loading error:", err);
 
@@ -143,6 +142,29 @@ function Halls() {
 
   return (
     <div className="min-h-screen bg-background">
+
+      
+    <AdminSidebar
+      user={user}
+      onLogout={onLogout}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      activePage="Halls"
+      onNavigate={onNavigate}
+    />
+
+    <main className="lg:ml-72">
+
+      <AdminTopbar
+        user={user}
+        title="Examination Halls"
+        section="Administration"
+        onOpenSidebar={() =>
+          setSidebarOpen(true)
+        }
+      />
+
+      <div className="p-5 md:p-8">
       {/* Header */}
 
       <div className="border-b border-border bg-surface">
@@ -445,6 +467,9 @@ function Halls() {
           </div>
         )}
       </div>
+            </div>
+    </main>
+    
     </div>
   );
 }
@@ -459,6 +484,7 @@ function InfoItem({ label, value }) {
       <p className="mt-1 text-sm font-semibold text-text">
         {value}
       </p>
+      
     </div>
   );
 }

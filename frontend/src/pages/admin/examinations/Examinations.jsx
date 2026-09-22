@@ -11,9 +11,17 @@ import {
 } from "lucide-react";
 
 import ExaminationForm from "./ExaminationForm";
-import { get } from "../../services/api";
+import { get } from "../../../services/api";
+import AdminSidebar from "../../../components/AdminSidebar";
+import AdminTopbar from "../../../components/AdminTopbar";
 
-function Examinations() {
+function Examinations({
+  user,
+  onLogout,
+  onNavigate,
+}) {
+    const [sidebarOpen, setSidebarOpen] =
+    useState(false);
   const [examinations, setExaminations] = useState([]);
   const [subjects, setSubjects] = useState([]);
 
@@ -177,6 +185,29 @@ setSubjects(data);
 
   return (
     <div className="min-h-screen bg-background">
+
+
+    <AdminSidebar
+      user={user}
+      onLogout={onLogout}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      activePage="Examinations"
+      onNavigate={onNavigate}
+    />
+
+    <main className="lg:ml-72">
+
+      <AdminTopbar
+        user={user}
+        title="Examinations"
+        section="Administration"
+        onOpenSidebar={() =>
+          setSidebarOpen(true)
+        }
+      />
+
+      <div className="p-5 md:p-8">
 
       {/* ================================================= */}
       {/* HEADER */}
@@ -580,7 +611,8 @@ setSubjects(data);
 
         </div>
       )}
-
+      </div>
+    </main>
     </div>
   );
 }

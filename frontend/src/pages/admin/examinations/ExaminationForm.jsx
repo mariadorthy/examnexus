@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Save, X } from "lucide-react";
-import { post } from "../../services/api";
-
+import { post } from "../../../services/api";
 function ExaminationForm({
   examination,
   subjects,

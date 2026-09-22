@@ -6,16 +6,18 @@ import {
   Users,
 } from "lucide-react";
 
-const API_URL =
-  "http://127.0.0.1:5000/api/exam-registrations/";
 
-const STUDENTS_API_URL =
-  "http://127.0.0.1:5000/api/students/";
+import { get } from "../../../services/api";
+import AdminSidebar from "../../../components/AdminSidebar";
+import AdminTopbar from "../../../components/AdminTopbar";
 
-const EXAMINATIONS_API_URL =
-  "http://127.0.0.1:5000/api/examinations/";
-
-function ExamRegistrations() {
+function ExamRegistrations({
+  user,
+  onLogout,
+  onNavigate,
+}) {
+  const [sidebarOpen, setSidebarOpen] =
+    useState(false);
   const [registrations, setRegistrations] =
     useState([]);
 
@@ -47,17 +49,11 @@ function ExamRegistrations() {
       setLoading(true);
       setError("");
 
-      const response = await fetch(API_URL);
+     const data = await get(
+  "/exam-registrations/"
+);
 
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load exam registrations."
-        );
-      }
-
-      const data = await response.json();
-
-      setRegistrations(data);
+setRegistrations(data);
     } catch (err) {
       console.error(
         "Exam registrations error:",
@@ -74,17 +70,9 @@ function ExamRegistrations() {
 
   const loadStudents = async () => {
     try {
-      const response = await fetch(
-        STUDENTS_API_URL
-      );
+      const data = await get("/students/");
 
-      if (!response.ok) {
-        throw new Error("Failed to load students.");
-      }
-
-      const data = await response.json();
-
-      setStudents(data);
+setStudents(data);
     } catch (err) {
       console.error("Students error:", err);
     } finally {
@@ -94,19 +82,11 @@ function ExamRegistrations() {
 
   const loadExaminations = async () => {
     try {
-      const response = await fetch(
-        EXAMINATIONS_API_URL
-      );
+      const data = await get(
+  "/examinations/"
+);
 
-      if (!response.ok) {
-        throw new Error(
-          "Failed to load examinations."
-        );
-      }
-
-      const data = await response.json();
-
-      setExaminations(data);
+setExaminations(data);
     } catch (err) {
       console.error("Examinations error:", err);
     } finally {
@@ -237,6 +217,27 @@ function ExamRegistrations() {
   return (
     <div className="min-h-screen bg-background">
 
+    <AdminSidebar
+      user={user}
+      onLogout={onLogout}
+      sidebarOpen={sidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+      activePage="Registrations"
+      onNavigate={onNavigate}
+    />
+
+    <main className="lg:ml-72">
+
+      <AdminTopbar
+        user={user}
+        title="Exam Registrations"
+        section="Administration"
+        onOpenSidebar={() =>
+          setSidebarOpen(true)
+        }
+      />
+
+      <div className="p-5 md:p-8">
       {/* ================================================= */}
       {/* HEADER */}
       {/* ================================================= */}
@@ -575,7 +576,8 @@ function ExamRegistrations() {
           Loading student and examination details...
         </p>
       )}
-
+      </div>
+    </main>
     </div>
   );
 }
