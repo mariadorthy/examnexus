@@ -47,9 +47,7 @@ function DepartmentDetails({
       setError("");
 
 
-      const data = await get(
-  `/departments/${department.id}`
-);
+      const data = await get(`/departments/${departmentId}`);
 
       setDepartment(data);
 
