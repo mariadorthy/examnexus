@@ -4,3 +4,4 @@ flask-cors
 python-dotenv
 psycopg2-binary
 PyJWT
+Flask-Migrate

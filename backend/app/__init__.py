@@ -1,11 +1,12 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 
 db = SQLAlchemy()
-
+migrate = Migrate()
 
 def create_app():
     load_dotenv()
@@ -16,7 +17,7 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     db.init_app(app)
-
+    migrate.init_app(app, db)
     # -----------------------------------------------------
     # IMPORT MODELS
     # -----------------------------------------------------
@@ -101,9 +102,7 @@ def create_app():
     # CREATE DATABASE TABLES
     # -----------------------------------------------------
 
-    with app.app_context():
-
-        db.create_all()
+  # Database schema is managed by Flask-Migrate.
 
     # -----------------------------------------------------
     # HOME
