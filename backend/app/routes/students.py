@@ -324,5 +324,6 @@ def update_student_status(student_id):
 
     return {
         "success": True,
-        "message": "Student status updated successfully"
+        "message": "Student status updated successfully",
+        "is_active": student.is_active
     }

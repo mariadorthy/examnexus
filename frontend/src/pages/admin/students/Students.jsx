@@ -137,28 +137,20 @@ const handleStatusChange = async (student) => {
     });
 
     const response = await patch(
-      `/students/${student.id}/status`,
-      {
-        is_active: newStatus,
-      }
-    );
-
-    console.log("STUDENT PATCH RESPONSE:", response);
-
-    const updatedData = await get("/students/");
-
-const updatedStudent = updatedData.find(
-  (item) => item.id === student.id
+  `/students/${student.id}/status`,
+  {
+    is_active: newStatus,
+  }
 );
 
-console.log("STUDENT AFTER GET:", updatedStudent);
+console.log("STUDENT PATCH RESPONSE:", response);
 
 setStudents((currentStudents) =>
   currentStudents.map((item) =>
     item.id === student.id
       ? {
           ...item,
-          is_active: updatedStudent?.is_active,
+          is_active: response.is_active,
         }
       : item
   )

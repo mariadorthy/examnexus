@@ -1,13 +1,10 @@
 import { useState } from "react";
 import {
-  ArrowLeft,
-  Building2,
   Save,
   X,
 } from "lucide-react";
 
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
+import { post, put } from "../../../services/api";
 
 function HallForm({
   hall,
@@ -95,81 +92,65 @@ function HallForm({
       return;
     }
 
-    if (
-      Number(formData.examination_capacity) >
-      Number(formData.capacity)
-    ) {
-      setError(
-        "Examination capacity cannot be greater than total capacity."
-      );
-      return;
-    }
+   if (Number(formData.floor_no) < 0) {
+  setError("Floor number cannot be negative.");
+  return;
+}
+
+if (Number(formData.capacity) <= 0) {
+  setError("Hall capacity must be greater than zero.");
+  return;
+}
+
+if (Number(formData.examination_capacity) <= 0) {
+  setError(
+    "Examination capacity must be greater than zero."
+  );
+  return;
+}
+
+if (
+  Number(formData.examination_capacity) >
+  Number(formData.capacity)
+) {
+  setError(
+    "Examination capacity cannot be greater than total capacity."
+  );
+  return;
+}
 
     try {
       setLoading(true);
+const payload = {
+  name: formData.name.trim(),
+  building_name: formData.building_name.trim(),
+  floor_no: Number(formData.floor_no),
+  capacity: Number(formData.capacity),
+  examination_capacity: Number(
+    formData.examination_capacity
+  ),
+  room_type: formData.room_type,
+  amenities:
+    formData.amenities.trim() || null,
+  assigned_course_id:
+    formData.assigned_course_id
+      ? Number(formData.assigned_course_id)
+      : null,
+  assigned_batch:
+    formData.assigned_batch.trim() || null,
+  is_available: formData.is_available,
+  is_under_maintenance:
+    formData.is_under_maintenance,
+  is_accessible: formData.is_accessible,
+};
 
-      /*
-       * Current backend only supports POST.
-       *
-       * When PUT/PATCH is added later, update the
-       * editing branch here.
-       */
+if (isEditing) {
+  await put(`/halls/${hall.id}`, payload);
+} else {
+  await post("/halls/", payload);
+}
 
-      if (isEditing) {
-        throw new Error(
-          "Hall editing API is not available yet. Add a PUT/PATCH hall route in the backend."
-        );
-      }
-
-      const response = await fetch(
-        `${API_URL}/api/halls/`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: formData.name.trim(),
-            building_name:
-              formData.building_name.trim(),
-            floor_no: Number(formData.floor_no),
-            capacity: Number(formData.capacity),
-            examination_capacity: Number(
-              formData.examination_capacity
-            ),
-            room_type: formData.room_type,
-            amenities:
-              formData.amenities.trim() || null,
-            assigned_course_id:
-              formData.assigned_course_id
-                ? Number(
-                    formData.assigned_course_id
-                  )
-                : null,
-            assigned_batch:
-              formData.assigned_batch.trim() || null,
-
-            /*
-             * These fields are supported by the model,
-             * but your current Flask POST route does not
-             * read them.
-             *
-             * They are therefore not sent here until
-             * the backend route is updated.
-             */
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          result.message || "Failed to create hall."
-        );
-      }
-
-      onSuccess();
+onSuccess();
     } catch (err) {
       console.error("Hall form error:", err);
 
@@ -182,307 +163,261 @@ function HallForm({
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
+ return (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+    <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl border border-border bg-surface shadow-2xl">
 
-      <div className="border-b border-border bg-surface">
-        <div className="flex items-center gap-4 px-5 py-6 md:px-8">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-xl border border-border p-2.5 text-sidebar transition hover:border-accent hover:bg-surface-muted"
+      <div className="flex items-center justify-between border-b border-border px-6 py-5">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-widest text-accent">
+            Hall Management
+          </p>
+
+          <h2 className="mt-1 text-xl font-bold text-text">
+            {isEditing
+              ? "Edit Examination Hall"
+              : "Add Examination Hall"}
+          </h2>
+        </div>
+
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg p-2 text-text-muted transition hover:bg-surface-muted hover:text-text"
+          aria-label="Close hall form"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+     <div className="p-6">
+  {error && (
+    <div className="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+      {error}
+    </div>
+  )}
+
+  <form
+    onSubmit={handleSubmit}
+    className="space-y-6"
+  >
+    {/* Basic Information */}
+
+    <div>
+      <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-accent">
+        Basic Information
+      </h3>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <FormField
+          label="Hall Name"
+          name="name"
+          value={formData.name}
+          onChange={handleChange}
+          placeholder="e.g. Hall 101"
+          required
+        />
+
+        <FormField
+          label="Building Name"
+          name="building_name"
+          value={formData.building_name}
+          onChange={handleChange}
+          placeholder="e.g. Main Block"
+          required
+        />
+
+        <FormField
+          label="Floor Number"
+          name="floor_no"
+          type="number"
+          value={formData.floor_no}
+          onChange={handleChange}
+          placeholder="e.g. 1"
+          min="0"
+          required
+        />
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-sidebar">
+            Room Type
+            <span className="ml-1 text-danger">*</span>
+          </label>
+
+          <select
+            name="room_type"
+            value={formData.room_type}
+            onChange={handleChange}
+            required
+            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
           >
-            <ArrowLeft size={20} />
-          </button>
-
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-widest text-accent">
-              Hall Management
-            </p>
-
-            <h1 className="mt-1 text-2xl font-bold text-text">
-              {isEditing
-                ? "Edit Examination Hall"
-                : "Add Examination Hall"}
-            </h1>
-          </div>
+            <option value="">Select room type</option>
+            <option value="CLASSROOM">Classroom</option>
+            <option value="LABORATORY">Laboratory</option>
+            <option value="AUDITORIUM">Auditorium</option>
+            <option value="SEMINAR_HALL">Seminar Hall</option>
+            <option value="OTHER">Other</option>
+          </select>
         </div>
       </div>
+    </div>
 
-      <div className="mx-auto max-w-4xl p-5 md:p-8">
-        {error && (
-          <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            <X
-              size={18}
-              className="mt-0.5 shrink-0"
-            />
+    {/* Capacity */}
 
-            <span>{error}</span>
-          </div>
-        )}
+    <div>
+      <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-accent">
+        Capacity
+      </h3>
 
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-6"
-        >
-          {/* Basic Information */}
+      <div className="grid gap-5 md:grid-cols-2">
+        <FormField
+          label="Total Capacity"
+          name="capacity"
+          type="number"
+          value={formData.capacity}
+          onChange={handleChange}
+          placeholder="e.g. 60"
+          min="1"
+          required
+        />
 
-          <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
-            <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-light text-primary">
-                <Building2 size={20} />
-              </div>
-
-              <div>
-                <h2 className="font-bold text-text">
-                  Hall Information
-                </h2>
-
-                <p className="text-sm text-text-muted">
-                  Enter the basic details of the examination hall.
-                </p>
-              </div>
-            </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-              <FormField
-                label="Hall Name"
-                name="name"
-                value={formData.name}
-                onChange={handleChange}
-                placeholder="Hall A"
-                required
-              />
-
-              <FormField
-                label="Building Name"
-                name="building_name"
-                value={formData.building_name}
-                onChange={handleChange}
-                placeholder="Main Block"
-                required
-              />
-
-              <FormField
-                label="Floor Number"
-                name="floor_no"
-                type="number"
-                min="0"
-                value={formData.floor_no}
-                onChange={handleChange}
-                placeholder="1"
-                required
-              />
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-sidebar">
-                  Room Type
-                  <span className="ml-1 text-danger">
-                    *
-                  </span>
-                </label>
-
-                <select
-                  name="room_type"
-                  value={formData.room_type}
-                  onChange={handleChange}
-                  required
-                  className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="">
-                    Select room type
-                  </option>
-
-                  <option value="CLASSROOM">
-                    Classroom
-                  </option>
-
-                  <option value="LABORATORY">
-                    Laboratory
-                  </option>
-
-                  <option value="AUDITORIUM">
-                    Auditorium
-                  </option>
-
-                  <option value="SEMINAR_HALL">
-                    Seminar Hall
-                  </option>
-
-                  <option value="OTHER">
-                    Other
-                  </option>
-                </select>
-              </div>
-            </div>
-          </section>
-
-          {/* Capacity */}
-
-          <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
-            <h2 className="font-bold text-text">
-              Capacity
-            </h2>
-
-            <p className="mt-1 text-sm text-text-muted">
-              Configure seating capacity for regular and examination use.
-            </p>
-
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <FormField
-                label="Total Capacity"
-                name="capacity"
-                type="number"
-                min="1"
-                value={formData.capacity}
-                onChange={handleChange}
-                placeholder="60"
-                required
-              />
-
-              <FormField
-                label="Examination Capacity"
-                name="examination_capacity"
-                type="number"
-                min="1"
-                value={formData.examination_capacity}
-                onChange={handleChange}
-                placeholder="50"
-                required
-              />
-            </div>
-          </section>
-
-          {/* Assignment */}
-
-          <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
-            <h2 className="font-bold text-text">
-              Assignment
-            </h2>
-
-            <p className="mt-1 text-sm text-text-muted">
-              Optionally assign this hall to a course and batch.
-            </p>
-
-            <div className="mt-6 grid gap-5 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-sidebar">
-                  Assigned Course
-                </label>
-
-                <select
-                  name="assigned_course_id"
-                  value={formData.assigned_course_id}
-                  onChange={handleChange}
-                  className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="">
-                    No course assigned
-                  </option>
-
-                  {courses.map((course) => (
-                    <option
-                      key={course.id}
-                      value={course.id}
-                    >
-                      {course.course_code} -{" "}
-                      {course.course_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <FormField
-                label="Assigned Batch"
-                name="assigned_batch"
-                value={formData.assigned_batch}
-                onChange={handleChange}
-                placeholder="2024"
-              />
-
-              <div className="md:col-span-2">
-                <label className="mb-2 block text-sm font-semibold text-sidebar">
-                  Amenities
-                </label>
-
-                <textarea
-                  name="amenities"
-                  value={formData.amenities}
-                  onChange={handleChange}
-                  rows="3"
-                  placeholder="Projector, Air Conditioning, CCTV..."
-                  className="w-full resize-none rounded-xl border border-border bg-surface px-4 py-3 text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Status */}
-
-          <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
-            <h2 className="font-bold text-text">
-              Hall Status
-            </h2>
-
-            <div className="mt-5 space-y-4">
-              <StatusCheckbox
-                name="is_available"
-                checked={formData.is_available}
-                onChange={handleChange}
-                title="Available for use"
-                description="Allow this hall to be considered for examinations."
-              />
-
-              <StatusCheckbox
-                name="is_under_maintenance"
-                checked={
-                  formData.is_under_maintenance
-                }
-                onChange={handleChange}
-                title="Under maintenance"
-                description="Mark the hall as temporarily unavailable due to maintenance."
-              />
-
-              <StatusCheckbox
-                name="is_accessible"
-                checked={formData.is_accessible}
-                onChange={handleChange}
-                title="Accessible"
-                description="Indicate that the hall supports accessibility requirements."
-              />
-            </div>
-          </section>
-
-          {/* Actions */}
-
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <button
-              type="button"
-              onClick={onCancel}
-              className="rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-sidebar transition hover:border-accent"
-            >
-              Cancel
-            </button>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex items-center justify-center gap-2 rounded-xl bg-sidebar px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <Save size={17} />
-
-              {loading
-                ? "Saving..."
-                : isEditing
-                  ? "Update Hall"
-                  : "Save Hall"}
-            </button>
-          </div>
-        </form>
+        <FormField
+          label="Examination Capacity"
+          name="examination_capacity"
+          type="number"
+          value={formData.examination_capacity}
+          onChange={handleChange}
+          placeholder="e.g. 50"
+          min="1"
+          required
+        />
       </div>
     </div>
-  );
+
+    {/* Assignment */}
+
+    <div>
+      <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-accent">
+        Assignment
+      </h3>
+
+      <div className="grid gap-5 md:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-sidebar">
+            Assigned Course
+          </label>
+
+          <select
+            name="assigned_course_id"
+            value={formData.assigned_course_id}
+            onChange={handleChange}
+            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+          >
+            <option value="">Not assigned</option>
+
+            {courses.map((course) => (
+              <option
+                key={course.id}
+                value={course.id}
+              >
+                {course.course_code} - {course.course_name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <FormField
+          label="Assigned Batch"
+          name="assigned_batch"
+          value={formData.assigned_batch}
+          onChange={handleChange}
+          placeholder="e.g. 2024"
+        />
+      </div>
+    </div>
+
+    {/* Amenities */}
+
+    <div>
+      <label className="mb-2 block text-sm font-semibold text-sidebar">
+        Amenities
+      </label>
+
+      <textarea
+        name="amenities"
+        value={formData.amenities}
+        onChange={handleChange}
+        placeholder="e.g. Projector, AC, Wi-Fi, Smart Board"
+        rows={3}
+        className="w-full resize-none rounded-xl border border-border bg-surface px-4 py-3 text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
+      />
+    </div>
+
+    {/* Hall Configuration */}
+
+    <div>
+      <h3 className="mb-4 text-sm font-semibold uppercase tracking-wider text-accent">
+        Hall Configuration
+      </h3>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <StatusCheckbox
+          name="is_available"
+          checked={formData.is_available}
+          onChange={handleChange}
+          title="Available"
+          description="Hall can be used for examinations."
+        />
+
+        <StatusCheckbox
+          name="is_under_maintenance"
+          checked={formData.is_under_maintenance}
+          onChange={handleChange}
+          title="Maintenance"
+          description="Hall is currently under maintenance."
+        />
+
+        <StatusCheckbox
+          name="is_accessible"
+          checked={formData.is_accessible}
+          onChange={handleChange}
+          title="Accessible"
+          description="Hall supports accessibility requirements."
+        />
+      </div>
+    </div>
+
+    {/* Actions */}
+
+    <div className="flex justify-end gap-3 border-t border-border pt-5">
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={loading}
+        className="flex items-center gap-2 rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted"
+      >
+        <X size={17} />
+        Cancel
+      </button>
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="flex items-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <Save size={17} />
+        {loading
+          ? "Saving..."
+          : isEditing
+            ? "Update Hall"
+            : "Create Hall"}
+      </button>
+    </div>
+  </form>
+</div>
+    </div>
+  </div>
+);
 }
 
 function FormField({

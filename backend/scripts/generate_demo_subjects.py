@@ -11,7 +11,6 @@ from app.models.subject import Subject
 
 RANDOM_SEED = 42
 
-
 # =========================================================
 # SUBJECT CURRICULUM
 # =========================================================
@@ -24,12 +23,14 @@ RANDOM_SEED = 42
 #           -> core
 #           -> elective
 #           -> lab
+#           -> project
 #
 # Subject Type stored in database:
 #
 #   Core
 #   Elective
 #   Lab
+#   Project
 #
 # =========================================================
 
@@ -55,6 +56,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Basic Programming"
                 ],
+                "project": [],
             },
 
             2: {
@@ -70,6 +72,7 @@ SUBJECT_LIST = {
                     "Object-Oriented Programming",
                     "Database Management Systems",
                 ],
+                "project": [],
             },
 
             3: {
@@ -84,6 +87,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Web Development"
                 ],
+                "project": [],
             },
 
             4: {
@@ -98,6 +102,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Machine Learning"
                 ],
+                "project": [],
             },
 
             5: {
@@ -115,21 +120,22 @@ SUBJECT_LIST = {
                 "lab": [
                     "Mobile App Development"
                 ],
+                "project": [],
             },
 
             6: {
                 "core": [
-                    "Capstone Project",
                     "Research Methods",
-                    "Distributed Systems",
                     "Advanced Algorithms",
+                    "Distributed Systems",
                     "Cyber-Physical Systems",
                 ],
                 "elective": [
                     "Distributed Systems",
                     "Cyber-Physical Systems",
                 ],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -145,21 +151,22 @@ SUBJECT_LIST = {
                 "elective": [
                     "Information Security"
                 ],
-                "lab": []
+                "lab": [],
+                "project": [],
             },
 
             8: {
                 "core": [
-                    "Major Project",
                     "Project Management",
                     "Research Seminar",
                     "Technical Entrepreneurship",
                     "Professional Ethics",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Major Project"
-                ]
+                ],
             },
         }
     },
@@ -183,6 +190,7 @@ SUBJECT_LIST = {
                 ],
                 "elective": [],
                 "lab": [],
+                "project": [],
             },
 
             2: {
@@ -198,6 +206,7 @@ SUBJECT_LIST = {
                     "Fluid Mechanics",
                     "Strength of Materials",
                 ],
+                "project": [],
             },
 
             3: {
@@ -212,6 +221,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Heat Transfer"
                 ],
+                "project": [],
             },
 
             4: {
@@ -226,6 +236,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Refrigeration and Air Conditioning"
                 ],
+                "project": [],
             },
 
             5: {
@@ -243,18 +254,19 @@ SUBJECT_LIST = {
                 "lab": [
                     "Internal Combustion Engines"
                 ],
+                "project": [],
             },
 
             6: {
                 "core": [
-                    "Capstone Project",
                     "Industrial Training",
                     "Operations Research",
                     "Engineering Management",
                     "Advanced Mechanics",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -270,21 +282,22 @@ SUBJECT_LIST = {
                 "elective": [
                     "Mechatronics"
                 ],
-                "lab": []
+                "lab": [],
+                "project": [],
             },
 
             8: {
                 "core": [
-                    "Major Project",
                     "Professional Practice",
                     "Engineering Management",
                     "Research Seminar",
                     "Technical Entrepreneurship",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Major Project"
-                ]
+                ],
             },
         }
     },
@@ -308,6 +321,7 @@ SUBJECT_LIST = {
                 ],
                 "elective": [],
                 "lab": [],
+                "project": [],
             },
 
             2: {
@@ -322,6 +336,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Surveying Practice"
                 ],
+                "project": [],
             },
 
             3: {
@@ -337,6 +352,7 @@ SUBJECT_LIST = {
                     "Concrete Technology",
                     "Soil Mechanics",
                 ],
+                "project": [],
             },
 
             4: {
@@ -349,6 +365,7 @@ SUBJECT_LIST = {
                 ],
                 "elective": [],
                 "lab": [],
+                "project": [],
             },
 
             5: {
@@ -364,18 +381,19 @@ SUBJECT_LIST = {
                     "Urban Planning",
                 ],
                 "lab": [],
+                "project": [],
             },
 
             6: {
                 "core": [
-                    "Capstone Project",
                     "Research Methodology",
                     "Professional Practice",
                     "Construction Technology",
                     "Infrastructure Development",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -391,21 +409,22 @@ SUBJECT_LIST = {
                 "elective": [
                     "Infrastructure Planning"
                 ],
-                "lab": []
+                "lab": [],
+                "project": [],
             },
 
             8: {
                 "core": [
-                    "Major Project",
                     "Professional Practice",
                     "Construction Management",
                     "Research Seminar",
                     "Engineering Economics",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Major Project"
-                ]
+                ],
             },
         }
     },
@@ -431,6 +450,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Introduction to Programming"
                 ],
+                "project": [],
             },
 
             2: {
@@ -446,6 +466,7 @@ SUBJECT_LIST = {
                     "Object-Oriented Programming",
                     "Web Development",
                 ],
+                "project": [],
             },
 
             3: {
@@ -460,6 +481,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Software Engineering"
                 ],
+                "project": [],
             },
 
             4: {
@@ -472,6 +494,7 @@ SUBJECT_LIST = {
                 ],
                 "elective": [],
                 "lab": [],
+                "project": [],
             },
 
             5: {
@@ -487,11 +510,11 @@ SUBJECT_LIST = {
                     "Human-Computer Interaction",
                 ],
                 "lab": [],
+                "project": [],
             },
 
             6: {
                 "core": [
-                    "Capstone Project",
                     "Advanced Networking",
                     "Research Methods",
                     "Cyber-Physical Systems",
@@ -501,7 +524,8 @@ SUBJECT_LIST = {
                     "Distributed Systems",
                     "Cyber-Physical Systems",
                 ],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -517,21 +541,22 @@ SUBJECT_LIST = {
                 "elective": [
                     "Enterprise Systems"
                 ],
-                "lab": []
+                "lab": [],
+                "project": [],
             },
 
             8: {
                 "core": [
-                    "Major Project",
                     "IT Governance",
                     "Research Seminar",
                     "Professional Ethics",
                     "Technical Entrepreneurship",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Major Project"
-                ]
+                ],
             },
         }
     },
@@ -557,6 +582,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Digital Electronics"
                 ],
+                "project": [],
             },
 
             2: {
@@ -572,6 +598,7 @@ SUBJECT_LIST = {
                     "Signals and Systems",
                     "Analog Electronics",
                 ],
+                "project": [],
             },
 
             3: {
@@ -587,6 +614,7 @@ SUBJECT_LIST = {
                     "Power Electronics",
                     "Microprocessors",
                 ],
+                "project": [],
             },
 
             4: {
@@ -604,6 +632,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "VLSI Design"
                 ],
+                "project": [],
             },
 
             5: {
@@ -621,11 +650,11 @@ SUBJECT_LIST = {
                 "lab": [
                     "Microcontroller Applications"
                 ],
+                "project": [],
             },
 
             6: {
                 "core": [
-                    "Capstone Project",
                     "Industrial Training",
                     "Research Methodology",
                     "Power System Protection",
@@ -634,7 +663,8 @@ SUBJECT_LIST = {
                 "elective": [
                     "Smart Grids"
                 ],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -650,21 +680,22 @@ SUBJECT_LIST = {
                 "elective": [
                     "Electric Vehicle Technology"
                 ],
-                "lab": []
+                "lab": [],
+                "project": [],
             },
 
             8: {
                 "core": [
-                    "Major Project",
                     "Professional Practice",
                     "Research Seminar",
                     "Engineering Management",
                     "Technical Entrepreneurship",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Major Project"
-                ]
+                ],
             },
         }
     },
@@ -691,6 +722,7 @@ SUBJECT_LIST = {
                     "Basic Electronics",
                     "Digital Logic Design",
                 ],
+                "project": [],
             },
 
             2: {
@@ -706,6 +738,7 @@ SUBJECT_LIST = {
                     "Analog Electronics",
                     "Microprocessors",
                 ],
+                "project": [],
             },
 
             3: {
@@ -721,6 +754,7 @@ SUBJECT_LIST = {
                     "VLSI Design",
                     "Embedded Systems",
                 ],
+                "project": [],
             },
 
             4: {
@@ -736,6 +770,7 @@ SUBJECT_LIST = {
                     "Digital Signal Processing",
                     "Communication Networks",
                 ],
+                "project": [],
             },
 
             5: {
@@ -751,11 +786,11 @@ SUBJECT_LIST = {
                     "Nanoelectronics",
                 ],
                 "lab": [],
+                "project": [],
             },
 
             6: {
                 "core": [
-                    "Capstone Project",
                     "Industrial Training",
                     "Research Methods",
                     "IoT and Embedded Systems",
@@ -765,7 +800,8 @@ SUBJECT_LIST = {
                     "IoT and Embedded Systems",
                     "Advanced Electronics",
                 ],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -781,21 +817,22 @@ SUBJECT_LIST = {
                 "elective": [
                     "5G Communication"
                 ],
-                "lab": []
+                "lab": [],
+                "project": [],
             },
 
             8: {
                 "core": [
-                    "Major Project",
                     "Research Seminar",
                     "Professional Practice",
                     "Technical Entrepreneurship",
                     "Engineering Management",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Major Project"
-                ]
+                ],
             },
         }
     },
@@ -819,6 +856,7 @@ SUBJECT_LIST = {
                 ],
                 "elective": [],
                 "lab": [],
+                "project": [],
             },
 
             2: {
@@ -831,6 +869,7 @@ SUBJECT_LIST = {
                 ],
                 "elective": [],
                 "lab": [],
+                "project": [],
             },
 
             3: {
@@ -843,18 +882,19 @@ SUBJECT_LIST = {
                 ],
                 "elective": [],
                 "lab": [],
+                "project": [],
             },
 
             4: {
                 "core": [
-                    "Capstone Project",
                     "Business Ethics",
                     "Corporate Governance",
                     "Supply Chain Management",
                     "Leadership in Organizations",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -883,6 +923,7 @@ SUBJECT_LIST = {
                     "Programming in C",
                     "Data Structures",
                 ],
+                "project": [],
             },
 
             2: {
@@ -898,6 +939,7 @@ SUBJECT_LIST = {
                     "Object-Oriented Programming",
                     "Web Technologies",
                 ],
+                "project": [],
             },
 
             3: {
@@ -913,12 +955,11 @@ SUBJECT_LIST = {
                     "Mobile Computing",
                     "Artificial Intelligence",
                 ],
+                "project": [],
             },
 
             4: {
                 "core": [
-                    "Capstone Project",
-                    "Advanced Databases",
                     "Software Development Life Cycle",
                     "Research Methodology",
                     "Distributed Computing",
@@ -927,7 +968,8 @@ SUBJECT_LIST = {
                     "Advanced Databases",
                     "Distributed Computing",
                 ],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -956,6 +998,7 @@ SUBJECT_LIST = {
                     "Machine Learning",
                     "Python Programming",
                 ],
+                "project": [],
             },
 
             2: {
@@ -971,6 +1014,7 @@ SUBJECT_LIST = {
                     "Deep Learning",
                     "Natural Language Processing",
                 ],
+                "project": [],
             },
 
             3: {
@@ -983,21 +1027,20 @@ SUBJECT_LIST = {
                 ],
                 "elective": [],
                 "lab": [],
+                "project": [],
             },
 
             4: {
                 "core": [
-                    "Capstone Project",
-                    "AI in Business",
                     "Thesis Writing",
-                    "AI for Autonomous Systems",
                     "Research Methodology",
                 ],
                 "elective": [
                     "AI in Business",
                     "AI for Autonomous Systems",
                 ],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -1026,6 +1069,7 @@ SUBJECT_LIST = {
                     "Cryptography",
                     "Network Security",
                 ],
+                "project": [],
             },
 
             2: {
@@ -1041,6 +1085,7 @@ SUBJECT_LIST = {
                     "Digital Forensics",
                     "Advanced Cryptography",
                 ],
+                "project": [],
             },
 
             3: {
@@ -1056,13 +1101,11 @@ SUBJECT_LIST = {
                     "Penetration Testing",
                     "Malware Analysis",
                 ],
+                "project": [],
             },
 
             4: {
                 "core": [
-                    "Capstone Project",
-                    "Security Research",
-                    "Advanced Network Security",
                     "Security Risk Management",
                     "Thesis Writing",
                 ],
@@ -1070,7 +1113,8 @@ SUBJECT_LIST = {
                     "Security Research",
                     "Advanced Network Security",
                 ],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
@@ -1098,6 +1142,7 @@ SUBJECT_LIST = {
                 "lab": [
                     "Architectural Design"
                 ],
+                "project": [],
             },
 
             2: {
@@ -1110,6 +1155,7 @@ SUBJECT_LIST = {
                 ],
                 "elective": [],
                 "lab": [],
+                "project": [],
             },
 
             3: {
@@ -1124,25 +1170,25 @@ SUBJECT_LIST = {
                 "lab": [
                     "Building Information Modeling"
                 ],
+                "project": [],
             },
 
             4: {
                 "core": [
-                    "Capstone Project",
                     "Research Methodology",
                     "Thesis Writing",
                     "Advanced Environmental Design",
                     "Architectural Practice",
                 ],
                 "elective": [],
-                "lab": [
+                "lab": [],
+                "project": [
                     "Capstone Project"
                 ],
             },
         }
     },
 }
-
 
 # =========================================================
 # BUILD SUBJECTS FOR ONE SEMESTER
@@ -1154,9 +1200,10 @@ def build_subjects_for_semester(course, semester):
 
     Important:
     - A subject can appear in the curriculum's core list
-      and also be designated as a Lab.
+    and also be designated as a Lab.
     - Lab gets priority.
     - Elective gets priority over Core.
+    - Project gets priority over Core.
     - Remaining subjects are Core.
     """
 
@@ -1208,6 +1255,9 @@ def build_subjects_for_semester(course, semester):
         semester_data.get("lab", [])
     )
 
+    project_subjects = list(
+        semester_data.get("project", [])
+    )
     # -----------------------------------------------------
     # Validate
     # -----------------------------------------------------
@@ -1243,7 +1293,16 @@ def build_subjects_for_semester(course, semester):
 
         # Deterministic selection.
         elective_subject = elective_subjects[0]
+    # -----------------------------------------------------
+    # Select Project
+    # -----------------------------------------------------
 
+    project_subject = None
+
+    if project_subjects:
+
+        # Deterministic selection.
+        project_subject = project_subjects[0]
     # -----------------------------------------------------
     # Build final subject list
     # -----------------------------------------------------
@@ -1270,6 +1329,15 @@ def build_subjects_for_semester(course, semester):
             )
         )
 
+    # Project
+    if project_subject:
+
+        subjects.append(
+            (
+                project_subject,
+                "Project"
+            )
+        )
     # Core
     for subject_name in core_subjects:
 
@@ -1280,7 +1348,9 @@ def build_subjects_for_semester(course, semester):
         # If already used as Elective
         if subject_name == elective_subject:
             continue
-
+        # If already used as Project
+        if subject_name == project_subject:
+            continue
         subjects.append(
             (
                 subject_name,

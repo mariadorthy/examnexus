@@ -142,29 +142,21 @@ console.log(
       sending: newStatus,
     });
 
-    const response = await patch(
-      `/subjects/${subject.id}/status`,
-      {
-        is_active: newStatus,
-      }
-    );
-
-    console.log("SUBJECT PATCH RESPONSE:", response);
-
-    const updatedData = await get("/subjects/");
-
-const updatedSubject = updatedData.find(
-  (item) => item.id === subject.id
+   const response = await patch(
+  `/subjects/${subject.id}/status`,
+  {
+    is_active: newStatus,
+  }
 );
 
-console.log("SUBJECT AFTER GET:", updatedSubject);
+console.log("SUBJECT PATCH RESPONSE:", response);
 
 setSubjects((currentSubjects) =>
   currentSubjects.map((item) =>
     item.id === subject.id
       ? {
           ...item,
-          is_active: updatedSubject?.is_active,
+          is_active: response.is_active,
         }
       : item
   )

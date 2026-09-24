@@ -1,14 +1,10 @@
 import { useState } from "react";
-import { post } from "../../../services/api";
+import { post, put } from "../../../services/api";
 import {
-  ArrowLeft,
   Save,
   UserPlus,
   X,
 } from "lucide-react";
-
-const API_URL =
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:5000";
 
 function StaffForm({
   staff,
@@ -82,41 +78,33 @@ function StaffForm({
     try {
       setLoading(true);
 
-      /*
-       * Current backend only supports POST.
-       *
-       * When you add PUT/PATCH support later,
-       * change the editing request here.
-       */
-
-      if (isEditing) {
-        throw new Error(
-          "Staff editing API is not available yet. Add a PUT/PATCH staff route in the backend."
-        );
-      }
-
-      const result = await post("/staff/", {
+const payload = {
   name: formData.name.trim(),
-  department_id: Number(
-    formData.department_id
-  ),
+  department_id: Number(formData.department_id),
   email: formData.email.trim().toLowerCase(),
-  contact_no:
-    formData.contact_no.trim() || null,
-  designation:
-    formData.designation.trim(),
+  contact_no: formData.contact_no.trim() || null,
+  designation: formData.designation.trim(),
+  dob: formData.dob || null,
   assigned_courses:
     formData.assigned_courses.trim() || null,
   gender: formData.gender || null,
   availability: formData.availability,
   assigned_batch:
     formData.assigned_batch.trim() || null,
-  password: formData.password,
-  image:
-    formData.image.trim() || null,
-});
+  image: formData.image.trim() || null,
+};
 
-      onSuccess();
+if (formData.password.trim()) {
+  payload.password = formData.password;
+}
+
+if (isEditing) {
+  await put(`/staff/${staff.id}`, payload);
+} else {
+  await post("/staff/", payload);
+}
+
+onSuccess();
     } catch (err) {
       console.error("Staff form error:", err);
 
@@ -129,35 +117,34 @@ function StaffForm({
     }
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
+ return (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+    <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-border bg-surface shadow-2xl">
 
-      <div className="border-b border-border bg-surface">
-        <div className="flex items-center gap-4 px-5 py-6 md:px-8">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-xl border border-border p-2.5 text-sidebar transition hover:border-accent hover:bg-surface-muted"
-          >
-            <ArrowLeft size={20} />
-          </button>
+      {/* Modal Header */}
+      <div className="flex items-center justify-between border-b border-border px-6 py-5">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-widest text-accent">
+            Staff Management
+          </p>
 
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-widest text-accent">
-              Staff Management
-            </p>
-
-            <h1 className="mt-1 text-2xl font-bold text-text">
-              {isEditing
-                ? "Edit Staff"
-                : "Add Staff"}
-            </h1>
-          </div>
+          <h2 className="mt-1 text-xl font-bold text-text">
+            {isEditing ? "Edit Staff" : "Add Staff"}
+          </h2>
         </div>
+
+        <button
+          type="button"
+          onClick={onCancel}
+          className="rounded-lg p-2 text-text-muted transition hover:bg-surface-muted hover:text-text"
+          aria-label="Close staff form"
+        >
+          <X size={20} />
+        </button>
       </div>
 
-      <div className="mx-auto max-w-4xl p-5 md:p-8">
+      {/* Modal Body */}
+      <div className="p-6">
         {error && (
           <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             <X
@@ -174,7 +161,6 @@ function StaffForm({
           className="space-y-6"
         >
           {/* Basic Information */}
-
           <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
             <div className="mb-6 flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-light text-primary">
@@ -258,7 +244,6 @@ function StaffForm({
           </section>
 
           {/* Department & Assignment */}
-
           <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
             <h2 className="font-bold text-text">
               Department & Assignment
@@ -323,7 +308,6 @@ function StaffForm({
           </section>
 
           {/* Account */}
-
           <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
             <h2 className="font-bold text-text">
               Account
@@ -349,16 +333,14 @@ function StaffForm({
               />
 
               <p className="mt-2 text-xs text-text-light">
-                Note: your current backend expects the
-                password_hash field. For production,
-                passwords should be hashed on the backend
-                before storage.
+                {isEditing
+                  ? "Leave blank to keep the current password."
+                  : "The password will be securely hashed before storage."}
               </p>
             </div>
           </section>
 
           {/* Status */}
-
           <section className="rounded-2xl border border-border bg-surface p-6 shadow-sm">
             <label className="flex cursor-pointer items-center justify-between gap-4">
               <div>
@@ -367,8 +349,7 @@ function StaffForm({
                 </p>
 
                 <p className="mt-1 text-sm text-text-muted">
-                  Mark this staff member as available for
-                  examination duties.
+                  Mark this staff member as available for examination duties.
                 </p>
               </div>
 
@@ -383,7 +364,6 @@ function StaffForm({
           </section>
 
           {/* Actions */}
-
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
             <button
               type="button"
@@ -410,9 +390,9 @@ function StaffForm({
         </form>
       </div>
     </div>
-  );
+  </div>
+);
 }
-
 function FormField({
   label,
   name,

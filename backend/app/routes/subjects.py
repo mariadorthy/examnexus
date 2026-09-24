@@ -235,8 +235,14 @@ def update_subject_status(subject_id):
 
     subject.is_active = data["is_active"]
     db.session.commit()
-
+    print(
+    "SUBJECT STATUS SAVED:",
+    subject.id,
+    subject.subject_code,
+    subject.is_active
+)
     return {
         "success": True,
-        "message": "Subject status updated successfully"
+        "message": "Subject status updated successfully",
+        "is_active": subject.is_active
     }
