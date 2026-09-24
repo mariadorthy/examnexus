@@ -17,7 +17,7 @@ import StaffForm from "./StaffForm";
 import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
-
+import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 function Staff({
   user,
   onLogout,
@@ -35,6 +35,7 @@ function Staff({
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
   const [viewingStaff, setViewingStaff] = useState(null);
  useEffect(() => {
   loadData();
@@ -211,7 +212,13 @@ const handleToggleStatus = async (staff) => {
                   Manage examination staff and their assignments.
                 </p>
               </div>
-
+<button
+  type="button"
+  onClick={() => setShowCsvImport(true)}
+  className="flex w-fit items-center gap-2 rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted"
+>
+  Import CSV
+</button>
               <button
                 type="button"
                 onClick={handleAdd}
@@ -654,6 +661,11 @@ const handleToggleStatus = async (staff) => {
     </div>
   </div>
 )}
+<CsvImport
+  entity="staff"
+  isOpen={showCsvImport}
+  onClose={() => setShowCsvImport(false)}
+/>
 {showForm && (
   <StaffForm
     staff={editingStaff}

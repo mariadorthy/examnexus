@@ -14,6 +14,7 @@ import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import CourseForm from "./CourseForm";
+import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 
 function Courses({ user, onLogout,  onNavigate,
  }) {
@@ -32,7 +33,7 @@ function Courses({ user, onLogout,  onNavigate,
   const [search, setSearch] = useState("");
 
   const [showForm, setShowForm] = useState(false);
-
+const [showCsvImport, setShowCsvImport] = useState(false);
 const [editingCourse, setEditingCourse] = useState(null);
 
 const [viewingCourse, setViewingCourse] =
@@ -280,6 +281,31 @@ const handleCloseForm = () => {
 
               </div>
 
+<button
+  type="button"
+  onClick={() => setShowCsvImport(true)}
+  className="
+    flex
+    w-full
+    items-center
+    justify-center
+    gap-2
+    rounded-xl
+    border
+    border-border
+    bg-surface
+    px-5
+    py-3
+    text-sm
+    font-semibold
+    text-sidebar
+    transition
+    hover:bg-surface-muted
+    md:w-auto
+  "
+>
+  Import CSV
+</button>
 
               {/* ADD COURSE */}
 
@@ -794,7 +820,11 @@ const handleCloseForm = () => {
       {/* ================================================= */}
       {/* COURSE FORM */}
       {/* ================================================= */}
-
+<CsvImport
+  entity="courses"
+  isOpen={showCsvImport}
+  onClose={() => setShowCsvImport(false)}
+/>
       {showForm && (
 
         <CourseForm

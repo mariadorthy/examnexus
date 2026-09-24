@@ -15,6 +15,7 @@ import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import DepartmentForm from "./DepartmentForm";
 import { get, patch } from "../../../services/api";
+import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 const API_URL = "http://127.0.0.1:5000/api/departments";
 
 
@@ -35,7 +36,7 @@ function Departments({
   const [search, setSearch] = useState("");
 
   const [showForm, setShowForm] = useState(false);
-
+const [showCsvImport, setShowCsvImport] = useState(false);
   const [editingDepartment, setEditingDepartment] =
     useState(null);
 
@@ -262,6 +263,32 @@ function Departments({
 
               </div>
 
+
+<button
+  type="button"
+  onClick={() => setShowCsvImport(true)}
+  className="
+    flex
+    w-full
+    items-center
+    justify-center
+    gap-2
+    rounded-xl
+    border
+    border-border
+    bg-surface
+    px-5
+    py-3
+    text-sm
+    font-semibold
+    text-sidebar
+    transition
+    hover:bg-surface-muted
+    md:w-auto
+  "
+>
+  Import CSV
+</button>
 
               {/* Add button */}
 
@@ -754,7 +781,11 @@ function Departments({
       {/* ================================================= */}
       {/* FORM MODAL */}
       {/* ================================================= */}
-
+<CsvImport
+  entity="departments"
+  isOpen={showCsvImport}
+  onClose={() => setShowCsvImport(false)}
+/>
       {showForm && (
 
         <DepartmentForm

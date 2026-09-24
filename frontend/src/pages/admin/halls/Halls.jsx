@@ -18,7 +18,7 @@ import { get, patch } from "../../../services/api";
 import HallForm from "./HallForm";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
-
+import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 function Halls({
   user,
   onLogout,
@@ -35,6 +35,7 @@ function Halls({
   const [search, setSearch] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [editingHall, setEditingHall] = useState(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
 const [viewingHall, setViewingHall] = useState(null);
 const [statusLoading, setStatusLoading] = useState(null);
   useEffect(() => {
@@ -191,6 +192,13 @@ const handleToggleStatus = async (hall) => {
             </p>
           </div>
 
+<button
+  type="button"
+  onClick={() => setShowCsvImport(true)}
+  className="flex w-fit items-center gap-2 rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted"
+>
+  Import CSV
+</button>
           <button
             type="button"
             onClick={handleAdd}
@@ -663,6 +671,11 @@ const handleToggleStatus = async (hall) => {
     )}
 
     {/* Hall Add/Edit Modal */}
+    <CsvImport
+  entity="halls"
+  isOpen={showCsvImport}
+  onClose={() => setShowCsvImport(false)}
+/>
     {showForm && (
       <HallForm
         hall={editingHall}

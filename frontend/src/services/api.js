@@ -139,3 +139,26 @@ export async function patch(
 
   return parseResponse(response);
 }
+export async function uploadCsv(endpoint, file) {
+  const token = getToken();
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers = {};
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `${API_URL}/api${endpoint}`,
+    {
+      method: "POST",
+      headers,
+      body: formData,
+    }
+  );
+
+  return parseResponse(response);
+}

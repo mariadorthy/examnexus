@@ -15,6 +15,7 @@ import StudentForm from "./StudentForm";
 import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
+import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 
 function Students({
   user,
@@ -34,7 +35,8 @@ function Students({
   const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] =
     useState(null);
-
+const [showCsvImport, setShowCsvImport] =
+  useState(false);
 const [viewingStudent, setViewingStudent] =
   useState(null);
 
@@ -272,6 +274,14 @@ setStudents((currentStudents) =>
             Refresh
 
           </button>
+
+<button
+  type="button"
+  onClick={() => setShowCsvImport(true)}
+  className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted"
+>
+  Import CSV
+</button>
 
           <button
             type="button"
@@ -570,6 +580,12 @@ setStudents((currentStudents) =>
       {/* ================================================= */}
       {/* FORM */}
       {/* ================================================= */}
+
+<CsvImport
+  entity="students"
+  isOpen={showCsvImport}
+  onClose={() => setShowCsvImport(false)}
+/>
 
    {showForm && (
   <StudentForm

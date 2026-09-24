@@ -15,6 +15,7 @@ import SubjectForm from "./SubjectForm";
 import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
+import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 function Subjects({
   user,
   onLogout,
@@ -32,6 +33,7 @@ function Subjects({
 
   const [showForm, setShowForm] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
   const [viewingSubject, setViewingSubject] =
   useState(null);
 
@@ -253,38 +255,40 @@ setSubjects((currentSubjects) =>
           </p>
         </div>
 
-        <div className="flex gap-3">
+<div className="flex flex-wrap gap-3">
 
-          <button
-            type="button"
-            onClick={loadData}
-            disabled={loading}
-            className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted disabled:opacity-60"
-          >
-            <RefreshCw
-              size={17}
-              className={
-                loading
-                  ? "animate-spin"
-                  : ""
-              }
-            />
+  <button 
+    type="button" 
+    onClick={loadData} 
+    disabled={loading} 
+    className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted disabled:opacity-60"
+  > 
+    <RefreshCw 
+      size={17} 
+      className={loading ? "animate-spin" : ""} 
+    /> 
+    Refresh 
+  </button>
 
-            Refresh
-          </button>
+  <button
+    type="button"
+    onClick={() => setShowCsvImport(true)}
+    className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted"
+  >
+    Import CSV
+  </button>
 
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="flex items-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary"
-          >
-            <Plus size={18} />
+  <button 
+    type="button" 
+    onClick={handleAdd} 
+    className="flex items-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary"
+  > 
+    <Plus size={18} /> 
+    Add Subject 
+  </button>
 
-            Add Subject
-          </button>
-
-        </div>
-
+</div>
+      
       </div>
 
       {/* ================================================= */}
@@ -546,7 +550,11 @@ setSubjects((currentSubjects) =>
       {/* ================================================= */}
       {/* FORM */}
       {/* ================================================= */}
-
+<CsvImport
+  entity="subjects"
+  isOpen={showCsvImport}
+  onClose={() => setShowCsvImport(false)}
+/>
       {showForm && (
         <SubjectForm
           subject={editingSubject}
