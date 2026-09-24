@@ -3,10 +3,7 @@ import {
   X,
   GraduationCap,
 } from "lucide-react";
-import { post } from "../../../services/api";
-
-const API_URL =
-  "http://127.0.0.1:5000/api/students/";
+import { post, put } from "../../../services/api";
 
 function StudentForm({
   student,
@@ -174,49 +171,23 @@ function StudentForm({
           formData.dob || null,
       };
 
-      /*
-       * IMPORTANT:
+        /*
+       * Password is sent only when provided.
        *
-       * Your current Flask POST route expects
-       * password_hash directly.
-       *
-       * For now we send the field exactly as
-       * the backend expects.
-       *
-       * Ideally, the backend should receive a
-       * plain password and hash it server-side.
+       * The backend hashes it before storing it.
+       * When editing, an empty password keeps the
+       * existing password unchanged.
        */
 
       if (formData.password) {
-        payload.password =
-          formData.password;
+        payload.password = formData.password;
       }
 
-      /*
-       * Current backend has POST only.
-       *
-       * PUT/PATCH will work once the corresponding
-       * Flask update route is added.
-       */
-
       if (isEditing) {
-        const response = await fetch(
-          `${API_URL}${student.id}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify(payload),
-          }
+        await put(
+          `/students/${student.id}`,
+          payload
         );
-
-        if (!response.ok) {
-          throw new Error(
-            "Failed to update student."
-          );
-        }
       } else {
         await post("/students/", payload);
       }
@@ -389,21 +360,23 @@ function StudentForm({
                   Select semester
                 </option>
 
-                {Array.from(
-                  {
-                    length: 12,
-                  },
-                  (_, index) =>
-                    index + 1
-                ).map((semester) => (
-                  <option
-                    key={semester}
-                    value={semester}
-                  >
-                    Semester {semester}
-                  </option>
-                ))}
-
+               {Array.from(
+  {
+    length:
+      courses.find(
+        (course) =>
+          course.id === Number(formData.course_id)
+      )?.total_semesters || 0,
+  },
+  (_, index) => index + 1
+).map((semester) => (
+  <option
+    key={semester}
+    value={semester}
+  >
+    Semester {semester}
+  </option>
+))}
               </select>
 
             </div>

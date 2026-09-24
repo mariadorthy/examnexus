@@ -3,13 +3,16 @@ import {
   Plus,
   Search,
   Pencil,
-  Trash2,
   GraduationCap,
   RefreshCw,
+  Power,
+  Eye,
+  X,
+  Loader2,
 } from "lucide-react";
 
 import StudentForm from "./StudentForm";
-import { get } from "../../../services/api";
+import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 
@@ -32,6 +35,15 @@ function Students({
   const [editingStudent, setEditingStudent] =
     useState(null);
 
+const [viewingStudent, setViewingStudent] =
+  useState(null);
+
+const [detailsLoading, setDetailsLoading] =
+  useState(false);
+
+const [statusLoading, setStatusLoading] =
+  useState(null);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -49,6 +61,10 @@ function Students({
   get("/courses/"),
 ]);
 
+console.log(
+  "STUDENTS GET response:",
+  studentsData
+);
 setStudents(studentsData);
 setCourses(coursesData);
      
@@ -84,45 +100,83 @@ setCourses(coursesData);
     setEditingStudent(student);
     setShowForm(true);
   };
+  const handleViewDetails = async (student) => {
+  try {
+    setDetailsLoading(true);
 
-  const handleDelete = async (student) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${student.name}?`
+    const data = await get(
+      `/students/${student.id}`
     );
 
-    if (!confirmed) {
-      return;
-    }
+    setViewingStudent(data);
+  } catch (err) {
+    console.error(
+      "Student details error:",
+      err
+    );
 
-    /*
-     * DELETE endpoint is not currently present
-     * in the Flask backend.
-     */
+    setError(
+      err.message ||
+      "Unable to load student details."
+    );
+  } finally {
+    setDetailsLoading(false);
+  }
+};
+const handleStatusChange = async (student) => {
+  try {
+    setStatusLoading(student.id);
 
-    try {
-      const response = await fetch(
-        `${API_URL}${student.id}`,
-        {
-          method: "DELETE",
-        }
-      );
+    const newStatus = !student.is_active;
 
-      if (!response.ok) {
-        throw new Error(
-          "Delete operation failed."
-        );
+    console.log("STUDENT CLICKED:", {
+      id: student.id,
+      student_id: student.student_id,
+      current: student.is_active,
+      sending: newStatus,
+    });
+
+    const response = await patch(
+      `/students/${student.id}/status`,
+      {
+        is_active: newStatus,
       }
+    );
 
-      await loadData();
-    } catch (err) {
-      console.error("Delete student error:", err);
+    console.log("STUDENT PATCH RESPONSE:", response);
 
-      setError(
-        "Unable to delete student. The backend DELETE route may not be available yet."
-      );
-    }
-  };
+    const updatedData = await get("/students/");
 
+const updatedStudent = updatedData.find(
+  (item) => item.id === student.id
+);
+
+console.log("STUDENT AFTER GET:", updatedStudent);
+
+setStudents((currentStudents) =>
+  currentStudents.map((item) =>
+    item.id === student.id
+      ? {
+          ...item,
+          is_active: updatedStudent?.is_active,
+        }
+      : item
+  )
+);
+  } catch (err) {
+        console.error(
+      "Student status error:",
+      err
+    );
+
+    setError(
+      err.message ||
+        "Unable to update student status."
+    );
+  } finally {
+    setStatusLoading(null);
+  }
+};
   const handleFormSuccess = () => {
     setShowForm(false);
     setEditingStudent(null);
@@ -451,7 +505,17 @@ setCourses(coursesData);
                       <td className="px-6 py-4">
 
                         <div className="flex justify-end gap-2">
-
+<button
+  type="button"
+  onClick={() =>
+    handleViewDetails(student)
+  }
+  disabled={detailsLoading}
+  className="rounded-lg p-2 text-text-muted transition hover:bg-accent-light hover:text-primary"
+  title="View details"
+>
+  <Eye size={17} />
+</button>
                           <button
                             type="button"
                             onClick={() =>
@@ -465,19 +529,34 @@ setCourses(coursesData);
                             <Pencil size={17} />
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDelete(
-                                student
-                              )
-                            }
-                            className="rounded-lg p-2 text-danger transition hover:bg-red-50"
-                            title="Delete student"
-                          >
-                            <Trash2 size={17} />
-                          </button>
-
+                         <button
+  type="button"
+  onClick={() =>
+    handleStatusChange(student)
+  }
+  disabled={
+    statusLoading === student.id
+  }
+  className={`rounded-lg p-2 transition ${
+    student.is_active
+      ? "text-danger hover:bg-danger/10"
+      : "text-success hover:bg-accent-light"
+  }`}
+  title={
+    student.is_active
+      ? "Deactivate student"
+      : "Activate student"
+  }
+>
+  {statusLoading === student.id ? (
+    <Loader2
+      size={17}
+      className="animate-spin"
+    />
+  ) : (
+    <Power size={17} />
+  )}
+</button> 
                         </div>
 
                       </td>
@@ -500,18 +579,377 @@ setCourses(coursesData);
       {/* FORM */}
       {/* ================================================= */}
 
-      {showForm && (
-        <StudentForm
-          student={editingStudent}
-          courses={courses}
-          onClose={() => {
-            setShowForm(false);
-            setEditingStudent(null);
-          }}
-          onSuccess={handleFormSuccess}
-        />
-      )}
+   {showForm && (
+  <StudentForm
+    student={editingStudent}
+    courses={courses}
+    onClose={() => {
+      setShowForm(false);
+      setEditingStudent(null);
+    }}
+    onSuccess={handleFormSuccess}
+  />
+)}
+
+{viewingStudent && (
+  <div
+    className="
+      fixed inset-0 z-[60]
+      flex items-center justify-center
+      bg-black/40 p-4
+      backdrop-blur-sm
+    "
+    onMouseDown={(event) => {
+      if (
+        event.target === event.currentTarget
+      ) {
+        setViewingStudent(null);
+      }
+    }}
+  >
+    <div
+      className="
+        w-full max-w-3xl
+        max-h-[90vh]
+        overflow-y-auto
+        overflow-hidden
+        rounded-2xl bg-surface
+        shadow-2xl
+      "
+    >
+
+      {/* HEADER */}
+
+      <div
+        className="
+          flex items-center justify-between
+          border-b border-border
+          px-6 py-5
+        "
+      >
+        <div className="flex items-center gap-3">
+
+          <div
+            className="
+              flex h-11 w-11
+              items-center justify-center
+              rounded-xl
+              bg-accent-light
+              text-primary
+            "
+          >
+            <GraduationCap size={21} />
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-text">
+              Student Details
+            </h2>
+
+            <p className="text-sm text-text-muted">
+              Student and academic information.
+            </p>
+          </div>
+
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            setViewingStudent(null)
+          }
+          className="
+            rounded-lg p-2
+            text-text-muted
+            transition
+            hover:bg-surface-muted
+            hover:text-text
+          "
+        >
+          <X size={20} />
+        </button>
+
       </div>
+
+      {/* DETAILS */}
+
+      <div className="p-6">
+
+        <div className="grid gap-4 sm:grid-cols-2">
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Student ID
+            </p>
+
+            <p className="mt-2 text-lg font-bold text-primary">
+              {viewingStudent.student_id}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Status
+            </p>
+
+            <p className="mt-2 text-lg font-bold text-text">
+              {viewingStudent.is_active
+                ? "Active"
+                : "Inactive"}
+            </p>
+          </div>
+
+        </div>
+
+        <div
+          className="
+            mt-4 rounded-xl
+            border border-border
+            bg-surface-muted p-4
+          "
+        >
+          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            Name
+          </p>
+
+          <p className="mt-2 text-lg font-bold text-text">
+            {viewingStudent.name}
+          </p>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Course
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {getCourseName(
+                viewingStudent.course_id
+              )}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Semester
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              Semester {viewingStudent.semester}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Batch
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingStudent.batch}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Class
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingStudent.class_name || "—"}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Session
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingStudent.session || "—"}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Email
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text break-all">
+              {viewingStudent.email}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Contact Number
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingStudent.contact_no || "—"}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Gender
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingStudent.gender || "—"}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Date of Birth
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingStudent.dob || "—"}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Email Verification
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingStudent.email_verified
+                ? "Verified"
+                : "Not Verified"}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Two-Factor Authentication
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingStudent.two_factor_enabled
+                ? "Enabled"
+                : "Disabled"}
+            </p>
+          </div>
+
+          <div
+            className="
+              rounded-xl border border-border
+              bg-surface-muted p-4
+            "
+          >
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Disability / Accessibility
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingStudent.disability || "None"}
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* FOOTER */}
+
+      <div
+        className="
+          flex justify-end
+          border-t border-border
+          px-6 py-4
+        "
+      >
+        <button
+          type="button"
+          onClick={() =>
+            setViewingStudent(null)
+          }
+          className="
+            rounded-xl bg-sidebar
+            px-5 py-2.5
+            text-sm font-semibold
+            text-white
+            transition hover:bg-primary
+          "
+        >
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
+
+</div>
     </main>
     </div>
   );

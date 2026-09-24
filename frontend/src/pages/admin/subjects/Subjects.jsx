@@ -3,13 +3,16 @@ import {
   Plus,
   Search,
   Pencil,
-  Trash2,
   BookOpen,
   RefreshCw,
+  Power,
+  Eye,
+  X,
+  Loader2,
 } from "lucide-react";
 
 import SubjectForm from "./SubjectForm";
-import { get } from "../../../services/api";
+import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 function Subjects({
@@ -29,7 +32,13 @@ function Subjects({
 
   const [showForm, setShowForm] = useState(false);
   const [editingSubject, setEditingSubject] = useState(null);
+  const [viewingSubject, setViewingSubject] =
+  useState(null);
 
+const [detailsLoading, setDetailsLoading] =
+  useState(false);
+
+const [statusLoading, setStatusLoading] = useState(null);
   useEffect(() => {
     loadData();
   }, []);
@@ -46,6 +55,20 @@ function Subjects({
         get("/subjects/"),
         get("/courses/"),
       ]);
+
+      console.log(
+  "SUBJECTS GET response:",
+  subjectsData
+);
+
+console.log(
+  "SUBJECT STATUS VALUES:",
+  subjectsData.map((subject) => ({
+    id: subject.id,
+    subject_code: subject.subject_code,
+    is_active: subject.is_active,
+  }))
+);
 
       setSubjects(subjectsData);
       setCourses(coursesData);
@@ -82,46 +105,84 @@ function Subjects({
     setShowForm(true);
   };
 
-  const handleDelete = async (subject) => {
-    const confirmed = window.confirm(
-      `Are you sure you want to delete ${subject.subject_name}?`
+  const handleViewDetails = async (subject) => {
+  try {
+    setDetailsLoading(true);
+
+    const data = await get(
+      `/subjects/${subject.id}`
     );
 
-    if (!confirmed) {
-      return;
-    }
+    setViewingSubject(data);
+  } catch (err) {
+    console.error(
+      "Subject details error:",
+      err
+    );
 
-    /*
-     * DELETE endpoint is not currently present
-     * in the Flask backend.
-     *
-     * This is kept ready for when the backend
-     * DELETE route is added.
-     */
+    setError(
+      err.message ||
+      "Unable to load subject details."
+    );
+  } finally {
+    setDetailsLoading(false);
+  }
+};
 
-    try {
-      const response = await fetch(
-        `${API_URL}${subject.id}`,
-        {
-          method: "DELETE",
-        }
-      );
+  const handleStatusChange = async (subject) => {
+  try {
+    setStatusLoading(subject.id);
 
-      if (!response.ok) {
-        throw new Error(
-          "Delete operation failed."
-        );
+    const newStatus = !subject.is_active;
+
+    console.log("SUBJECT CLICKED:", {
+      id: subject.id,
+      code: subject.subject_code,
+      current: subject.is_active,
+      sending: newStatus,
+    });
+
+    const response = await patch(
+      `/subjects/${subject.id}/status`,
+      {
+        is_active: newStatus,
       }
+    );
 
-      await loadData();
-    } catch (err) {
-      console.error("Delete subject error:", err);
+    console.log("SUBJECT PATCH RESPONSE:", response);
 
-      setError(
-        "Unable to delete subject. The backend DELETE route may not be available yet."
-      );
-    }
-  };
+    const updatedData = await get("/subjects/");
+
+const updatedSubject = updatedData.find(
+  (item) => item.id === subject.id
+);
+
+console.log("SUBJECT AFTER GET:", updatedSubject);
+
+setSubjects((currentSubjects) =>
+  currentSubjects.map((item) =>
+    item.id === subject.id
+      ? {
+          ...item,
+          is_active: updatedSubject?.is_active,
+        }
+      : item
+  )
+);
+  } catch (err) {
+    console.error(
+      "Subject status error:",
+      err
+    );
+
+    setError(
+      err.message ||
+        "Unable to update subject status."
+    );
+  } finally {
+    setStatusLoading(null);
+  }
+};
 
   const handleFormSuccess = () => {
     setShowForm(false);
@@ -420,6 +481,17 @@ function Subjects({
 
                         <div className="flex justify-end gap-2">
 
+<button
+  type="button"
+  onClick={() =>
+    handleViewDetails(subject)
+  }
+  disabled={detailsLoading}
+  className="rounded-lg p-2 text-text-muted transition hover:bg-accent-light hover:text-primary"
+  title="View details"
+>
+  <Eye size={17} />
+</button>
                           <button
                             type="button"
                             onClick={() =>
@@ -433,19 +505,34 @@ function Subjects({
                             <Pencil size={17} />
                           </button>
 
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDelete(
-                                subject
-                              )
-                            }
-                            className="rounded-lg p-2 text-danger transition hover:bg-red-50"
-                            title="Delete subject"
-                          >
-                            <Trash2 size={17} />
-                          </button>
-
+               <button
+  type="button"
+  onClick={() =>
+    handleStatusChange(subject)
+  }
+  disabled={
+    statusLoading === subject.id
+  }
+  className={`rounded-lg p-2 transition ${
+    subject.is_active
+      ? "text-danger hover:bg-danger/10"
+      : "text-success hover:bg-accent-light"
+  }`}
+  title={
+    subject.is_active
+      ? "Deactivate subject"
+      : "Activate subject"
+  }
+>
+  {statusLoading === subject.id ? (
+    <Loader2
+      size={17}
+      className="animate-spin"
+    />
+  ) : (
+    <Power size={17} />
+  )}
+</button>
                         </div>
 
                       </td>
@@ -479,7 +566,201 @@ function Subjects({
           onSuccess={handleFormSuccess}
         />
       )}
+{viewingSubject && (
+  <div
+    className="
+      fixed inset-0 z-[60]
+      flex items-center justify-center
+      bg-black/40 p-4
+      backdrop-blur-sm
+    "
+    onMouseDown={(event) => {
+      if (
+        event.target === event.currentTarget
+      ) {
+        setViewingSubject(null);
+      }
+    }}
+  >
+    <div
+      className="
+        w-full max-w-2xl
+        overflow-hidden
+        rounded-2xl bg-surface
+        shadow-2xl
+      "
+    >
 
+      <div className="
+        flex items-center justify-between
+        border-b border-border
+        px-6 py-5
+      ">
+        <div className="flex items-center gap-3">
+
+          <div className="
+            flex h-11 w-11
+            items-center justify-center
+            rounded-xl
+            bg-accent-light text-primary
+          ">
+            <BookOpen size={21} />
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-text">
+              Subject Details
+            </h2>
+
+            <p className="text-sm text-text-muted">
+              Subject and academic information.
+            </p>
+          </div>
+
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            setViewingSubject(null)
+          }
+          className="
+            rounded-lg p-2
+            text-text-muted
+            transition
+            hover:bg-surface-muted
+            hover:text-text
+          "
+        >
+          <X size={20} />
+        </button>
+
+      </div>
+
+      <div className="p-6">
+
+        <div className="grid gap-4 sm:grid-cols-2">
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Subject Code
+            </p>
+
+            <p className="mt-2 text-lg font-bold text-primary">
+              {viewingSubject.subject_code}
+            </p>
+          </div>
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Status
+            </p>
+
+            <p className="mt-2 text-lg font-bold text-text">
+              {viewingSubject.is_active
+                ? "Active"
+                : "Inactive"}
+            </p>
+          </div>
+
+        </div>
+
+        <div className="
+          mt-4 rounded-xl
+          border border-border
+          bg-surface-muted p-4
+        ">
+          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+            Subject Name
+          </p>
+
+          <p className="mt-2 text-lg font-bold text-text">
+            {viewingSubject.subject_name}
+          </p>
+        </div>
+
+        <div className="
+          mt-4 grid gap-4
+          sm:grid-cols-2
+        ">
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Course
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {getCourseName(
+                viewingSubject.course_id
+              )}
+            </p>
+          </div>
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Semester
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              Semester {viewingSubject.semester}
+            </p>
+          </div>
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+            sm:col-span-2
+          ">
+            <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+              Subject Type
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingSubject.subject_type}
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+
+      <div className="
+        flex justify-end
+        border-t border-border
+        px-6 py-4
+      ">
+        <button
+          type="button"
+          onClick={() =>
+            setViewingSubject(null)
+          }
+          className="
+            rounded-xl bg-sidebar
+            px-5 py-2.5
+            text-sm font-semibold
+            text-white
+            transition hover:bg-primary
+          "
+        >
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
 </div>
 </main>
     </div>

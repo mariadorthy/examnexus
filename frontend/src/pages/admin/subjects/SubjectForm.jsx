@@ -1,9 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, BookOpen } from "lucide-react";
-import { post } from "../../../services/api";
-
-const API_URL =
-  "http://127.0.0.1:5000/api/subjects/";
+import { post, put } from "../../../services/api";
 
 function SubjectForm({
   subject,
@@ -100,34 +97,14 @@ function SubjectForm({
           formData.subject_type.trim(),
       };
 
-      /*
-       * Current backend only has POST.
-       *
-       * PUT/PATCH can be connected when the
-       * backend update route is added.
-       */
-
-      if (isEditing) {
-        const response = await fetch(
-          `${API_URL}${subject.id}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-            body: JSON.stringify(payload),
-          }
+            if (isEditing) {
+        await put(
+          `/subjects/${subject.id}`,
+          payload
         );
-
-        if (!response.ok) {
-          throw new Error(
-            "Failed to update subject."
-          );
-        }
       } else {
-      await post("/subjects/", payload);
-    }
+        await post("/subjects/", payload);
+      }
 
       onSuccess();
     } catch (err) {
@@ -290,18 +267,22 @@ function SubjectForm({
               </option>
 
               {Array.from(
-                {
-                  length: 12,
-                },
-                (_, index) => index + 1
-              ).map((semester) => (
-                <option
-                  key={semester}
-                  value={semester}
-                >
-                  Semester {semester}
-                </option>
-              ))}
+  {
+    length:
+      courses.find(
+        (course) =>
+          course.id === Number(formData.course_id)
+      )?.total_semesters || 0,
+  },
+  (_, index) => index + 1
+).map((semester) => (
+  <option
+    key={semester}
+    value={semester}
+  >
+    Semester {semester}
+  </option>
+))}
 
             </select>
 
@@ -325,27 +306,21 @@ function SubjectForm({
               <option value="">
                 Select subject type
               </option>
+<option value="CORE">
+  Core
+</option>
 
-              <option value="THEORY">
-                Theory
-              </option>
+<option value="ELECTIVE">
+  Elective
+</option>
 
-              <option value="PRACTICAL">
-                Practical
-              </option>
+<option value="LAB">
+  Lab
+</option>
 
-              <option value="LAB">
-                Lab
-              </option>
-
-              <option value="PROJECT">
-                Project
-              </option>
-
-              <option value="ELECTIVE">
-                Elective
-              </option>
-
+<option value="PROJECT">
+  Project
+</option>
             </select>
 
           </div>

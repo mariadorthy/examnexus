@@ -1,19 +1,19 @@
 import { useEffect, useState } from "react";
 import {
-  BookOpen,
+  Building2,
   Plus,
   Search,
   RefreshCw,
   X,
+  Pencil,
+  Power,
+  Eye,
+  Loader2,
 } from "lucide-react";
-import { get } from "../../../services/api";
+import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import CourseForm from "./CourseForm";
-
-
-const API_URL = "http://127.0.0.1:5000/api/courses";
-
 
 function Courses({ user, onLogout,  onNavigate,
  }) {
@@ -33,7 +33,16 @@ function Courses({ user, onLogout,  onNavigate,
 
   const [showForm, setShowForm] = useState(false);
 
+const [editingCourse, setEditingCourse] = useState(null);
 
+const [viewingCourse, setViewingCourse] =
+  useState(null);
+
+const [detailsLoading, setDetailsLoading] =
+  useState(false);
+
+const [statusLoading, setStatusLoading] =
+  useState(null);
   // =====================================================
   // LOAD COURSES + DEPARTMENTS
   // =====================================================
@@ -75,22 +84,13 @@ const loadCourses = async () => {
   // DEPARTMENT NAME
   // =====================================================
 
-  const getDepartmentName = (
-    departmentId
-  ) => {
+  const getDepartmentName = (departmentId) => {
+  const department = departments.find(
+    (item) => item.id === departmentId
+  );
 
-    const department =
-      departments.find(
-        (item) =>
-          item.id === departmentId
-      );
-
-    return (
-      department?.department_name ||
-      "Unknown Department"
-    );
-  };
-
+  return department?.department_name || "Unknown Department";
+};
 
   // =====================================================
   // SEARCH
@@ -142,13 +142,76 @@ const loadCourses = async () => {
   // CREATE SUCCESS
   // =====================================================
 
-  const handleFormSuccess = () => {
+ const handleCreate = () => {
+  setEditingCourse(null);
+  setShowForm(true);
+};
 
-    setShowForm(false);
+const handleEdit = (course) => {
+  setEditingCourse(course);
+  setShowForm(true);
+};
+const handleStatusChange = async (course) => {
+  try {
+    setStatusLoading(course.id);
 
-    loadCourses();
+    await patch(
+      `/courses/${course.id}/status`,
+      {
+        is_active: !course.is_active,
+      }
+    );
 
-  };
+    await loadCourses();
+  } catch (err) {
+    console.error(
+      "Course status error:",
+      err
+    );
+
+    setError(
+      err.message ||
+        "Unable to update course status."
+    );
+  } finally {
+    setStatusLoading(null);
+  }
+};
+
+const handleViewDetails = async (course) => {
+  try {
+    setDetailsLoading(true);
+
+    const data = await get(
+      `/courses/${course.id}`
+    );
+
+    setViewingCourse(data);
+  } catch (err) {
+    console.error(
+      "Course details error:",
+      err
+    );
+
+    setError(
+      err.message ||
+      "Unable to load course details."
+    );
+  } finally {
+    setDetailsLoading(false);
+  }
+};
+
+const handleFormSuccess = () => {
+  setShowForm(false);
+  setEditingCourse(null);
+  loadCourses();
+};
+
+const handleCloseForm = () => {
+  setShowForm(false);
+  setEditingCourse(null);
+};
 
 
   return (
@@ -222,7 +285,7 @@ const loadCourses = async () => {
 
               <button
                 type="button"
-                onClick={() => setShowForm(true)}
+               onClick={handleCreate}
                 className="
                   flex
                   w-full
@@ -471,6 +534,9 @@ const loadCourses = async () => {
                       Status
                     </th>
 
+<th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-text-muted">
+  Actions
+</th>
                   </tr>
 
                 </thead>
@@ -483,7 +549,7 @@ const loadCourses = async () => {
                     <tr>
 
                       <td
-                        colSpan="7"
+                        colSpan="8"
                         className="px-6 py-12 text-center text-sm text-text-muted"
                       >
                         Loading courses...
@@ -496,7 +562,7 @@ const loadCourses = async () => {
                     <tr>
 
                       <td
-                        colSpan="7"
+                        colSpan="8"
                         className="px-6 py-12 text-center"
                       >
 
@@ -570,7 +636,7 @@ const loadCourses = async () => {
                           <td className="px-6 py-4">
 
                             <span className="text-sm text-text">
-                              {course.program_level}
+                               {course.program_level}
                             </span>
 
                           </td>
@@ -617,8 +683,71 @@ const loadCourses = async () => {
                                 : "Inactive"}
                             </span>
 
-                          </td>
+</td>
 
+<td className="px-6 py-4">
+
+ <div className="flex justify-end gap-2">
+
+  {/* VIEW */}
+
+  <button
+    type="button"
+    onClick={() =>
+      handleViewDetails(course)
+    }
+    disabled={detailsLoading}
+    className="rounded-lg p-2 text-text-muted transition hover:bg-accent-light hover:text-primary"
+    title="View details"
+  >
+    <Eye size={17} />
+  </button>
+
+  {/* EDIT */}
+
+  <button
+      type="button"
+      onClick={() => handleEdit(course)}
+      className="rounded-lg p-2 text-text-muted transition hover:bg-accent-light hover:text-primary"
+      title="Edit course"
+    >
+      <Pencil size={17} />
+    </button>
+
+    {/* ACTIVATE / DEACTIVATE */}
+
+    <button
+      type="button"
+      onClick={() =>
+        handleStatusChange(course)
+      }
+      disabled={
+        statusLoading === course.id
+      }
+      className={`rounded-lg p-2 transition ${
+        course.is_active
+          ? "text-danger hover:bg-danger/10"
+          : "text-success hover:bg-accent-light"
+      }`}
+      title={
+        course.is_active
+          ? "Deactivate course"
+          : "Activate course"
+      }
+    >
+      {statusLoading === course.id ? (
+        <Loader2
+          size={17}
+          className="animate-spin"
+        />
+      ) : (
+        <Power size={17} />
+      )}
+    </button>
+
+  </div>
+
+</td>
                         </tr>
 
                       )
@@ -669,12 +798,260 @@ const loadCourses = async () => {
       {showForm && (
 
         <CourseForm
-          departments={departments}
-          onClose={() => setShowForm(false)}
-          onSuccess={handleFormSuccess}
+   course={editingCourse}
+  departments={departments}
+  onClose={handleCloseForm}
+  onSuccess={handleFormSuccess}
         />
 
       )}
+      {viewingCourse && (
+  <div
+    className="
+      fixed inset-0 z-[60]
+      flex items-center justify-center
+      bg-black/40 p-4
+      backdrop-blur-sm
+    "
+    onMouseDown={(event) => {
+      if (
+        event.target === event.currentTarget
+      ) {
+        setViewingCourse(null);
+      }
+    }}
+  >
+    <div
+      className="
+        w-full max-w-2xl
+        overflow-hidden
+        rounded-2xl bg-surface
+        shadow-2xl
+      "
+    >
+
+      {/* HEADER */}
+
+      <div className="
+        flex items-center justify-between
+        border-b border-border
+        px-6 py-5
+      ">
+        <div className="flex items-center gap-3">
+
+          <div className="
+            flex h-11 w-11
+            items-center justify-center
+            rounded-xl
+            bg-accent-light
+            text-primary
+          ">
+            <Building2 size={21} />
+          </div>
+
+          <div>
+            <h2 className="text-lg font-bold text-text">
+              Course Details
+            </h2>
+
+            <p className="text-sm text-text-muted">
+              Course information and academic details.
+            </p>
+          </div>
+
+        </div>
+
+        <button
+          type="button"
+          onClick={() =>
+            setViewingCourse(null)
+          }
+          className="
+            rounded-lg p-2
+            text-text-muted
+            transition
+            hover:bg-surface-muted
+            hover:text-text
+          "
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      {/* DETAILS */}
+
+      <div className="p-6">
+
+        <div className="grid gap-4 sm:grid-cols-2">
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="
+              text-xs font-semibold
+              uppercase tracking-wider
+              text-text-muted
+            ">
+              Course Code
+            </p>
+
+            <p className="
+              mt-2 text-lg font-bold text-primary
+            ">
+              {viewingCourse.course_code}
+            </p>
+          </div>
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="
+              text-xs font-semibold
+              uppercase tracking-wider
+              text-text-muted
+            ">
+              Status
+            </p>
+
+            <p className="
+              mt-2 text-lg font-bold text-text
+            ">
+              {viewingCourse.is_active
+                ? "Active"
+                : "Inactive"}
+            </p>
+          </div>
+
+        </div>
+
+        <div className="
+          mt-4 rounded-xl
+          border border-border
+          bg-surface-muted p-4
+        ">
+          <p className="
+            text-xs font-semibold
+            uppercase tracking-wider
+            text-text-muted
+          ">
+            Course Name
+          </p>
+
+          <p className="
+            mt-2 text-lg font-bold text-text
+          ">
+            {viewingCourse.course_name}
+          </p>
+        </div>
+
+        <div className="
+          mt-4 grid gap-4
+          sm:grid-cols-2
+        ">
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="
+              text-xs font-semibold
+              uppercase tracking-wider
+              text-text-muted
+            ">
+              Abbreviation
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingCourse.course_abbreviation}
+            </p>
+          </div>
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="
+              text-xs font-semibold
+              uppercase tracking-wider
+              text-text-muted
+            ">
+              Program Level
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingCourse.program_level}
+            </p>
+          </div>
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="
+              text-xs font-semibold
+              uppercase tracking-wider
+              text-text-muted
+            ">
+              Department
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {getDepartmentName(
+                viewingCourse.department_id
+              )}
+            </p>
+          </div>
+
+          <div className="
+            rounded-xl border border-border
+            bg-surface-muted p-4
+          ">
+            <p className="
+              text-xs font-semibold
+              uppercase tracking-wider
+              text-text-muted
+            ">
+              Total Semesters
+            </p>
+
+            <p className="mt-2 text-sm font-bold text-text">
+              {viewingCourse.total_semesters}
+            </p>
+          </div>
+
+        </div>
+
+      </div>
+
+      {/* FOOTER */}
+
+      <div className="
+        flex justify-end
+        border-t border-border
+        px-6 py-4
+      ">
+        <button
+          type="button"
+          onClick={() =>
+            setViewingCourse(null)
+          }
+          className="
+            rounded-xl bg-sidebar
+            px-5 py-2.5
+            text-sm font-semibold
+            text-white
+            transition hover:bg-primary
+          "
+        >
+          Close
+        </button>
+      </div>
+
+    </div>
+  </div>
+)}
 
     </div>
   );

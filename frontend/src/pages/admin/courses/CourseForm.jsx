@@ -4,28 +4,32 @@ import {
   BookOpen,
   Loader2,
 } from "lucide-react";
-import { post } from "../../../services/api";
+import {
+  post,
+  put,
+} from "../../../services/api";
 
 const API_URL =
   "http://127.0.0.1:5000/api/courses/";
 
 
 function CourseForm({
+  course,  
   departments,
   onClose,
   onSuccess,
 }) {
 
   const [formData, setFormData] = useState({
-    course_code: "",
-    course_name: "",
-    course_abbreviation: "",
-    program_level: "",
-    department_id: "",
-    study_shift: "",
-    session: "",
-    total_semesters: "",
-  });
+  course_code: course?.course_code || "",
+  course_name: course?.course_name || "",
+  course_abbreviation: course?.course_abbreviation || "",
+  program_level: course?.program_level || "",
+  department_id: course?.department_id || "",
+  study_shift: course?.study_shift || "",
+  session: course?.session || "",
+  total_semesters: course?.total_semesters || "",
+});
 
 
   const [error, setError] = useState("");
@@ -173,7 +177,7 @@ function CourseForm({
 
       setLoading(true);
 
-const data = await post("/courses/", {
+const payload = {
   course_code: formData.course_code.trim().toUpperCase(),
   course_name: formData.course_name.trim(),
   course_abbreviation:
@@ -183,7 +187,13 @@ const data = await post("/courses/", {
   study_shift: formData.study_shift,
   session: formData.session.trim(),
   total_semesters: totalSemesters,
-});
+};
+
+if (course) {
+  await put(`/courses/${course.id}`, payload);
+} else {
+  await post("/courses/", payload);
+}
 
 onSuccess();
 
@@ -257,13 +267,14 @@ onSuccess();
             <div>
 
               <h2 className="text-lg font-bold text-text">
-                Add Course
-              </h2>
+  {course ? "Edit Course" : "Add Course"}
+</h2>
 
-              <p className="text-sm text-text-muted">
-                Create a new academic course.
-              </p>
-
+<p className="text-sm text-text-muted">
+  {course
+    ? "Update course details."
+    : "Create a new academic course."}
+</p>
             </div>
 
           </div>
@@ -516,26 +527,13 @@ onSuccess();
                   Select level
                 </option>
 
-                <option value="Undergraduate">
-                  Undergraduate
-                </option>
+              <option value="UG">
+  UG
+</option>
 
-                <option value="Postgraduate">
-                  Postgraduate
-                </option>
-
-                <option value="Diploma">
-                  Diploma
-                </option>
-
-                <option value="Certificate">
-                  Certificate
-                </option>
-
-                <option value="Doctoral">
-                  Doctoral
-                </option>
-
+<option value="PG">
+  PG
+</option>
               </select>
 
             </div>
@@ -581,23 +579,13 @@ onSuccess();
                 <option value="">
                   Select shift
                 </option>
+<option value="Morning">
+  Morning
+</option>
 
-                <option value="Morning">
-                  Morning
-                </option>
-
-                <option value="Afternoon">
-                  Afternoon
-                </option>
-
-                <option value="Evening">
-                  Evening
-                </option>
-
-                <option value="Full Day">
-                  Full Day
-                </option>
-
+<option value="Afternoon">
+  Afternoon
+</option>
               </select>
 
             </div>
@@ -611,8 +599,8 @@ onSuccess();
                 Session
               </label>
 
-              <input
-                type="text"
+             <select
+                
                 name="session"
                 value={formData.session}
                 onChange={handleChange}
@@ -633,13 +621,20 @@ onSuccess();
                   focus:border-primary
                   focus:ring-4
                   focus:ring-primary/10
-                "
-              />
+           "
+>
+  <option value="">
+    Select session
+  </option>
 
-              <p className="mt-1.5 text-xs text-text-light">
-                Two-character academic session code.
-              </p>
+  <option value="FN">
+    FN
+  </option>
 
+  <option value="AN">
+    AN
+  </option>
+</select>
             </div>
 
           </div>
@@ -744,9 +739,13 @@ onSuccess();
                 />
               )}
 
-              {loading
-                ? "Creating..."
-                : "Create Course"}
+             {loading
+  ? course
+    ? "Updating..."
+    : "Creating..."
+  : course
+    ? "Update Course"
+    : "Create Course"}
 
             </button>
 
