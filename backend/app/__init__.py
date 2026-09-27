@@ -38,7 +38,8 @@ def create_app():
     from app.routes.staff import staff_bp
     from app.routes.allocations import allocations_bp
     from app.routes.auth import auth_bp
-
+    from app.routes.timetable import timetable_bp
+    
     # -----------------------------------------------------
     # REGISTER BLUEPRINTS
     # -----------------------------------------------------
@@ -97,6 +98,10 @@ def create_app():
         auth_bp,
         url_prefix="/api/auth"
     )
+    app.register_blueprint(
+    timetable_bp,
+    url_prefix="/api/timetable"
+)
 
     # -----------------------------------------------------
     # CREATE DATABASE TABLES

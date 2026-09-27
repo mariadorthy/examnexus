@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Save, X } from "lucide-react";
-import { post } from "../../../services/api";
+import {
+  get,
+  post,
+  put,
+} from "../../../services/api";
 function ExaminationForm({
   examination,
   subjects,
@@ -8,47 +12,114 @@ function ExaminationForm({
   onSuccess,
   onCancel,
 }) {
-  const [formData, setFormData] = useState({
-    subject_id: "",
-    exam_date: "",
-    session: "",
-    start_time: "",
-    end_time: "",
-    duration_minutes: "",
-    exam_type: "",
-  });
+ const [formData, setFormData] = useState({
+  name: "",
+  exam_type: "REGULAR",
+  course_selections: [],
+  start_date: "",
+  end_date: "",
+  duration_minutes: "",
+  session_config: [
+    {
+      session: "FN",
+      start_time: "10:00",
+      end_time: "13:00",
+    },
+    {
+      session: "AN",
+      start_time: "14:00",
+      end_time: "17:00",
+    },
+  ],
+  excluded_dates: [],
+});
 
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
-
+const [courses, setCourses] = useState([]);
+const [coursesLoading, setCoursesLoading] = useState(true);
   const isEditing = Boolean(examination);
-
   useEffect(() => {
-    if (examination) {
-      setFormData({
-        subject_id: examination.subject_id || "",
-        exam_date: examination.exam_date || "",
-        session: examination.session || "",
-        start_time: examination.start_time || "",
-        end_time: examination.end_time || "",
-        duration_minutes:
-          examination.duration_minutes || "",
-        exam_type: examination.exam_type || "",
-      });
-    } else {
-      setFormData({
-        subject_id: "",
-        exam_date: "",
-        session: "",
-        start_time: "",
-        end_time: "",
-        duration_minutes: "",
-        exam_type: "",
-      });
-    }
+  async function loadCourses() {
+    try {
+      setCoursesLoading(true);
 
-    setError("");
-  }, [examination]);
+      const data = await get("/courses/");
+
+      setCourses(data);
+    } catch (err) {
+      console.error("Course loading error:", err);
+
+      setError(
+        "Unable to load courses."
+      );
+    } finally {
+      setCoursesLoading(false);
+    }
+  }
+
+  loadCourses();
+}, []);
+useEffect(() => {
+  if (examination) {
+    setFormData({
+      name: examination.name || "",
+      exam_type: examination.exam_type || "REGULAR",
+      course_selections: examination
+  ? [
+      {
+        course_id: examination.course_id,
+        semesters: [examination.semester],
+      },
+    ]
+  : [],
+      start_date: examination.start_date || "",
+      end_date: examination.end_date || "",
+      duration_minutes:
+        examination.duration_minutes || "",
+      session_config:
+        examination.session_config || [
+          {
+            session: "FN",
+            start_time: "10:00",
+            end_time: "13:00",
+          },
+          {
+            session: "AN",
+            start_time: "14:00",
+            end_time: "17:00",
+          },
+        ],
+      excluded_dates:
+        examination.excluded_dates || [],
+    });
+  } else {
+    setFormData({
+      name: "",
+      exam_type: "REGULAR",
+      course_id: "",
+      semester: "",
+      start_date: "",
+      end_date: "",
+      duration_minutes: "",
+      session_config: [
+        {
+          session: "FN",
+          start_time: "10:00",
+          end_time: "13:00",
+        },
+        {
+          session: "AN",
+          start_time: "14:00",
+          end_time: "17:00",
+        },
+      ],
+      excluded_dates: [],
+    });
+  }
+
+  setError("");
+}, [examination]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
@@ -59,63 +130,134 @@ function ExaminationForm({
     }));
   };
 
-  const calculateDuration = () => {
-    if (
-      !formData.start_time ||
-      !formData.end_time
-    ) {
-      return;
-    }
+  const addCourseSelection = (courseId) => {
+  const id = Number(courseId);
 
-    const [startHour, startMinute] =
-      formData.start_time.split(":").map(Number);
+  if (!id) {
+    return;
+  }
 
-    const [endHour, endMinute] =
-      formData.end_time.split(":").map(Number);
+  const course = courses.find(
+    (item) => item.id === id
+  );
 
-    const start =
-      startHour * 60 + startMinute;
+  if (!course) {
+    return;
+  }
 
-    const end =
-      endHour * 60 + endMinute;
+  const alreadySelected =
+    formData.course_selections.some(
+      (item) => item.course_id === id
+    );
 
-    if (end > start) {
-      setFormData((previous) => ({
-        ...previous,
-        duration_minutes: end - start,
-      }));
-    }
-  };
+  if (alreadySelected) {
+    return;
+  }
+
+  setFormData((previous) => ({
+    ...previous,
+    course_selections: [
+      ...previous.course_selections,
+      {
+        course_id: id,
+        semesters: [],
+      },
+    ],
+  }));
+};
+
+const removeCourseSelection = (courseId) => {
+  setFormData((previous) => ({
+    ...previous,
+    course_selections:
+      previous.course_selections.filter(
+        (item) => item.course_id !== courseId
+      ),
+  }));
+};
+
+const toggleSemester = (
+  courseId,
+  semester
+) => {
+  setFormData((previous) => ({
+    ...previous,
+    course_selections:
+      previous.course_selections.map(
+        (item) => {
+          if (item.course_id !== courseId) {
+            return item;
+          }
+
+          const exists =
+            item.semesters.includes(semester);
+
+          return {
+            ...item,
+            semesters: exists
+              ? item.semesters.filter(
+                  (value) => value !== semester
+                )
+              : [
+                  ...item.semesters,
+                  semester,
+                ],
+          };
+        }
+      ),
+  }));
+};
 
   const handleSubmit = async (event) => {
     event.preventDefault();
 
     setError("");
+    if (!formData.name.trim()) {
+  setError("Examination name is required.");
+  return;
+}
 
-    if (!formData.subject_id) {
-      setError("Please select a subject.");
-      return;
-    }
+if (formData.course_selections.length === 0) {
+  setError("At least one course is required.");
+  return;
+}
 
-    if (!formData.exam_date) {
-      setError("Please select an examination date.");
-      return;
-    }
+const invalidSelection =
+  formData.course_selections.find(
+    (item) => item.semesters.length === 0
+  );
 
-    if (!formData.session.trim()) {
-      setError("Please enter the examination session.");
-      return;
-    }
+if (invalidSelection) {
+  setError(
+    "Select at least one semester for every course."
+  );
+  return;
+}
 
-    if (!formData.start_time) {
-      setError("Please select the start time.");
-      return;
-    }
+if (!formData.start_date) {
+  setError("Start date is required.");
+  return;
+}
 
-    if (!formData.end_time) {
-      setError("Please select the end time.");
-      return;
-    }
+if (!formData.end_date) {
+  setError("End date is required.");
+  return;
+}
+
+if (
+  formData.start_date >
+  formData.end_date
+) {
+  setError(
+    "Start date cannot be after end date."
+  );
+  return;
+}
+
+if (!formData.duration_minutes) {
+  setError("Exam duration is required.");
+  return;
+}
 
     if (
       !formData.duration_minutes ||
@@ -140,29 +282,41 @@ function ExaminationForm({
        * update routes are added to Flask.
        */
 
-      if (isEditing) {
-        setError(
-          "Editing is not available yet because the backend does not have an update examination route."
-        );
-
-        return;
-      }
-
-      await post("/examinations/", {
-  subject_id: Number(
-    formData.subject_id
-  ),
-  exam_date: formData.exam_date,
-  session: formData.session.trim(),
-  start_time: formData.start_time,
-  end_time: formData.end_time,
+      const payload = {
+  name: formData.name.trim(),
+  exam_type: formData.exam_type,
+  start_date: formData.start_date,
+  end_date: formData.end_date,
   duration_minutes: Number(
     formData.duration_minutes
   ),
-  exam_type: formData.exam_type.trim(),
-});
+  session_config: formData.session_config,
+  excluded_dates: formData.excluded_dates,
+  selections:
+    formData.course_selections.map(
+      (selection) => ({
+        course_id: Number(
+          selection.course_id
+        ),
+        semesters:
+          selection.semesters.map(Number),
+      })
+    ),
+};
 
-      onSuccess();
+if (isEditing) {
+  await put(
+    `/examinations/${examination.id}`,
+    payload
+  );
+} else {
+  await post(
+    "/examinations/",
+    payload
+  );
+}
+
+onSuccess();
     } catch (err) {
       console.error("Examination save error:", err);
 
@@ -191,190 +345,430 @@ function ExaminationForm({
         </div>
       )}
 
-      {/* ================================================= */}
-      {/* SUBJECT */}
-      {/* ================================================= */}
+{/* ================================================= */}
+{/* EXAMINATION NAME */}
+{/* ================================================= */}
 
-      <div>
+<div>
+  <label className="mb-2 block text-sm font-semibold text-sidebar">
+    Examination Name
+  </label>
 
-        <label className="mb-2 block text-sm font-semibold text-sidebar">
-          Subject
-        </label>
+  <input
+    type="text"
+    name="name"
+    value={formData.name}
+    onChange={handleChange}
+    placeholder="e.g. End Semester Examination 2026"
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
+  />
+</div>
 
-        <select
-          name="subject_id"
-          value={formData.subject_id}
-          onChange={handleChange}
-          disabled={subjectsLoading}
-          className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10 disabled:opacity-60"
+
+{/* ================================================= */}
+{/* TYPE + COURSE */}
+{/* ================================================= */}
+
+<div className="grid gap-5 md:grid-cols-2">
+
+  <div>
+    <label className="mb-2 block text-sm font-semibold text-sidebar">
+      Examination Type
+    </label>
+
+    <select
+      name="exam_type"
+      value={formData.exam_type}
+      onChange={handleChange}
+      className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+    >
+      <option value="REGULAR">
+        Regular
+      </option>
+
+      <option value="INTERNAL">
+        Internal
+      </option>
+
+      <option value="MODEL">
+        Model Examination
+      </option>
+
+      <option value="SUPPLEMENTARY">
+        Supplementary
+      </option>
+
+      <option value="PRACTICAL">
+        Practical
+      </option>
+    </select>
+  </div>
+
+<div>
+  <label className="mb-2 block text-sm font-semibold text-sidebar">
+    Courses
+  </label>
+
+  <p className="mb-3 text-xs text-text-muted">
+    Select the courses that will be included in this examination.
+    You can choose semesters separately for each course.
+  </p>
+
+  <select
+    value=""
+    onChange={(event) =>
+      addCourseSelection(event.target.value)
+    }
+    disabled={coursesLoading || isEditing}
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+  >
+    <option value="">
+      {coursesLoading
+        ? "Loading courses..."
+        : "Add Course"}
+    </option>
+
+    {courses
+      .filter(
+        (course) =>
+          !formData.course_selections.some(
+            (item) =>
+              item.course_id === course.id
+          )
+      )
+      .map((course) => (
+        <option
+          key={course.id}
+          value={course.id}
         >
-          <option value="">
-            {subjectsLoading
-              ? "Loading subjects..."
-              : "Select subject"}
-          </option>
+          {course.course_code} — {course.course_name}
+        </option>
+      ))}
+  </select>
 
-          {subjects.map((subject) => (
-            <option
-              key={subject.id}
-              value={subject.id}
-            >
-              {subject.subject_code} —{" "}
-              {subject.subject_name}
-            </option>
-          ))}
-        </select>
+  <div className="mt-4 space-y-4">
+    {formData.course_selections.map(
+      (selection) => {
+        const course = courses.find(
+          (item) =>
+            item.id === selection.course_id
+        );
 
-      </div>
+        if (!course) {
+          return null;
+        }
 
-      {/* ================================================= */}
-      {/* DATE + SESSION */}
-      {/* ================================================= */}
-
-      <div className="grid gap-5 md:grid-cols-2">
-
-        <div>
-
-          <label className="mb-2 block text-sm font-semibold text-sidebar">
-            Examination Date
-          </label>
-
-          <input
-            type="date"
-            name="exam_date"
-            value={formData.exam_date}
-            onChange={handleChange}
-            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-          />
-
-        </div>
-
-        <div>
-
-          <label className="mb-2 block text-sm font-semibold text-sidebar">
-            Session
-          </label>
-
-          <input
-            type="text"
-            name="session"
-            value={formData.session}
-            onChange={handleChange}
-            placeholder="Morning"
-            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
-          />
-
-        </div>
-
-      </div>
-
-      {/* ================================================= */}
-      {/* TIMES */}
-      {/* ================================================= */}
-
-      <div className="grid gap-5 md:grid-cols-2">
-
-        <div>
-
-          <label className="mb-2 block text-sm font-semibold text-sidebar">
-            Start Time
-          </label>
-
-          <input
-            type="time"
-            name="start_time"
-            value={formData.start_time}
-            onChange={handleChange}
-            onBlur={calculateDuration}
-            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-          />
-
-        </div>
-
-        <div>
-
-          <label className="mb-2 block text-sm font-semibold text-sidebar">
-            End Time
-          </label>
-
-          <input
-            type="time"
-            name="end_time"
-            value={formData.end_time}
-            onChange={handleChange}
-            onBlur={calculateDuration}
-            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-          />
-
-        </div>
-
-      </div>
-
-      {/* ================================================= */}
-      {/* DURATION + TYPE */}
-      {/* ================================================= */}
-
-      <div className="grid gap-5 md:grid-cols-2">
-
-        <div>
-
-          <label className="mb-2 block text-sm font-semibold text-sidebar">
-            Duration (minutes)
-          </label>
-
-          <input
-            type="number"
-            name="duration_minutes"
-            min="1"
-            value={formData.duration_minutes}
-            onChange={handleChange}
-            placeholder="180"
-            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
-          />
-
-        </div>
-
-        <div>
-
-          <label className="mb-2 block text-sm font-semibold text-sidebar">
-            Examination Type
-          </label>
-
-          <select
-            name="exam_type"
-            value={formData.exam_type}
-            onChange={handleChange}
-            className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+        return (
+          <div
+            key={course.id}
+            className="rounded-xl border border-border bg-background p-4"
           >
-            <option value="">
-              Select type
-            </option>
+            <div className="mb-3 flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-text">
+                  {course.course_code}
+                </p>
 
-            <option value="REGULAR">
-              Regular
-            </option>
+                <p className="text-sm text-text-muted">
+                  {course.course_name}
+                </p>
 
-            <option value="INTERNAL">
-              Internal
-            </option>
+                <p className="mt-1 text-xs text-text-muted">
+                  {course.program_level} ·{" "}
+                  {course.total_semesters} semesters
+                </p>
+              </div>
 
-            <option value="MODEL">
-              Model Examination
-            </option>
+              {!isEditing && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    removeCourseSelection(
+                      course.id
+                    )
+                  }
+                  className="rounded-lg p-2 text-danger hover:bg-red-50"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
 
-            <option value="SUPPLEMENTARY">
-              Supplementary
-            </option>
+            <p className="mb-2 text-xs font-medium text-text-muted">
+              Select semesters
+            </p>
 
-            <option value="PRACTICAL">
-              Practical
-            </option>
+            <div className="flex flex-wrap gap-2">
+              {Array.from(
+                {
+                  length: course.total_semesters,
+                },
+                (_, index) => index + 1
+              ).map((semester) => {
+                const selected =
+                  selection.semesters.includes(
+                    semester
+                  );
 
-          </select>
+                return (
+                  <button
+                    key={semester}
+                    type="button"
+                    onClick={() =>
+                      toggleSemester(
+                        course.id,
+                        semester
+                      )
+                    }
+                    className={`rounded-lg border px-3 py-2 text-sm font-medium transition ${
+                      selected
+                        ? "border-primary bg-primary text-white"
+                        : "border-border bg-surface text-text hover:bg-surface-muted"
+                    }`}
+                  >
+                    Sem {semester}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+    )}
+  </div>
+</div>
+
+{/* ================================================= */}
+{/* DATE RANGE */}
+{/* ================================================= */}
+
+<div className="grid gap-5 md:grid-cols-2">
+
+  <div>
+    <label className="mb-2 block text-sm font-semibold text-sidebar">
+      Examination Start Date
+    </label>
+
+    <input
+      type="date"
+      name="start_date"
+      value={formData.start_date}
+      onChange={handleChange}
+      className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+    />
+  </div>
+
+
+  <div>
+    <label className="mb-2 block text-sm font-semibold text-sidebar">
+      Examination End Date
+    </label>
+
+    <input
+      type="date"
+      name="end_date"
+      value={formData.end_date}
+      onChange={handleChange}
+      className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+    />
+  </div>
+
+</div>
+
+
+{/* ================================================= */}
+{/* SESSION CONFIGURATION */}
+{/* ================================================= */}
+
+<div>
+
+  <div className="mb-3">
+    <label className="block text-sm font-semibold text-sidebar">
+      Session Configuration
+    </label>
+
+    <p className="mt-1 text-xs text-text-muted">
+      Configure the available examination sessions.
+    </p>
+  </div>
+
+
+  <div className="space-y-3">
+
+    {formData.session_config.map(
+      (sessionConfig, index) => (
+        <div
+          key={index}
+          className="grid gap-3 rounded-xl border border-border bg-background p-4 md:grid-cols-3"
+        >
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-text-muted">
+              Session
+            </label>
+
+            <select
+              value={sessionConfig.session}
+              onChange={(event) => {
+                const updated =
+                  [...formData.session_config];
+
+                updated[index] = {
+                  ...updated[index],
+                  session: event.target.value,
+                };
+
+                setFormData((previous) => ({
+                  ...previous,
+                  session_config: updated,
+                }));
+              }}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+            >
+              <option value="FN">
+                FN
+              </option>
+
+              <option value="AN">
+                AN
+              </option>
+            </select>
+          </div>
+
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-text-muted">
+              Start Time
+            </label>
+
+            <input
+              type="time"
+              value={sessionConfig.start_time}
+              onChange={(event) => {
+                const updated =
+                  [...formData.session_config];
+
+                updated[index] = {
+                  ...updated[index],
+                  start_time: event.target.value,
+                };
+
+                setFormData((previous) => ({
+                  ...previous,
+                  session_config: updated,
+                }));
+              }}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+            />
+          </div>
+
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-text-muted">
+              End Time
+            </label>
+
+            <input
+              type="time"
+              value={sessionConfig.end_time}
+              onChange={(event) => {
+                const updated =
+                  [...formData.session_config];
+
+                updated[index] = {
+                  ...updated[index],
+                  end_time: event.target.value,
+                };
+
+                setFormData((previous) => ({
+                  ...previous,
+                  session_config: updated,
+                }));
+              }}
+              className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text outline-none focus:border-primary"
+            />
+          </div>
 
         </div>
+      )
+    )}
 
-      </div>
+  </div>
+
+</div>
+
+
+{/* ================================================= */}
+{/* EXCLUDED DATES */}
+{/* ================================================= */}
+
+<div>
+
+  <label className="mb-2 block text-sm font-semibold text-sidebar">
+    Excluded Dates
+  </label>
+
+  <p className="mb-3 text-xs text-text-muted">
+    Select dates within the examination range on which no examination should be scheduled.
+  </p>
+
+  <input
+    type="date"
+    onChange={(event) => {
+      const value = event.target.value;
+
+      if (
+        value &&
+        !formData.excluded_dates.includes(value)
+      ) {
+        setFormData((previous) => ({
+          ...previous,
+          excluded_dates: [
+            ...previous.excluded_dates,
+            value,
+          ],
+        }));
+      }
+    }}
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+  />
+
+  {formData.excluded_dates.length > 0 && (
+    <div className="mt-3 flex flex-wrap gap-2">
+
+      {formData.excluded_dates.map(
+        (date) => (
+          <div
+            key={date}
+            className="flex items-center gap-2 rounded-lg bg-surface-muted px-3 py-2 text-sm"
+          >
+            <span>
+              {date}
+            </span>
+
+            <button
+              type="button"
+              onClick={() => {
+                setFormData((previous) => ({
+                  ...previous,
+                  excluded_dates:
+                    previous.excluded_dates.filter(
+                      (item) => item !== date
+                    ),
+                }));
+              }}
+              className="text-text-muted hover:text-danger"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )
+      )}
+
+    </div>
+  )}
+
+</div>
 
       {/* ================================================= */}
       {/* ACTIONS */}

@@ -8,6 +8,7 @@ import Subjects from "./pages/admin/subjects/Subjects";
 import Students from "./pages/admin/students/Students";
 import Staff from "./pages/admin/staff/Staff";
 import Examinations from "./pages/admin/examinations/Examinations";
+import Timetables from "./pages/admin/timetable/Timetables";
 import ExamRegistrations from "./pages/admin/registrations/ExamRegistrations";
 import Halls from "./pages/admin/halls/Halls";
 import Allocations from "./pages/admin/allocations/Allocations";
@@ -28,7 +29,6 @@ function App() {
   const [adminPage, setAdminPage] =
     useState("Dashboard");
 
-
   const handleLogin = (userData) => {
 
     setUser(userData);
@@ -36,7 +36,6 @@ function App() {
     setAdminPage("Dashboard");
 
   };
-
 
   const handleLogout = () => {
 
@@ -47,7 +46,6 @@ function App() {
     setAdminPage("Dashboard");
 
   };
-
 
   if (!user) {
 
@@ -118,6 +116,16 @@ if (adminPage === "Staff") {
 if (adminPage === "Examinations") {
   return (
     <Examinations
+  user={user}
+  onLogout={handleLogout}
+  onNavigate={setAdminPage}
+/>
+  );
+}
+
+if (adminPage === "Timetable") {
+  return (
+    <Timetables
       user={user}
       onLogout={handleLogout}
       onNavigate={setAdminPage}

@@ -12,6 +12,7 @@ from app.models.hall import Hall
 from app.models.examination import Examination
 from app.models.allocation import Allocation
 from app.models.activity import Activity
+from app.models.timetable import Timetable
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -51,44 +52,48 @@ def get_dashboard():
     # UPCOMING EXAMINATIONS
     # =====================================================
 
-    upcoming_examinations = (
-        Examination.query
-        .filter(
-            Examination.exam_date >= date.today(),
-            Examination.status == "SCHEDULED"
-        )
-        .order_by(
-            Examination.exam_date.asc(),
-            Examination.start_time.asc()
-        )
-        .limit(5)
-        .all()
+    upcoming_timetable_entries = (
+    Timetable.query
+    .join(
+        Examination,
+        Timetable.examination_id == Examination.id
     )
+    .filter(
+        Timetable.exam_date >= date.today()
+    )
+    .order_by(
+        Timetable.exam_date.asc(),
+        Timetable.start_time.asc()
+    )
+    .limit(5)
+    .all()
+)
 
     upcoming_exams = []
 
-    for examination in upcoming_examinations:
+    for entry in upcoming_timetable_entries:
 
         upcoming_exams.append({
-            "id": examination.id,
-            "subject_id": examination.subject_id,
+            "id": entry.id,
+            "examination_id": entry.examination_id,
+            "subject_id": entry.subject_id,
             "subject_name": (
-                examination.subject.subject_name
-                if examination.subject
+                entry.subject.subject_name
+                if entry.subject
                 else None
             ),
             "subject_code": (
-                examination.subject.subject_code
-                if examination.subject
+                entry.subject.subject_code
+                if entry.subject
                 else None
             ),
-            "exam_date": examination.exam_date.isoformat(),
-            "session": examination.session,
-            "start_time": examination.start_time.strftime("%H:%M"),
-            "end_time": examination.end_time.strftime("%H:%M"),
-            "duration_minutes": examination.duration_minutes,
-            "exam_type": examination.exam_type,
-            "status": examination.status
+            "exam_date": entry.exam_date.isoformat(),
+            "session": entry.session,
+            "start_time": entry.start_time.strftime("%H:%M"),
+            "end_time": entry.end_time.strftime("%H:%M"),
+            "duration_minutes": entry.duration_minutes,
+            "exam_type": entry.examination.exam_type,
+            "status": entry.status
         })
 
     # =====================================================

@@ -18,7 +18,7 @@ function AdminSidebar({
   sidebarOpen,
   setSidebarOpen,
   activePage = "Dashboard",
-    onNavigate,
+  onNavigate,
 }) {
 
   const navigation = [
@@ -51,6 +51,10 @@ function AdminSidebar({
       icon: CalendarDays,
     },
     {
+      label: "Timetable",
+      icon: CalendarDays,
+    },
+    {
       label: "Registrations",
       icon: ClipboardList,
     },
@@ -67,14 +71,14 @@ function AdminSidebar({
 
   const handleNavigation = (label) => {
 
-  if (onNavigate) {
-    onNavigate(label);
-  }
+    if (onNavigate) {
+      onNavigate(label);
+    }
 
-  if (setSidebarOpen) {
-    setSidebarOpen(false);
-  }
-};
+    if (setSidebarOpen) {
+      setSidebarOpen(false);
+    }
+  };
 
   return (
     <>
@@ -103,10 +107,9 @@ function AdminSidebar({
           shadow-xl
           transition-transform duration-300
           lg:translate-x-0
-          ${
-            sidebarOpen
-              ? "translate-x-0"
-              : "-translate-x-full"
+          ${sidebarOpen
+            ? "translate-x-0"
+            : "-translate-x-full"
           }
         `}
       >
@@ -185,10 +188,9 @@ function AdminSidebar({
                     rounded-xl px-3 py-3
                     text-left text-sm font-medium
                     transition
-                    ${
-                      isActive
-                        ? "bg-white text-sidebar shadow-sm"
-                        : "text-accent-light hover:bg-white/10 hover:text-white"
+                    ${isActive
+                      ? "bg-white text-sidebar shadow-sm"
+                      : "text-accent-light hover:bg-white/10 hover:text-white"
                     }
                   `}
                 >
@@ -197,10 +199,9 @@ function AdminSidebar({
                     size={19}
                     className={`
                       shrink-0
-                      ${
-                        isActive
-                          ? "text-primary"
-                          : "text-accent-light group-hover:text-white"
+                      ${isActive
+                        ? "text-primary"
+                        : "text-accent-light group-hover:text-white"
                       }
                     `}
                   />

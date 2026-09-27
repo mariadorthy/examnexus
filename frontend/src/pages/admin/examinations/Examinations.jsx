@@ -7,17 +7,19 @@ import {
   Search,
   Edit3,
   Trash2,
+    Eye,
   X,
 } from "lucide-react";
 
 import ExaminationForm from "./ExaminationForm";
+import ExaminationDetails from "./ExaminationDetails";
 import { get } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 
 function Examinations({
-  user,
-  onLogout,
+  user, 
+  onLogout, 
   onNavigate,
 }) {
     const [sidebarOpen, setSidebarOpen] =
@@ -33,7 +35,7 @@ function Examinations({
 
   const [showForm, setShowForm] = useState(false);
   const [editingExamination, setEditingExamination] = useState(null);
-
+const [viewingExamination, setViewingExamination] = useState(null);
   useEffect(() => {
     loadExaminations();
     loadSubjects();
@@ -95,6 +97,10 @@ setSubjects(data);
     setShowForm(true);
   };
 
+const handleView = (examination) => {
+  setViewingExamination(examination);
+};
+
   const handleFormSuccess = () => {
     setShowForm(false);
     setEditingExamination(null);
@@ -129,26 +135,29 @@ setSubjects(data);
     );
   };
 
-  const filteredExaminations = examinations.filter(
-    (examination) => {
-      const subjectName = getSubjectName(
-        examination.subject_id
-      );
+ const filteredExaminations =
+  examinations.filter((examination) => {
+    const searchText =
+  search.toLowerCase();
 
-      const searchableText = `
-        ${subjectName}
-        ${examination.session}
-        ${examination.exam_type}
-        ${examination.status}
-        ${examination.exam_date}
-      `.toLowerCase();
-
-      return searchableText.includes(
-        search.toLowerCase()
-      );
-    }
-  );
-
+    return (
+      examination.name
+        ?.toLowerCase()
+        .includes(searchText) ||
+      examination.course_name
+        ?.toLowerCase()
+        .includes(searchText) ||
+      examination.exam_type
+        ?.toLowerCase()
+        .includes(searchText) ||
+      String(examination.semester)
+        .includes(searchText) ||
+      examination.status
+        ?.toLowerCase()
+        .includes(searchText)
+    );
+  });
+  
   const formatDate = (date) => {
     if (!date) {
       return "—";
@@ -391,27 +400,26 @@ setSubjects(data);
               <tr className="border-b border-border bg-surface-muted">
 
                 <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Subject
+Examination
                 </th>
 
                 <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Date
+Type
                 </th>
 
                 <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Session
+Course                </th>
+
+                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+Semester
                 </th>
 
                 <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Time
+Date Range
                 </th>
 
                 <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Duration
-                </th>
-
-                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Type
+Duration
                 </th>
 
                 <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
@@ -459,95 +467,90 @@ setSubjects(data);
               ) : (
                 filteredExaminations.map(
                   (examination) => (
-                    <tr
-                      key={examination.id}
-                      className="border-b border-border last:border-0 hover:bg-surface-muted"
-                    >
+                 <tr
+  key={examination.id}
+  className="border-b border-border last:border-0 hover:bg-surface-muted"
+>
+  <td className="px-5 py-4">
+    <p className="font-semibold text-text">
+      {examination.name}
+    </p>
 
-                      <td className="px-5 py-4">
+    <p className="mt-1 text-xs text-text-muted">
+      Examination #{examination.id}
+    </p>
+  </td>
 
-                        <p className="font-semibold text-text">
-                          {getSubjectName(
-                            examination.subject_id
-                          )}
-                        </p>
+  <td className="px-5 py-4 text-sm text-text">
+    {examination.exam_type}
+  </td>
 
-                        <p className="mt-1 text-xs text-text-muted">
-                          Examination #{examination.id}
-                        </p>
+  <td className="px-5 py-4 text-sm text-text">
+    {examination.course_name || `Course #${examination.course_id}`}
+  </td>
 
-                      </td>
+  <td className="px-5 py-4 text-sm text-text">
+    {examination.semester}
+  </td>
 
-                      <td className="px-5 py-4 text-sm text-text">
-                        {formatDate(
-                          examination.exam_date
-                        )}
-                      </td>
+  <td className="px-5 py-4 text-sm text-text">
+    {formatDate(examination.start_date)}
+    {" — "}
+    {formatDate(examination.end_date)}
+  </td>
 
-                      <td className="px-5 py-4 text-sm text-text">
-                        {examination.session}
-                      </td>
+  <td className="px-5 py-4 text-sm text-text">
+    {examination.duration_minutes} min
+  </td>
 
-                      <td className="px-5 py-4 text-sm text-text">
-                        {examination.start_time} —{" "}
-                        {examination.end_time}
-                      </td>
+  <td className="px-5 py-4">
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
+        examination.status
+      )}`}
+    >
+      {examination.status}
+    </span>
+  </td>
 
-                      <td className="px-5 py-4 text-sm text-text">
-                        {examination.duration_minutes} min
-                      </td>
+  <td className="px-5 py-4">
+    <div className="flex justify-end gap-2">
 
-                      <td className="px-5 py-4 text-sm text-text">
-                        {examination.exam_type}
-                      </td>
+<button 
+  type="button" 
+  onClick={() => handleView(examination)} 
+  className="rounded-lg p-2 text-primary transition hover:bg-accent-light" 
+  title="View examination" 
+> 
+  <Eye size={17} /> 
+</button>
 
-                      <td className="px-5 py-4">
+      <button
+        type="button"
+        onClick={() =>
+          handleEdit(examination)
+        }
+        className="rounded-lg p-2 text-primary transition hover:bg-accent-light"
+        title="Edit examination"
+      >
+        <Edit3 size={17} />
+      </button>
 
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
-                            examination.status
-                          )}`}
-                        >
-                          {examination.status}
-                        </span>
+      <button
+        type="button"
+        onClick={() =>
+          handleDelete(examination.id)
+        }
+        className="rounded-lg p-2 text-danger transition hover:bg-red-50"
+        title="Delete examination"
+      >
+        <Trash2 size={17} />
+      </button>
 
-                      </td>
+    </div>
+  </td>
+</tr>
 
-                      <td className="px-5 py-4">
-
-                        <div className="flex justify-end gap-2">
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleEdit(
-                                examination
-                              )
-                            }
-                            className="rounded-lg p-2 text-primary transition hover:bg-accent-light"
-                            title="Edit examination"
-                          >
-                            <Edit3 size={17} />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() =>
-                              handleDelete(
-                                examination.id
-                              )
-                            }
-                            className="rounded-lg p-2 text-danger transition hover:bg-red-50"
-                            title="Delete examination"
-                          >
-                            <Trash2 size={17} />
-                          </button>
-
-                        </div>
-
-                      </td>
-
-                    </tr>
                   )
                 )
               )}
@@ -611,6 +614,13 @@ setSubjects(data);
 
         </div>
       )}
+{/* DETAILS MODAL */}
+      {viewingExamination && (
+  <ExaminationDetails
+    examinationId={viewingExamination.id}
+    onClose={() => setViewingExamination(null)}
+  />
+)}
       </div>
     </main>
     </div>
