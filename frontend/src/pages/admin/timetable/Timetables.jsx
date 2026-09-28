@@ -200,7 +200,7 @@ setExaminations(
       sessions: selectedSessions,
       gap_days: numericGap,
       excluded_dates: excludedDates,
-      clear_existing: false,
+      clear_existing: true,
     });
 
     const createdCount =

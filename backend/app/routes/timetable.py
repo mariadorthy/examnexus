@@ -187,21 +187,14 @@ def generate_bulk_examination_timetable():
         )
 
         return {
-            "success": True,
-            "message": (
-                "Bulk timetable generated successfully."
-            ),
-            "created_count": len(
-                result["created"]
-            ),
-            "skipped_count": len(
-                result["skipped"]
-            ),
-            "data": [
-                serialize_timetable(entry)
-                for entry in result["created"]
-            ]
-        }, 201
+    "success": True,
+    "message": (
+        "Bulk timetable generated successfully."
+    ),
+    "created_count": result["created_count"],
+    "skipped_count": result["skipped_count"],
+    "data": result["created"]
+}, 201
 
     except KeyError as exc:
         return {

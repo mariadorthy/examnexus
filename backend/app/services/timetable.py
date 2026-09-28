@@ -332,16 +332,32 @@ def generate_bulk_timetable(
     """
     Generate timetable entries for multiple examinations.
 
-    Rules:
-    - Each examination/cohort gets only ONE subject per exam date.
-    - Multiple different examinations can run on the same date.
-    - Selected sessions are distributed across examinations.
+    Scheduling model:
+
+    - Examination = one course + one semester/cohort.
+    - Semesters of the SAME course are divided into sets.
+    - For 2 semesters: 1 + 1
+    - For 4 semesters: 2 + 2
+    - For 6 semesters: 3 + 3
+    - For 8 semesters: 4 + 4
+    - Set 1 starts on the examination plan start date.
+    - Set 2 starts on the next available examination date.
+    - Additional sets continue on subsequent available dates.
+    - Within a set, semesters are distributed across FN/AN.
+    - Each semester gets only ONE subject per examination day.
+    - Different courses may have their own semester sets.
     - Sundays and excluded dates are skipped.
-    - Gap days are respected between exam dates for each examination.
+    - gap_days controls the gap between set-start/examination days.
     """
 
+    # ---------------------------------------------------------
+    # BASIC VALIDATION
+    # ---------------------------------------------------------
+
     if not examination_ids:
-        raise ValueError("At least one examination must be selected.")
+        raise ValueError(
+            "At least one examination must be selected."
+        )
 
     normalized_sessions = [
         str(session).strip().upper()
@@ -349,8 +365,14 @@ def generate_bulk_timetable(
         if str(session).strip()
     ]
 
+    normalized_sessions = list(
+        dict.fromkeys(normalized_sessions)
+    )
+
     if not normalized_sessions:
-        raise ValueError("At least one session must be selected.")
+        raise ValueError(
+            "At least one session must be selected."
+        )
 
     invalid_sessions = [
         session
@@ -360,18 +382,35 @@ def generate_bulk_timetable(
 
     if invalid_sessions:
         raise ValueError(
-            f"Invalid session(s): {', '.join(invalid_sessions)}"
+            f"Invalid session(s): "
+            f"{', '.join(invalid_sessions)}"
+        )
+
+    try:
+        gap_days = int(gap_days)
+    except (TypeError, ValueError):
+        raise ValueError(
+            "Gap days must be a whole number."
         )
 
     if gap_days < 0:
-        raise ValueError("Gap days cannot be negative.")
+        raise ValueError(
+            "Gap days cannot be negative."
+        )
 
-    # Remove duplicate IDs while preserving order.
-    examination_ids = list(dict.fromkeys(examination_ids))
+    examination_ids = list(
+        dict.fromkeys(examination_ids)
+    )
+
+    # ---------------------------------------------------------
+    # LOAD EXAMINATIONS
+    # ---------------------------------------------------------
 
     examinations = (
         Examination.query
-        .filter(Examination.id.in_(examination_ids))
+        .filter(
+            Examination.id.in_(examination_ids)
+        )
         .order_by(
             Examination.course_id.asc(),
             Examination.semester.asc(),
@@ -381,15 +420,21 @@ def generate_bulk_timetable(
     )
 
     if not examinations:
-        raise ValueError("No valid examinations were found.")
+        raise ValueError(
+            "No valid examinations were found."
+        )
 
     if len(examinations) != len(examination_ids):
-        found_ids = {exam.id for exam in examinations}
+
+        found_ids = {
+            examination.id
+            for examination in examinations
+        }
 
         missing_ids = [
-            exam_id
-            for exam_id in examination_ids
-            if exam_id not in found_ids
+            examination_id
+            for examination_id in examination_ids
+            if examination_id not in found_ids
         ]
 
         raise ValueError(
@@ -397,41 +442,62 @@ def generate_bulk_timetable(
         )
 
     # ---------------------------------------------------------
-    # Make sure all selected examinations belong to one plan.
+    # ALL SELECTED EXAMS MUST BELONG TO SAME PLAN
     # ---------------------------------------------------------
+
     reference_exam = examinations[0]
 
     for examination in examinations[1:]:
+
         if (
-            examination.name != reference_exam.name
-            or examination.exam_type != reference_exam.exam_type
-            or examination.start_date != reference_exam.start_date
-            or examination.end_date != reference_exam.end_date
+            examination.name
+            != reference_exam.name
+            or examination.exam_type
+            != reference_exam.exam_type
+            or examination.start_date
+            != reference_exam.start_date
+            or examination.end_date
+            != reference_exam.end_date
         ):
             raise ValueError(
-                "All selected examinations must belong to the same "
-                "examination plan."
+                "All selected examinations must belong "
+                "to the same examination plan."
             )
 
     # ---------------------------------------------------------
-    # Build excluded dates.
+    # EXCLUDED DATES
     # ---------------------------------------------------------
+
     excluded_dates = excluded_dates or []
 
     normalized_excluded_dates = set()
 
     for value in excluded_dates:
+
         if isinstance(value, date):
-            normalized_excluded_dates.add(value)
-        else:
+
             normalized_excluded_dates.add(
-                date.fromisoformat(str(value))
+                value
             )
 
+        else:
+
+            try:
+                normalized_excluded_dates.add(
+                    date.fromisoformat(
+                        str(value)
+                    )
+                )
+
+            except ValueError:
+                raise ValueError(
+                    f"Invalid excluded date: {value}"
+                )
+
     # ---------------------------------------------------------
-    # Get available dates.
-    # Sundays are already removed by get_available_dates().
+    # AVAILABLE DATES
     # ---------------------------------------------------------
+
     available_dates = get_available_dates(
         reference_exam.start_date,
         reference_exam.end_date,
@@ -440,16 +506,223 @@ def generate_bulk_timetable(
 
     if not available_dates:
         raise ValueError(
-            "No available examination dates exist within the "
-            "selected examination plan."
+            "No available examination dates exist "
+            "within the selected examination plan."
         )
 
     # ---------------------------------------------------------
-    # Clear existing entries if requested.
+    # LOAD SUBJECTS FOR EACH EXAMINATION
     # ---------------------------------------------------------
+
+    examination_subjects = {}
+
+    for examination in examinations:
+
+        subjects = (
+            Subject.query
+            .filter(
+                Subject.course_id
+                == examination.course_id,
+
+                Subject.semester
+                == examination.semester,
+
+                Subject.is_active.is_(True),
+            )
+            .order_by(
+                Subject.id.asc()
+            )
+            .all()
+        )
+
+        examination_subjects[
+            examination.id
+        ] = subjects
+
+    schedulable_examinations = [
+        examination
+        for examination in examinations
+        if examination_subjects[
+            examination.id
+        ]
+    ]
+
+    if not schedulable_examinations:
+        raise ValueError(
+            "No active subjects were found for "
+            "the selected examinations."
+        )
+
+    # ---------------------------------------------------------
+    # GROUP EXAMINATIONS BY COURSE
+    #
+    # Example:
+    #
+    # Mechanical Engineering
+    #   Sem 1
+    #   Sem 2
+    #   Sem 3
+    #   Sem 4
+    #   Sem 5
+    #   Sem 6
+    #   Sem 7
+    #   Sem 8
+    #
+    # MCA
+    #   Sem 1
+    #   Sem 2
+    #   Sem 3
+    #   Sem 4
+    # ---------------------------------------------------------
+
+    examinations_by_course = {}
+
+    for examination in schedulable_examinations:
+
+        examinations_by_course.setdefault(
+            examination.course_id,
+            []
+        ).append(
+            examination
+        )
+
+    # ---------------------------------------------------------
+    # SORT SEMESTERS WITHIN EACH COURSE
+    # ---------------------------------------------------------
+
+    for course_id in examinations_by_course:
+
+        examinations_by_course[
+            course_id
+        ].sort(
+            key=lambda examination: (
+                examination.semester,
+                examination.id
+            )
+        )
+
+    # ---------------------------------------------------------
+    # BUILD SEMESTER SETS
+    #
+    # The semester list is split into two balanced sets.
+    #
+    # 2 semesters:
+    #   Set 1 -> 1, 2
+    #
+    # 4 semesters:
+    #   Set 1 -> 1, 2
+    #   Set 2 -> 3, 4
+    #
+    # 6 semesters:
+    #   Set 1 -> 1, 2, 3
+    #   Set 2 -> 4, 5, 6
+    #
+    # 8 semesters:
+    #   Set 1 -> 1, 2, 3, 4
+    #   Set 2 -> 5, 6, 7, 8
+    #
+    # More generally, the semesters are divided into
+    # balanced sequential sets.
+    # ---------------------------------------------------------
+
+    course_sets = {}
+
+    for course_id, course_examinations in (
+        examinations_by_course.items()
+    ):
+
+        total_semesters = len(
+            course_examinations
+        )
+
+        split_point = (
+            total_semesters + 1
+        ) // 2
+
+        first_set = course_examinations[
+            :split_point
+        ]
+
+        second_set = course_examinations[
+            split_point:
+        ]
+
+        sets = []
+
+        if first_set:
+            sets.append(first_set)
+
+        if second_set:
+            sets.append(second_set)
+
+        course_sets[course_id] = sets
+
+    # ---------------------------------------------------------
+    # CREATE GLOBAL SET SCHEDULE
+    #
+    # Each course gets its own semester sets.
+    #
+    # Example:
+    #
+    # Mechanical 8 semesters:
+    #
+    # Day 1 -> Sem 1,2,3,4
+    # Day 2 -> Sem 5,6,7,8
+    #
+    # MCA 4 semesters:
+    #
+    # Day 1 -> Sem 1,2
+    # Day 2 -> Sem 3,4
+    #
+    # This means different courses can use the same
+    # calendar days.
+    # ---------------------------------------------------------
+
+    scheduled_set_dates = {}
+
+    for course_id, sets in course_sets.items():
+
+        scheduled_set_dates[
+            course_id
+        ] = []
+
+        date_index = 0
+
+        for semester_set in sets:
+
+            if date_index >= len(
+                available_dates
+            ):
+                raise ValueError(
+                    "Not enough available examination "
+                    "dates to create semester sets."
+                )
+
+            scheduled_set_dates[
+                course_id
+            ].append(
+                (
+                    semester_set,
+                    available_dates[
+                        date_index
+                    ]
+                )
+            )
+
+            # Move to next available examination date
+            # for the next semester set.
+            date_index += 1 + gap_days
+
+    # ---------------------------------------------------------
+    # CLEAR EXISTING ENTRIES
+    # ---------------------------------------------------------
+
     if clear_existing:
+
         Timetable.query.filter(
-            Timetable.examination_id.in_(examination_ids)
+            Timetable.examination_id.in_(
+                examination_ids
+            )
         ).delete(
             synchronize_session=False
         )
@@ -460,245 +733,262 @@ def generate_bulk_timetable(
     skipped_entries = []
 
     # ---------------------------------------------------------
-    # Generate subjects for every examination.
-    #
-    # Each examination represents a course + semester cohort.
-    # A cohort can have only ONE exam on a particular date.
+    # GENERATE SUBJECT TIMETABLE
     # ---------------------------------------------------------
-    examination_subjects = {}
 
-    for examination in examinations:
-        subjects = (
-            Subject.query
-            .filter(
-                Subject.course_id == examination.course_id,
-                Subject.semester == examination.semester,
-                Subject.is_active.is_(True),
-            )
-            .order_by(Subject.id.asc())
-            .all()
-        )
+    for course_id, semester_sets in (
+        scheduled_set_dates.items()
+    ):
 
-        if not subjects:
-            continue
-
-        examination_subjects[examination.id] = subjects
-
-    if not examination_subjects:
-        raise ValueError(
-            "No active subjects were found for the selected examinations."
-        )
-
-    # ---------------------------------------------------------
-    # Track how many subjects have already been scheduled
-    # for every examination.
-    # ---------------------------------------------------------
-    subject_indexes = {
-        examination_id: 0
-        for examination_id in examination_subjects
-    }
-
-    # ---------------------------------------------------------
-    # Track the next available date for each examination.
-    #
-    # This guarantees that the same cohort does not receive
-    # two examinations on the same date.
-    # ---------------------------------------------------------
-    next_date_indexes = {
-        examination_id: 0
-        for examination_id in examination_subjects
-    }
-
-    # ---------------------------------------------------------
-    # Schedule date by date.
-    #
-    # Example with FN + AN:
-    #
-    # Oct 1:
-    #   Semester 1 -> FN -> Subject 1
-    #   Semester 2 -> AN -> Subject 1
-    #
-    # Oct 3:
-    #   Semester 1 -> FN -> Subject 2
-    #   Semester 2 -> AN -> Subject 2
-    #
-    # No examination receives both FN and AN on the same date.
-    # ---------------------------------------------------------
-    while True:
-        progress_made = False
-
-        for examination_index, examination in enumerate(examinations):
-
-            if examination.id not in examination_subjects:
-                continue
-
-            subjects = examination_subjects[examination.id]
-
-            subject_index = subject_indexes[examination.id]
-
-            if subject_index >= len(subjects):
-                continue
-
-            date_index = next_date_indexes[examination.id]
-
-            if date_index >= len(available_dates):
-                raise ValueError(
-                    f"Not enough available examination dates for "
-                    f"{examination.name} - Semester "
-                    f"{examination.semester}."
-                )
-
-            exam_date = available_dates[date_index]
-
-            subject = subjects[subject_index]
+        for semester_set, set_start_date in (
+            semester_sets
+        ):
 
             # -------------------------------------------------
-            # Assign ONE session to this examination.
+            # Distribute semesters in this set across
+            # the selected sessions.
             #
-            # Sessions rotate across examinations.
+            # Example with 4 semesters:
+            #
+            # Sem 1 -> FN
+            # Sem 2 -> FN
+            # Sem 3 -> AN
+            # Sem 4 -> AN
+            #
+            # Example with 2 semesters:
+            #
+            # Sem 1 -> FN
+            # Sem 2 -> AN
+            #
+            # We split the set into balanced FN/AN groups.
             # -------------------------------------------------
-            session = normalized_sessions[
-                examination_index % len(normalized_sessions)
-            ]
 
-            start_time, end_time = get_examination_session_times(
-                examination,
-                session,
+            session_groups = []
+
+            total_in_set = len(
+                semester_set
             )
 
-            # -------------------------------------------------
-            # Check whether this exact timetable entry already
-            # exists.
-            # -------------------------------------------------
-            existing_entry = Timetable.query.filter_by(
-                examination_id=examination.id,
-                subject_id=subject.id,
-            ).first()
+            fn_count = (
+                total_in_set + 1
+            ) // 2
 
-            if existing_entry and not clear_existing:
-
-                skipped_entries.append({
-                    "examination_id": examination.id,
-                    "subject_id": subject.id,
-                    "exam_date": existing_entry.exam_date.isoformat(),
-                    "session": existing_entry.session,
-                })
-
-                subject_indexes[examination.id] += 1
-
-                # Existing subject already occupies a timetable
-                # date, so move this examination forward.
-                current_date_index = date_index
-
-                next_date = (
-                    available_dates[current_date_index]
-                    + timedelta(days=gap_days + 1)
-                )
-
-                next_index = current_date_index + 1
-
-                while (
-                    next_index < len(available_dates)
-                    and available_dates[next_index] < next_date
-                ):
-                    next_index += 1
-
-                next_date_indexes[examination.id] = next_index
-
-                progress_made = True
-                continue
-
-            # -------------------------------------------------
-            # Prevent another subject of the SAME examination
-            # from being placed on the same date.
-            # -------------------------------------------------
-            same_day_entry = Timetable.query.filter_by(
-                examination_id=examination.id,
-                exam_date=exam_date,
-            ).first()
-
-            if same_day_entry:
-                raise ValueError(
-                    f"Scheduling conflict detected for "
-                    f"{examination.name}: "
-                    f"multiple subjects cannot be scheduled "
-                    f"on {exam_date.isoformat()}."
-                )
-
-            entry = Timetable(
-                examination_id=examination.id,
-                subject_id=subject.id,
-                exam_date=exam_date,
-                session=session,
-                start_time=start_time,
-                end_time=end_time,
-                duration_minutes=examination.duration_minutes,
-                status="GENERATED",
-            )
-
-            db.session.add(entry)
-
-            created_entries.append(entry)
-
-            subject_indexes[examination.id] += 1
-
-            # -------------------------------------------------
-            # Move this examination to the next valid date.
-            # -------------------------------------------------
-            next_date = (
-                exam_date
-                + timedelta(days=gap_days + 1)
-            )
-
-            next_index = date_index + 1
-
-            while (
-                next_index < len(available_dates)
-                and available_dates[next_index] < next_date
+            for index, examination in enumerate(
+                semester_set
             ):
-                next_index += 1
 
-            next_date_indexes[examination.id] = next_index
+                if len(normalized_sessions) == 1:
 
-            progress_made = True
+                    session = (
+                        normalized_sessions[0]
+                    )
 
-        # -----------------------------------------------------
-        # Stop when every examination has all subjects scheduled.
-        # -----------------------------------------------------
-        all_completed = all(
-            subject_indexes[examination_id]
-            >= len(examination_subjects[examination_id])
-            for examination_id in examination_subjects
-        )
+                else:
 
-        if all_completed:
-            break
+                    if index < fn_count:
 
-        if not progress_made:
-            raise ValueError(
-                "Unable to generate timetable with the available "
-                "dates, sessions, and gap configuration."
-            )
+                        session = (
+                            normalized_sessions[0]
+                        )
+
+                    else:
+
+                        session = (
+                            normalized_sessions[1]
+                        )
+
+                start_time, end_time = (
+                    get_examination_session_times(
+                        examination,
+                        session
+                    )
+                )
+
+                duration_minutes = int(
+                    (
+                        datetime.combine(
+                            date.today(),
+                            end_time
+                        )
+                        -
+                        datetime.combine(
+                            date.today(),
+                            start_time
+                        )
+                    ).total_seconds()
+                    / 60
+                )
+
+                # -------------------------------------------------
+                # Schedule every subject of this semester.
+                #
+                # Subject 1 starts on the set start date.
+                # Subject 2 goes to the next available date.
+                # Subject 3 to the next, etc.
+                #
+                # Therefore one semester never has two
+                # subjects on the same calendar day.
+                # -------------------------------------------------
+
+                for subject_index, subject in enumerate(
+                    examination_subjects[
+                        examination.id
+                    ]
+                ):
+                    set_start_index = available_dates.index(
+    set_start_date
+)
+
+                    subject_date_index = (
+    set_start_index
+    + subject_index * (1 + gap_days)
+)
+
+                    if subject_date_index >= len(available_dates):
+                            raise ValueError(
+        "Not enough available "
+        "examination dates to complete "
+        f"{examination.name} - "
+        f"Semester "
+        f"{examination.semester}."
+    )
+
+                    exam_date = available_dates[subject_date_index]
+       
+                    # ---------------------------------------------
+                    # Check whether this subject already exists.
+                    # ---------------------------------------------
+
+                    existing_entry = (
+                        Timetable.query
+                        .filter_by(
+                            examination_id=(
+                                examination.id
+                            ),
+                            subject_id=subject.id
+                        )
+                        .first()
+                    )
+
+                    if existing_entry:
+
+                        skipped_entries.append({
+                            "examination_id":
+                                examination.id,
+
+                            "subject_id":
+                                subject.id,
+
+                            "exam_date":
+                                existing_entry
+                                .exam_date
+                                .isoformat(),
+
+                            "session":
+                                existing_entry.session
+                        })
+
+                        continue
+
+                    # ---------------------------------------------
+                    # Safety check:
+                    # one semester/cohort cannot have two
+                    # subjects on the same day.
+                    # ---------------------------------------------
+
+                    same_day_entry = (
+                        Timetable.query
+                        .filter_by(
+                            examination_id=(
+                                examination.id
+                            ),
+                            exam_date=exam_date
+                        )
+                        .first()
+                    )
+
+                    if same_day_entry:
+
+                        raise ValueError(
+                            f"Scheduling conflict detected for "
+                            f"{examination.name} - Semester "
+                            f"{examination.semester}: "
+                            f"multiple subjects cannot be "
+                            f"scheduled on "
+                            f"{exam_date.isoformat()}."
+                        )
+
+                    # ---------------------------------------------
+                    # Create timetable entry.
+                    # ---------------------------------------------
+
+                    entry = Timetable(
+                        examination_id=(
+                            examination.id
+                        ),
+                        subject_id=subject.id,
+                        exam_date=exam_date,
+                        session=session,
+                        start_time=start_time,
+                        end_time=end_time,
+                        duration_minutes=(
+                            duration_minutes
+                        ),
+                        status="GENERATED"
+                    )
+
+                    db.session.add(entry)
+
+                    created_entries.append(
+                        entry
+                    )
+
+    # ---------------------------------------------------------
+    # COMMIT
+    # ---------------------------------------------------------
 
     db.session.commit()
 
+    # ---------------------------------------------------------
+    # RETURN RESULT
+    # ---------------------------------------------------------
+
     return {
-        "created_count": len(created_entries),
-        "skipped_count": len(skipped_entries),
+        "created_count": len(
+            created_entries
+        ),
+
+        "skipped_count": len(
+            skipped_entries
+        ),
+
         "created": [
             {
                 "id": entry.id,
-                "examination_id": entry.examination_id,
-                "subject_id": entry.subject_id,
-                "exam_date": entry.exam_date.isoformat(),
-                "session": entry.session,
-                "start_time": entry.start_time.strftime("%H:%M"),
-                "end_time": entry.end_time.strftime("%H:%M"),
-                "duration_minutes": entry.duration_minutes,
-                "status": entry.status,
+                "examination_id":
+                    entry.examination_id,
+                "subject_id":
+                    entry.subject_id,
+                "exam_date":
+                    entry.exam_date.isoformat(),
+                "session":
+                    entry.session,
+                "start_time":
+                    entry.start_time.strftime(
+                        "%H:%M"
+                    ),
+                "end_time":
+                    entry.end_time.strftime(
+                        "%H:%M"
+                    ),
+                "duration_minutes":
+                    entry.duration_minutes,
+                "status":
+                    entry.status,
             }
             for entry in created_entries
         ],
+
         "skipped": skipped_entries,
     }
 
