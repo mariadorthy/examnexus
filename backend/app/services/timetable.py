@@ -327,257 +327,379 @@ def generate_bulk_timetable(
     sessions,
     gap_days=0,
     excluded_dates=None,
-    clear_existing=False
+    clear_existing=False,
 ):
     """
-    Generate timetables for multiple examinations belonging
-    to the same examination plan.
+    Generate timetable entries for multiple examinations.
 
-    Each examination automatically uses its active subjects
-    based on its course and semester.
-
-    gap_days:
-        0 = no gap
-        1 = one calendar day between exam days
-        2 = two calendar days between exam days
+    Rules:
+    - Each examination/cohort gets only ONE subject per exam date.
+    - Multiple different examinations can run on the same date.
+    - Selected sessions are distributed across examinations.
+    - Sundays and excluded dates are skipped.
+    - Gap days are respected between exam dates for each examination.
     """
 
     if not examination_ids:
-        raise ValueError(
-            "At least one examination is required."
-        )
+        raise ValueError("At least one examination must be selected.")
 
-    if not sessions:
-        raise ValueError(
-            "At least one session is required."
-        )
+    normalized_sessions = [
+        str(session).strip().upper()
+        for session in (sessions or [])
+        if str(session).strip()
+    ]
 
-    try:
-        gap_days = int(gap_days)
-    except (TypeError, ValueError):
+    if not normalized_sessions:
+        raise ValueError("At least one session must be selected.")
+
+    invalid_sessions = [
+        session
+        for session in normalized_sessions
+        if session not in SESSION_TIMES
+    ]
+
+    if invalid_sessions:
         raise ValueError(
-            "Gap between exams must be a valid number."
+            f"Invalid session(s): {', '.join(invalid_sessions)}"
         )
 
     if gap_days < 0:
-        raise ValueError(
-            "Gap between exams cannot be negative."
-        )
+        raise ValueError("Gap days cannot be negative.")
 
-    normalized_sessions = [
-        session.strip().upper()
-        for session in sessions
-    ]
-
-    for session in normalized_sessions:
-        if session not in SESSION_TIMES:
-            raise ValueError(
-                f"Invalid session: {session}. "
-                "Allowed sessions are FN and AN."
-            )
-
-    unique_examination_ids = list(
-        dict.fromkeys(examination_ids)
-    )
+    # Remove duplicate IDs while preserving order.
+    examination_ids = list(dict.fromkeys(examination_ids))
 
     examinations = (
         Examination.query
-        .filter(
-            Examination.id.in_(unique_examination_ids)
-        )
+        .filter(Examination.id.in_(examination_ids))
         .order_by(
-            Examination.course_id,
-            Examination.semester
+            Examination.course_id.asc(),
+            Examination.semester.asc(),
+            Examination.id.asc(),
         )
         .all()
     )
 
-    if len(examinations) != len(unique_examination_ids):
+    if not examinations:
+        raise ValueError("No valid examinations were found.")
+
+    if len(examinations) != len(examination_ids):
+        found_ids = {exam.id for exam in examinations}
+
+        missing_ids = [
+            exam_id
+            for exam_id in examination_ids
+            if exam_id not in found_ids
+        ]
+
         raise ValueError(
-            "One or more selected examinations were not found."
+            f"Examination(s) not found: {missing_ids}"
         )
 
-    reference = examinations[0]
+    # ---------------------------------------------------------
+    # Make sure all selected examinations belong to one plan.
+    # ---------------------------------------------------------
+    reference_exam = examinations[0]
 
-    # All examinations must belong to the same
-    # Examination Plan.
     for examination in examinations[1:]:
         if (
-            examination.name != reference.name
-            or examination.exam_type != reference.exam_type
-            or examination.start_date != reference.start_date
-            or examination.end_date != reference.end_date
+            examination.name != reference_exam.name
+            or examination.exam_type != reference_exam.exam_type
+            or examination.start_date != reference_exam.start_date
+            or examination.end_date != reference_exam.end_date
         ):
             raise ValueError(
-                "Selected examinations must belong "
-                "to the same examination plan."
+                "All selected examinations must belong to the same "
+                "examination plan."
             )
 
-    excluded_dates = excluded_dates or set()
+    # ---------------------------------------------------------
+    # Build excluded dates.
+    # ---------------------------------------------------------
+    excluded_dates = excluded_dates or []
 
+    normalized_excluded_dates = set()
+
+    for value in excluded_dates:
+        if isinstance(value, date):
+            normalized_excluded_dates.add(value)
+        else:
+            normalized_excluded_dates.add(
+                date.fromisoformat(str(value))
+            )
+
+    # ---------------------------------------------------------
+    # Get available dates.
+    # Sundays are already removed by get_available_dates().
+    # ---------------------------------------------------------
     available_dates = get_available_dates(
-        reference.start_date,
-        reference.end_date,
-        excluded_dates
+        reference_exam.start_date,
+        reference_exam.end_date,
+        normalized_excluded_dates,
     )
 
     if not available_dates:
         raise ValueError(
-            "No available examination dates found."
+            "No available examination dates exist within the "
+            "selected examination plan."
         )
+
+    # ---------------------------------------------------------
+    # Clear existing entries if requested.
+    # ---------------------------------------------------------
+    if clear_existing:
+        Timetable.query.filter(
+            Timetable.examination_id.in_(examination_ids)
+        ).delete(
+            synchronize_session=False
+        )
+
+        db.session.flush()
 
     created_entries = []
     skipped_entries = []
 
-    try:
-        if clear_existing:
-            Timetable.query.filter(
-                Timetable.examination_id.in_(
-                    unique_examination_ids
-                )
-            ).delete(
-                synchronize_session=False
+    # ---------------------------------------------------------
+    # Generate subjects for every examination.
+    #
+    # Each examination represents a course + semester cohort.
+    # A cohort can have only ONE exam on a particular date.
+    # ---------------------------------------------------------
+    examination_subjects = {}
+
+    for examination in examinations:
+        subjects = (
+            Subject.query
+            .filter(
+                Subject.course_id == examination.course_id,
+                Subject.semester == examination.semester,
+                Subject.is_active.is_(True),
             )
+            .order_by(Subject.id.asc())
+            .all()
+        )
 
-        for examination in examinations:
+        if not subjects:
+            continue
 
-            subjects = (
-                Subject.query
-                .filter(
-                    Subject.course_id == examination.course_id,
-                    Subject.semester == examination.semester,
-                    Subject.is_active.is_(True)
-                )
-                .order_by(Subject.id)
-                .all()
-            )
+        examination_subjects[examination.id] = subjects
 
-            if not subjects:
+    if not examination_subjects:
+        raise ValueError(
+            "No active subjects were found for the selected examinations."
+        )
+
+    # ---------------------------------------------------------
+    # Track how many subjects have already been scheduled
+    # for every examination.
+    # ---------------------------------------------------------
+    subject_indexes = {
+        examination_id: 0
+        for examination_id in examination_subjects
+    }
+
+    # ---------------------------------------------------------
+    # Track the next available date for each examination.
+    #
+    # This guarantees that the same cohort does not receive
+    # two examinations on the same date.
+    # ---------------------------------------------------------
+    next_date_indexes = {
+        examination_id: 0
+        for examination_id in examination_subjects
+    }
+
+    # ---------------------------------------------------------
+    # Schedule date by date.
+    #
+    # Example with FN + AN:
+    #
+    # Oct 1:
+    #   Semester 1 -> FN -> Subject 1
+    #   Semester 2 -> AN -> Subject 1
+    #
+    # Oct 3:
+    #   Semester 1 -> FN -> Subject 2
+    #   Semester 2 -> AN -> Subject 2
+    #
+    # No examination receives both FN and AN on the same date.
+    # ---------------------------------------------------------
+    while True:
+        progress_made = False
+
+        for examination_index, examination in enumerate(examinations):
+
+            if examination.id not in examination_subjects:
+                continue
+
+            subjects = examination_subjects[examination.id]
+
+            subject_index = subject_indexes[examination.id]
+
+            if subject_index >= len(subjects):
+                continue
+
+            date_index = next_date_indexes[examination.id]
+
+            if date_index >= len(available_dates):
                 raise ValueError(
-                    f"No active subjects found for "
-                    f"{examination.name} - "
-                    f"Course {examination.course_id} - "
-                    f"Semester {examination.semester}."
+                    f"Not enough available examination dates for "
+                    f"{examination.name} - Semester "
+                    f"{examination.semester}."
                 )
 
-            # Make sure every selected session exists
-            # in this examination's configuration.
-            for session in normalized_sessions:
-                get_examination_session_times(
-                    examination,
-                    session
-                )
+            exam_date = available_dates[date_index]
 
-            session_count = len(normalized_sessions)
+            subject = subjects[subject_index]
 
-            subject_index = 0
-            date_pointer = 0
+            # -------------------------------------------------
+            # Assign ONE session to this examination.
+            #
+            # Sessions rotate across examinations.
+            # -------------------------------------------------
+            session = normalized_sessions[
+                examination_index % len(normalized_sessions)
+            ]
 
-            while subject_index < len(subjects):
+            start_time, end_time = get_examination_session_times(
+                examination,
+                session,
+            )
 
-                if date_pointer >= len(available_dates):
-                    raise ValueError(
-                        f"Not enough available dates to schedule "
-                        f"all subjects for "
-                        f"{examination.name} - "
-                        f"Semester {examination.semester}."
-                    )
+            # -------------------------------------------------
+            # Check whether this exact timetable entry already
+            # exists.
+            # -------------------------------------------------
+            existing_entry = Timetable.query.filter_by(
+                examination_id=examination.id,
+                subject_id=subject.id,
+            ).first()
 
-                exam_date = available_dates[date_pointer]
+            if existing_entry and not clear_existing:
 
-                # Put subjects into the available sessions
-                # on this examination day.
-                for session_index in range(session_count):
+                skipped_entries.append({
+                    "examination_id": examination.id,
+                    "subject_id": subject.id,
+                    "exam_date": existing_entry.exam_date.isoformat(),
+                    "session": existing_entry.session,
+                })
 
-                    if subject_index >= len(subjects):
-                        break
+                subject_indexes[examination.id] += 1
 
-                    subject = subjects[subject_index]
+                # Existing subject already occupies a timetable
+                # date, so move this examination forward.
+                current_date_index = date_index
 
-                    session = normalized_sessions[
-                        session_index
-                    ]
-
-                    start_time, end_time = (
-                        get_examination_session_times(
-                            examination,
-                            session
-                        )
-                    )
-
-                    existing_entry = Timetable.query.filter_by(
-                        examination_id=examination.id,
-                        subject_id=subject.id
-                    ).first()
-
-                    if existing_entry:
-                        skipped_entries.append(
-                            existing_entry
-                        )
-                        subject_index += 1
-                        continue
-
-                    duration_minutes = int(
-                        (
-                            datetime.combine(
-                                date.today(),
-                                end_time
-                            )
-                            -
-                            datetime.combine(
-                                date.today(),
-                                start_time
-                            )
-                        ).total_seconds() / 60
-                    )
-
-                    entry = Timetable(
-                        examination_id=examination.id,
-                        subject_id=subject.id,
-                        exam_date=exam_date,
-                        session=session,
-                        start_time=start_time,
-                        end_time=end_time,
-                        duration_minutes=duration_minutes,
-                        status="GENERATED"
-                    )
-
-                    db.session.add(entry)
-                    created_entries.append(entry)
-
-                    subject_index += 1
-
-                # Move to the next exam day.
-                #
-                # gap_days = 0:
-                # 1 Oct -> 2 Oct
-                #
-                # gap_days = 1:
-                # 1 Oct -> 3 Oct
-                #
-                # gap_days = 2:
-                # 1 Oct -> 4 Oct
                 next_date = (
-                    exam_date
+                    available_dates[current_date_index]
                     + timedelta(days=gap_days + 1)
                 )
 
+                next_index = current_date_index + 1
+
                 while (
-                    date_pointer < len(available_dates)
-                    and available_dates[date_pointer]
-                    < next_date
+                    next_index < len(available_dates)
+                    and available_dates[next_index] < next_date
                 ):
-                    date_pointer += 1
+                    next_index += 1
 
-        db.session.commit()
+                next_date_indexes[examination.id] = next_index
 
-    except Exception:
-        db.session.rollback()
-        raise
+                progress_made = True
+                continue
+
+            # -------------------------------------------------
+            # Prevent another subject of the SAME examination
+            # from being placed on the same date.
+            # -------------------------------------------------
+            same_day_entry = Timetable.query.filter_by(
+                examination_id=examination.id,
+                exam_date=exam_date,
+            ).first()
+
+            if same_day_entry:
+                raise ValueError(
+                    f"Scheduling conflict detected for "
+                    f"{examination.name}: "
+                    f"multiple subjects cannot be scheduled "
+                    f"on {exam_date.isoformat()}."
+                )
+
+            entry = Timetable(
+                examination_id=examination.id,
+                subject_id=subject.id,
+                exam_date=exam_date,
+                session=session,
+                start_time=start_time,
+                end_time=end_time,
+                duration_minutes=examination.duration_minutes,
+                status="GENERATED",
+            )
+
+            db.session.add(entry)
+
+            created_entries.append(entry)
+
+            subject_indexes[examination.id] += 1
+
+            # -------------------------------------------------
+            # Move this examination to the next valid date.
+            # -------------------------------------------------
+            next_date = (
+                exam_date
+                + timedelta(days=gap_days + 1)
+            )
+
+            next_index = date_index + 1
+
+            while (
+                next_index < len(available_dates)
+                and available_dates[next_index] < next_date
+            ):
+                next_index += 1
+
+            next_date_indexes[examination.id] = next_index
+
+            progress_made = True
+
+        # -----------------------------------------------------
+        # Stop when every examination has all subjects scheduled.
+        # -----------------------------------------------------
+        all_completed = all(
+            subject_indexes[examination_id]
+            >= len(examination_subjects[examination_id])
+            for examination_id in examination_subjects
+        )
+
+        if all_completed:
+            break
+
+        if not progress_made:
+            raise ValueError(
+                "Unable to generate timetable with the available "
+                "dates, sessions, and gap configuration."
+            )
+
+    db.session.commit()
 
     return {
-        "created": created_entries,
-        "skipped": skipped_entries
+        "created_count": len(created_entries),
+        "skipped_count": len(skipped_entries),
+        "created": [
+            {
+                "id": entry.id,
+                "examination_id": entry.examination_id,
+                "subject_id": entry.subject_id,
+                "exam_date": entry.exam_date.isoformat(),
+                "session": entry.session,
+                "start_time": entry.start_time.strftime("%H:%M"),
+                "end_time": entry.end_time.strftime("%H:%M"),
+                "duration_minutes": entry.duration_minutes,
+                "status": entry.status,
+            }
+            for entry in created_entries
+        ],
+        "skipped": skipped_entries,
     }
 
 def get_timetable_for_examination(examination_id):
