@@ -7,8 +7,6 @@ import {
 } from "../../../services/api";
 function ExaminationForm({
   examination,
-  subjects,
-  subjectsLoading,
   onSuccess,
   onCancel,
 }) {
@@ -65,14 +63,12 @@ useEffect(() => {
     setFormData({
       name: examination.name || "",
       exam_type: examination.exam_type || "REGULAR",
-      course_selections: examination
-  ? [
-      {
-        course_id: examination.course_id,
-        semesters: [examination.semester],
-      },
-    ]
-  : [],
+      course_selections: [
+  {
+    course_id: examination.course_id,
+    semesters: [examination.semester],
+  },
+],
       start_date: examination.start_date || "",
       end_date: examination.end_date || "",
       duration_minutes:
@@ -94,29 +90,28 @@ useEffect(() => {
         examination.excluded_dates || [],
     });
   } else {
-    setFormData({
-      name: "",
-      exam_type: "REGULAR",
-      course_id: "",
-      semester: "",
-      start_date: "",
-      end_date: "",
-      duration_minutes: "",
-      session_config: [
-        {
-          session: "FN",
-          start_time: "10:00",
-          end_time: "13:00",
-        },
-        {
-          session: "AN",
-          start_time: "14:00",
-          end_time: "17:00",
-        },
-      ],
-      excluded_dates: [],
-    });
-  }
+  setFormData({
+    name: "",
+    exam_type: "REGULAR",
+    course_selections: [],
+    start_date: "",
+    end_date: "",
+    duration_minutes: "",
+    session_config: [
+      {
+        session: "FN",
+        start_time: "10:00",
+        end_time: "13:00",
+      },
+      {
+        session: "AN",
+        start_time: "14:00",
+        end_time: "17:00",
+      },
+    ],
+    excluded_dates: [],
+  });
+}
 
   setError("");
 }, [examination]);
@@ -276,11 +271,9 @@ if (!formData.duration_minutes) {
       setSaving(true);
 
       /*
-       * Current backend only supports POST.
-       *
-       * PUT/PATCH can be connected here when
-       * update routes are added to Flask.
-       */
+ * Create mode uses the bulk examination endpoint.
+ * Edit mode updates one existing examination.
+ */
 
       const payload = {
   name: formData.name.trim(),
@@ -305,13 +298,29 @@ if (!formData.duration_minutes) {
 };
 
 if (isEditing) {
+  const editPayload = {
+    name: payload.name,
+    exam_type: payload.exam_type,
+    course_id: Number(
+      formData.course_selections[0].course_id
+    ),
+    semester: Number(
+      formData.course_selections[0].semesters[0]
+    ),
+    start_date: payload.start_date,
+    end_date: payload.end_date,
+    duration_minutes: payload.duration_minutes,
+    session_config: payload.session_config,
+    excluded_dates: payload.excluded_dates,
+  };
+
   await put(
     `/examinations/${examination.id}`,
-    payload
+    editPayload
   );
 } else {
   await post(
-    "/examinations/",
+    "/examinations/bulk",
     payload
   );
 }
@@ -537,6 +546,7 @@ onSuccess();
     )}
   </div>
 </div>
+</div>
 
 {/* ================================================= */}
 {/* DATE RANGE */}
@@ -573,6 +583,30 @@ onSuccess();
     />
   </div>
 
+</div>
+
+{/* ================================================= */}
+{/* EXAM DURATION */}
+{/* ================================================= */}
+
+<div>
+  <label className="mb-2 block text-sm font-semibold text-sidebar">
+    Examination Duration
+  </label>
+
+  <p className="mb-3 text-xs text-text-muted">
+    Enter the duration of each examination in minutes.
+  </p>
+
+  <input
+    type="number"
+    name="duration_minutes"
+    value={formData.duration_minutes}
+    onChange={handleChange}
+    min="1"
+    placeholder="e.g. 180"
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
+  />
 </div>
 
 
@@ -795,10 +829,10 @@ onSuccess();
           <Save size={17} />
 
           {saving
-            ? "Saving..."
-            : isEditing
-              ? "Update Examination"
-              : "Create Examination"}
+  ? "Saving..."
+  : isEditing
+    ? "Update Examination"
+    : "Create Examination Plan"}
         </button>
 
       </div>

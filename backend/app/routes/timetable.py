@@ -6,6 +6,7 @@ from app.auth.decorators import roles_required
 from app.models.timetable import Timetable
 from app.services.timetable import (
     generate_timetable,
+    generate_bulk_timetable,
     get_timetable_for_examination,
     update_timetable_entry
 )
@@ -136,6 +137,85 @@ def generate_examination_timetable(
             "message": str(exc)
         }, 400
 
+@timetable_bp.route(
+    "/bulk-generate",
+    methods=["POST"]
+)
+@roles_required("admin")
+def generate_bulk_examination_timetable():
+    data = request.get_json(
+        silent=True
+    ) or {}
+
+    try:
+        examination_ids = data.get(
+            "examination_ids",
+            []
+        )
+
+        sessions = data.get(
+            "sessions",
+            []
+        )
+
+        gap_days = data.get(
+            "gap_days",
+            0
+        )
+
+        excluded_dates = {
+            date.fromisoformat(value)
+            for value in data.get(
+                "excluded_dates",
+                []
+            )
+        }
+
+        clear_existing = bool(
+            data.get(
+                "clear_existing",
+                False
+            )
+        )
+
+        result = generate_bulk_timetable(
+            examination_ids=examination_ids,
+            sessions=sessions,
+            gap_days=gap_days,
+            excluded_dates=excluded_dates,
+            clear_existing=clear_existing
+        )
+
+        return {
+            "success": True,
+            "message": (
+                "Bulk timetable generated successfully."
+            ),
+            "created_count": len(
+                result["created"]
+            ),
+            "skipped_count": len(
+                result["skipped"]
+            ),
+            "data": [
+                serialize_timetable(entry)
+                for entry in result["created"]
+            ]
+        }, 201
+
+    except KeyError as exc:
+        return {
+            "success": False,
+            "message": (
+                f"Missing required field: {exc.args[0]}"
+            )
+        }, 400
+
+    except ValueError as exc:
+        return {
+            "success": False,
+            "message": str(exc)
+        }, 400
 
 @timetable_bp.route(
     "/<int:timetable_id>",

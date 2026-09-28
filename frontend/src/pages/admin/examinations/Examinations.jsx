@@ -25,10 +25,8 @@ function Examinations({
     const [sidebarOpen, setSidebarOpen] =
     useState(false);
   const [examinations, setExaminations] = useState([]);
-  const [subjects, setSubjects] = useState([]);
 
-  const [loading, setLoading] = useState(true);
-  const [subjectsLoading, setSubjectsLoading] = useState(true);
+const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -37,9 +35,8 @@ function Examinations({
   const [editingExamination, setEditingExamination] = useState(null);
 const [viewingExamination, setViewingExamination] = useState(null);
   useEffect(() => {
-    loadExaminations();
-    loadSubjects();
-  }, []);
+  loadExaminations();
+}, []);
 
   const loadExaminations = async () => {
     try {
@@ -59,32 +56,6 @@ setExaminations(data);
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadSubjects = async () => {
-    try {
-      setSubjectsLoading(true);
-
-      const data = await get("/subjects/");
-
-setSubjects(data);
-    } catch (err) {
-      console.error("Subjects error:", err);
-    } finally {
-      setSubjectsLoading(false);
-    }
-  };
-
-  const getSubjectName = (subjectId) => {
-    const subject = subjects.find(
-      (item) => item.id === subjectId
-    );
-
-    if (!subject) {
-      return `Subject #${subjectId}`;
-    }
-
-    return `${subject.subject_code} — ${subject.subject_name}`;
   };
 
   const handleCreate = () => {
@@ -261,7 +232,7 @@ const handleView = (examination) => {
           >
             <Plus size={18} />
 
-            Create Examination
+            Create Examination Plan
           </button>
 
         </div>
@@ -576,16 +547,16 @@ Duration
 
               <div>
                 <h2 className="text-xl font-bold text-text">
-                  {editingExamination
-                    ? "Edit Examination"
-                    : "Create Examination"}
-                </h2>
+  {editingExamination
+    ? "Edit Examination"
+    : "Create Examination Plan"}
+</h2>
 
                 <p className="mt-1 text-sm text-text-muted">
-                  {editingExamination
-                    ? "Update examination details."
-                    : "Schedule a new examination."}
-                </p>
+  {editingExamination
+    ? "Update examination details."
+    : "Create examinations for multiple courses and semesters."}
+</p>
               </div>
 
               <button
@@ -600,13 +571,11 @@ Duration
 
             <div className="p-6">
 
-              <ExaminationForm
-                examination={editingExamination}
-                subjects={subjects}
-                subjectsLoading={subjectsLoading}
-                onSuccess={handleFormSuccess}
-                onCancel={handleCloseForm}
-              />
+             <ExaminationForm
+  examination={editingExamination}
+  onSuccess={handleFormSuccess}
+  onCancel={handleCloseForm}
+/>
 
             </div>
 

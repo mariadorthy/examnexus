@@ -24,6 +24,10 @@ export async function generateTimetable(
   );
 }
 
+export async function generateBulkTimetable(data) {
+  return await post("/timetable/bulk-generate", data);
+}
+
 export async function updateTimetableEntry(
   timetableId,
   data

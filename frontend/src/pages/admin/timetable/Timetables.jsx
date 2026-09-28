@@ -16,9 +16,8 @@ import {
 
 import {
   getTimetable,
-  generateTimetable,
+  generateBulkTimetable,
 } from "../../../services/timetableService";
-
 
 export default function Timetables({
   user,
@@ -48,17 +47,10 @@ export default function Timetables({
     useState(false);
 const [viewingExaminationId, setViewingExaminationId] =
   useState(null);
-  const [selectedExaminationId, setSelectedExaminationId] =
-    useState("");
-
-  const [selectedSubjectIds, setSelectedSubjectIds] =
-    useState([]);
-
-  const [selectedSessions, setSelectedSessions] =
-    useState([]);
-
-  const [excludedDates, setExcludedDates] =
-    useState([]);
+  const [selectedPlanKey, setSelectedPlanKey] = useState("");
+const [selectedSessions, setSelectedSessions] = useState([]);
+const [gapDays, setGapDays] = useState(1);
+const [excludedDates, setExcludedDates] = useState([]);
 
   const [newExcludedDate, setNewExcludedDate] =
     useState("");
@@ -86,9 +78,14 @@ const [viewingExaminationId, setViewingExaminationId] =
         get("/subjects/"),
       ]);
 
-      setExaminations(
-        examinationData || []
-      );
+      console.log(
+  "EXAMINATION DATA:",
+  examinationData
+);
+
+setExaminations(
+  examinationData || []
+);
 
       setSubjects(
         subjectData || []
@@ -169,60 +166,142 @@ const [viewingExaminationId, setViewingExaminationId] =
 
   }, []);
 
+  const handleGenerate = async () => {
+  if (!selectedPlan) {
+    setError("Please select an examination plan.");
+    return;
+  }
+
+  if (!selectedSessions.length) {
+    setError("Please select at least one session.");
+    return;
+  }
+
+  const numericGap = Number(gapDays);
+
+  if (
+    !Number.isInteger(numericGap) ||
+    numericGap < 0
+  ) {
+    setError(
+      "Gap between exams must be 0 or a positive whole number."
+    );
+    return;
+  }
+
+  try {
+    setCreating(true);
+    setError("");
+
+    const result = await generateBulkTimetable({
+      examination_ids: selectedExaminations.map(
+        (examination) => examination.id
+      ),
+      sessions: selectedSessions,
+      gap_days: numericGap,
+      excluded_dates: excludedDates,
+      clear_existing: false,
+    });
+
+    const createdCount =
+      result?.created_count ?? 0;
+
+    const skippedCount =
+      result?.skipped_count ?? 0;
+
+    if (createdCount === 0 && skippedCount > 0) {
+
+  alert(
+    `No new timetable entries were created.\n\n` +
+    `Skipped: ${skippedCount} existing entries.`
+  );
+
+} else {
+
+  setError("");
+
+  alert(
+    `Timetable generated successfully.\n\n` +
+    `Created: ${createdCount}\n` +
+    `Skipped: ${skippedCount}`
+  );
+
+}
+
+handleCloseCreateForm();
+
+await loadData();
+  } catch (err) {
+    setError(
+      err?.message ||
+      "Failed to generate timetable."
+    );
+  } finally {
+    setCreating(false);
+  }
+};
+
+  const examinationPlans = Object.values(
+  examinations.reduce((plans, examination) => {
+    const key = [
+      examination.name,
+      examination.exam_type,
+      examination.start_date,
+      examination.end_date,
+      examination.duration_minutes,
+    ].join("|");
+
+    if (!plans[key]) {
+      plans[key] = {
+        key,
+        name: examination.name,
+        exam_type: examination.exam_type,
+        start_date: examination.start_date,
+        end_date: examination.end_date,
+        duration_minutes: examination.duration_minutes,
+        examinations: [],
+      };
+    }
+
+    plans[key].examinations.push(examination);
+
+    return plans;
+  }, {})
+);
 
   /* ================================================= */
   /* SELECTED EXAMINATION */
   /* ================================================= */
 
-  const selectedExamination =
-    examinations.find(
-      (examination) =>
-        String(examination.id) ===
-        String(selectedExaminationId)
-    );
+  const selectedPlan = examinationPlans.find(
+  (plan) => plan.key === selectedPlanKey
+);
 
+const selectedExaminations =
+  selectedPlan?.examinations || [];
 
-  /* ================================================= */
-  /* AVAILABLE SUBJECTS */
-  /* ================================================= */
-
-  const availableSubjects =
-    selectedExamination
-      ? subjects.filter(
-          (subject) =>
-            Number(subject.course_id) ===
-              Number(
-                selectedExamination.course_id
-              ) &&
-            Number(subject.semester) ===
-              Number(
-                selectedExamination.semester
-              ) &&
-            subject.is_active !== false
-        )
-      : [];
-
+const referenceExamination =
+  selectedExaminations[0] || null;
 
   /* ================================================= */
   /* SESSION CONFIG */
   /* ================================================= */
 
   const availableSessions =
-    selectedExamination?.session_config?.length
-      ? selectedExamination.session_config
-      : [
-          {
-            session: "FN",
-            start_time: "10:00",
-            end_time: "13:00",
-          },
-          {
-            session: "AN",
-            start_time: "14:00",
-            end_time: "17:00",
-          },
-        ];
-
+  referenceExamination?.session_config?.length
+    ? referenceExamination.session_config
+    : [
+        {
+          session: "FN",
+          start_time: "10:00",
+          end_time: "13:00",
+        },
+        {
+          session: "AN",
+          start_time: "14:00",
+          end_time: "17:00",
+        },
+      ];
 
   /* ================================================= */
   /* OPEN CREATE FORM */
@@ -230,22 +309,17 @@ const [viewingExaminationId, setViewingExaminationId] =
 
   function handleCreateTimetable() {
 
-    setError("");
+  setError("");
 
-    setSelectedExaminationId("");
+  setSelectedPlanKey("");
+  setSelectedSessions([]);
+  setGapDays(1);
+  setExcludedDates([]);
+  setNewExcludedDate("");
 
-    setSelectedSubjectIds([]);
+  setShowCreateForm(true);
 
-    setSelectedSessions([]);
-
-    setExcludedDates([]);
-
-    setNewExcludedDate("");
-
-    setShowCreateForm(true);
-
-  }
-
+}
 
   /* ================================================= */
   /* CLOSE CREATE FORM */
@@ -262,38 +336,6 @@ const [viewingExaminationId, setViewingExaminationId] =
     setError("");
 
   }
-
-
-  /* ================================================= */
-  /* SELECT SUBJECT */
-  /* ================================================= */
-
-  function toggleSubject(subjectId) {
-
-    setSelectedSubjectIds(
-      (current) => {
-
-        if (
-          current.includes(subjectId)
-        ) {
-
-          return current.filter(
-            (id) =>
-              id !== subjectId
-          );
-
-        }
-
-        return [
-          ...current,
-          subjectId,
-        ];
-
-      }
-    );
-
-  }
-
 
   /* ================================================= */
   /* SELECT SESSION */
@@ -367,110 +409,6 @@ const [viewingExaminationId, setViewingExaminationId] =
     );
 
   }
-
-
-  /* ================================================= */
-  /* GENERATE TIMETABLE */
-  /* ================================================= */
-
-  async function handleGenerate() {
-
-    setError("");
-
-    if (!selectedExamination) {
-
-      setError(
-        "Please select an examination."
-      );
-
-      return;
-
-    }
-
-    if (
-      selectedSubjectIds.length === 0
-    ) {
-
-      setError(
-        "Please select at least one subject."
-      );
-
-      return;
-
-    }
-
-    if (
-      selectedSessions.length === 0
-    ) {
-
-      setError(
-        "Please select at least one session."
-      );
-
-      return;
-
-    }
-
-
-    try {
-
-      setCreating(true);
-
-      await generateTimetable(
-        selectedExamination.id,
-        {
-          start_date:
-            selectedExamination.start_date,
-
-          end_date:
-            selectedExamination.end_date,
-
-          subject_ids:
-            selectedSubjectIds,
-
-          sessions:
-            selectedSessions,
-
-          excluded_dates:
-            excludedDates,
-
-          clear_existing: false,
-        }
-      );
-
-
-      setShowCreateForm(false);
-
-      setSelectedExaminationId("");
-
-      setSelectedSubjectIds([]);
-
-      setSelectedSessions([]);
-
-      setExcludedDates([]);
-
-      await loadData();
-
-    } catch (err) {
-
-      console.error(
-        "Timetable generation error:",
-        err
-      );
-
-      setError(
-        err.message ||
-        "Failed to generate timetable."
-      );
-
-    } finally {
-
-      setCreating(false);
-
-    }
-
-  }
-
 
   /* ================================================= */
   /* VIEW TIMETABLE */
@@ -724,48 +662,43 @@ function handleViewTimetable(examinationId) {
           {/* ================================================= */}
 
           {showCreateForm && (
+  <div
+    className="fixed inset-0 z-[50] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        handleCloseCreateForm();
+      }
+    }}
+  >
+    <section className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-surface shadow-2xl">
+       
+       <div className="flex items-center justify-between border-b border-border px-6 py-5">
+  <div>
+    <h3 className="text-lg font-bold text-text">
+      Create Timetable
+    </h3>
 
-            <section className="mb-8 rounded-2xl border border-border bg-surface p-6 shadow-sm">
+    <p className="mt-1 text-sm text-text-muted">
+  Select an examination plan, configure the sessions
+  and gap between exams, then generate all timetables in bulk.
+</p>
+  </div>
 
-              <div className="mb-6 flex items-center justify-between">
+  <button
+    type="button"
+    onClick={handleCloseCreateForm}
+    disabled={creating}
+    className="rounded-lg p-2 text-text-muted hover:bg-background hover:text-text disabled:opacity-50"
+  >
+    <X size={20} />
+  </button>
+</div>
 
-                <div>
+          <div className="overflow-y-auto px-6 py-6">
 
-                  <h3 className="text-lg font-bold text-text">
+  {/* EXAMINATION */}
 
-                    Create Timetable
-
-                  </h3>
-
-                  <p className="mt-1 text-sm text-text-muted">
-
-                    Select an examination,
-                    subjects and sessions
-                    to generate its timetable.
-
-                  </p>
-
-                </div>
-
-
-                <button
-                  type="button"
-                  onClick={
-                    handleCloseCreateForm
-                  }
-                  className="rounded-lg p-2 text-text-muted hover:bg-background hover:text-text"
-                >
-
-                  <X size={20} />
-
-                </button>
-
-              </div>
-
-
-              {/* EXAMINATION */}
-
-              <div className="mb-6">
+  <div className="mb-6">
 
                 <label className="mb-2 block text-sm font-semibold text-text">
 
@@ -773,482 +706,326 @@ function handleViewTimetable(examinationId) {
 
                 </label>
 
-                <select
-                  value={
-                    selectedExaminationId
-                  }
-                  onChange={(event) => {
+<select
+  value={selectedPlanKey}
+  onChange={(event) => {
+    setSelectedPlanKey(event.target.value);
+    setSelectedSessions([]);
+    setExcludedDates([]);
+  }}
+  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+>
+  <option value="">
+    Select examination plan
+  </option>
 
-                    setSelectedExaminationId(
-                      event.target.value
-                    );
+  {examinationPlans.map((plan) => (
+    <option
+      key={plan.key}
+      value={plan.key}
+    >
+      {plan.name} — {plan.exam_type} —{" "}
+      {plan.examinations.length} examinations
+    </option>
+  ))}
+</select>
 
-                    setSelectedSubjectIds([]);
+              </div>
+{selectedPlan && (
+  <div>
 
-                    setSelectedSessions([]);
+    {/* PLAN INFORMATION */}
+    <div className="mb-6 rounded-xl border border-border bg-background p-4">
 
-                    setExcludedDates([]);
+      <div className="grid gap-4 md:grid-cols-3">
 
-                  }}
-                  className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm outline-none focus:border-primary"
-                >
+        <div>
+          <p className="text-xs text-text-muted">
+            Date Range
+          </p>
 
-                  <option value="">
+          <p className="mt-1 text-sm font-semibold text-text">
+            {selectedPlan.start_date} → {selectedPlan.end_date}
+          </p>
+        </div>
 
-                    Select examination
+        <div>
+          <p className="text-xs text-text-muted">
+            Examinations
+          </p>
 
-                  </option>
+          <p className="mt-1 text-sm font-semibold text-text">
+            {selectedExaminations.length}
+          </p>
+        </div>
 
-                  {examinations.map(
-                    (examination) => (
+        <div>
+          <p className="text-xs text-text-muted">
+            Duration
+          </p>
 
-                      <option
-                        key={
-                          examination.id
-                        }
-                        value={
-                          examination.id
-                        }
-                      >
+          <p className="mt-1 text-sm font-semibold text-text">
+            {selectedPlan.duration_minutes} minutes
+          </p>
+        </div>
 
-                        {examination.name}
+      </div>
 
-                        {" — "}
+    </div>
 
-                        {examination.course_name}
 
-                        {" — Semester "}
+    {/* INCLUDED EXAMINATIONS */}
+    <div className="mb-6">
 
-                        {examination.semester}
+      <label className="mb-3 block text-sm font-semibold text-sidebar">
+        Included Examinations
+      </label>
 
-                      </option>
+      <div className="space-y-2">
 
-                    )
-                  )}
+        {selectedExaminations.map((examination) => {
 
-                </select>
+          const activeSubjectCount = subjects.filter(
+            (subject) =>
+              Number(subject.course_id) ===
+                Number(examination.course_id) &&
+              Number(subject.semester) ===
+                Number(examination.semester) &&
+              subject.is_active
+          ).length;
+
+          return (
+            <div
+              key={examination.id}
+              className="rounded-xl border border-border bg-background px-4 py-3"
+            >
+
+              <div className="flex items-center justify-between">
+
+                <div>
+
+                  <p className="text-sm font-semibold text-sidebar">
+                    {examination.course_name ||
+                      examination.course_code ||
+                      `Course ${examination.course_id}`}
+                  </p>
+
+                  <p className="text-xs text-text-muted">
+                    Semester {examination.semester}
+                  </p>
+
+                </div>
+
+                <span className="text-xs font-medium text-text-muted">
+                  {activeSubjectCount} active subjects
+                </span>
 
               </div>
 
+            </div>
+          );
 
-              {selectedExamination && (
+        })}
 
-                <>
+      </div>
 
-                  {/* EXAMINATION INFO */}
+      <p className="mt-2 text-xs text-text-muted">
+        Subjects are selected automatically from the active
+        subjects for each course and semester.
+      </p>
 
-                  <div className="mb-6 grid gap-4 rounded-xl bg-background p-4 md:grid-cols-3">
+    </div>
 
-                    <div>
 
-                      <p className="text-xs text-text-muted">
+   {/* GAP BETWEEN EXAMS */}
+<div className="mb-6">
 
-                        Date Range
+  <label className="mb-2 block text-sm font-semibold text-sidebar">
+    Gap Between Exams
+  </label>
 
-                      </p>
+  <p className="mb-3 text-xs text-text-muted">
+    Number of calendar days to leave between exam days.
+    0 means exams can be scheduled on consecutive days.
+  </p>
 
-                      <p className="mt-1 text-sm font-semibold text-text">
+  <input
+    type="number"
+    min="0"
+    step="1"
+    value={gapDays}
+    onChange={(event) =>
+      setGapDays(event.target.value)
+    }
+    className="w-full rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
+  />
 
-                        {selectedExamination.start_date}
+</div>
 
-                        {" → "}
 
-                        {selectedExamination.end_date}
+{/* SESSIONS */}
+<div className="mb-6">
 
-                      </p>
+      <label className="mb-3 block text-sm font-semibold text-sidebar">
+        Sessions
+      </label>
 
-                    </div>
+      <div className="grid gap-3 md:grid-cols-2">
 
+        {availableSessions.map((session) => {
 
-                    <div>
+          const sessionName = session.session;
 
-                      <p className="text-xs text-text-muted">
+          const selected =
+            selectedSessions.includes(sessionName);
 
-                        Course
+          return (
+            <button
+              key={sessionName}
+              type="button"
+              onClick={() =>
+                toggleSession(sessionName)
+              }
+              className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
+                selected
+                  ? "border-primary bg-accent-light"
+                  : "border-border bg-background hover:bg-surface"
+              }`}
+            >
 
-                      </p>
+              <div>
 
-                      <p className="mt-1 text-sm font-semibold text-text">
+                <p className="text-sm font-semibold text-text">
+                  {sessionName}
+                </p>
 
-                        {selectedExamination.course_name}
+                <p className="text-xs text-text-muted">
+                  {session.start_time} → {session.end_time}
+                </p>
 
-                      </p>
+              </div>
 
-                    </div>
-
-
-                    <div>
-
-                      <p className="text-xs text-text-muted">
-
-                        Duration
-
-                      </p>
-
-                      <p className="mt-1 text-sm font-semibold text-text">
-
-                        {selectedExamination.duration_minutes}
-
-                        {" minutes"}
-
-                      </p>
-
-                    </div>
-
-                  </div>
-
-
-                  {/* SUBJECTS */}
-
-                  <div className="mb-6">
-
-                    <div className="mb-3">
-
-                      <label className="text-sm font-semibold text-text">
-
-                        Subjects
-
-                      </label>
-
-                      <p className="mt-1 text-xs text-text-muted">
-
-                        Subjects matching the selected
-                        examination course and semester.
-
-                      </p>
-
-                    </div>
-
-
-                    {availableSubjects.length === 0 ? (
-
-                      <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-4 text-sm text-yellow-700">
-
-                        No active subjects found
-                        for this course and semester.
-
-                      </div>
-
-                    ) : (
-
-                      <div className="grid gap-3 md:grid-cols-2">
-
-                        {availableSubjects.map(
-                          (subject) => {
-
-                            const selected =
-                              selectedSubjectIds.includes(
-                                subject.id
-                              );
-
-                            return (
-
-                              <button
-                                key={
-                                  subject.id
-                                }
-                                type="button"
-                                onClick={() =>
-                                  toggleSubject(
-                                    subject.id
-                                  )
-                                }
-                                className={`flex items-center gap-3 rounded-xl border p-4 text-left transition ${
-                                  selected
-                                    ? "border-primary bg-accent-light"
-                                    : "border-border bg-background hover:border-accent"
-                                }`}
-                              >
-
-                                <div
-                                  className={`flex h-5 w-5 items-center justify-center rounded border ${
-                                    selected
-                                      ? "border-primary bg-primary text-white"
-                                      : "border-border"
-                                  }`}
-                                >
-
-                                  {selected && (
-                                    <Check
-                                      size={14}
-                                    />
-                                  )}
-
-                                </div>
-
-
-                                <div>
-
-                                  <p className="text-sm font-semibold text-text">
-
-                                    {subject.subject_code}
-
-                                  </p>
-
-                                  <p className="text-sm text-text-muted">
-
-                                    {subject.subject_name}
-
-                                  </p>
-
-                                </div>
-
-                              </button>
-
-                            );
-
-                          }
-                        )}
-
-                      </div>
-
-                    )}
-
-                  </div>
-
-
-                  {/* SESSIONS */}
-
-                  <div className="mb-6">
-
-                    <div className="mb-3">
-
-                      <label className="text-sm font-semibold text-text">
-
-                        Sessions
-
-                      </label>
-
-                      <p className="mt-1 text-xs text-text-muted">
-
-                        Select the sessions available
-                        for timetable generation.
-
-                      </p>
-
-                    </div>
-
-
-                    <div className="grid gap-3 md:grid-cols-2">
-
-                      {availableSessions.map(
-                        (session) => {
-
-                          const sessionName =
-                            session.session;
-
-                          const selected =
-                            selectedSessions.includes(
-                              sessionName
-                            );
-
-                          return (
-
-                            <button
-                              key={
-                                sessionName
-                              }
-                              type="button"
-                              onClick={() =>
-                                toggleSession(
-                                  sessionName
-                                )
-                              }
-                              className={`rounded-xl border p-4 text-left transition ${
-                                selected
-                                  ? "border-primary bg-accent-light"
-                                  : "border-border bg-background hover:border-accent"
-                              }`}
-                            >
-
-                              <div className="flex items-center justify-between">
-
-                                <div>
-
-                                  <p className="text-sm font-semibold text-text">
-
-                                    {sessionName}
-
-                                  </p>
-
-                                  <p className="mt-1 text-xs text-text-muted">
-
-                                    {session.start_time}
-
-                                    {" → "}
-
-                                    {session.end_time}
-
-                                  </p>
-
-                                </div>
-
-
-                                {selected && (
-
-                                  <Check
-                                    size={18}
-                                    className="text-primary"
-                                  />
-
-                                )}
-
-                              </div>
-
-                            </button>
-
-                          );
-
-                        }
-                      )}
-
-                    </div>
-
-                  </div>
-
-
-                  {/* EXCLUDED DATES */}
-
-                  <div className="mb-6">
-
-                    <label className="mb-2 block text-sm font-semibold text-text">
-
-                      Excluded Dates
-
-                    </label>
-
-                    <p className="mb-3 text-xs text-text-muted">
-
-                      Optional dates that should not
-                      receive timetable entries.
-
-                    </p>
-
-
-                    <div className="flex gap-3">
-
-                      <input
-                        type="date"
-                        value={
-                          newExcludedDate
-                        }
-                        min={
-                          selectedExamination.start_date
-                        }
-                        max={
-                          selectedExamination.end_date
-                        }
-                        onChange={(event) =>
-                          setNewExcludedDate(
-                            event.target.value
-                          )
-                        }
-                        className="rounded-xl border border-border bg-background px-4 py-3 text-sm"
-                      />
-
-
-                      <button
-                        type="button"
-                        onClick={
-                          addExcludedDate
-                        }
-                        className="rounded-xl border border-border px-4 py-3 text-sm font-semibold hover:bg-background"
-                      >
-
-                        Add
-
-                      </button>
-
-                    </div>
-
-
-                    {excludedDates.length > 0 && (
-
-                      <div className="mt-3 flex flex-wrap gap-2">
-
-                        {excludedDates.map(
-                          (date) => (
-
-                            <button
-                              key={date}
-                              type="button"
-                              onClick={() =>
-                                removeExcludedDate(
-                                  date
-                                )
-                              }
-                              className="flex items-center gap-2 rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-primary"
-                            >
-
-                              {date}
-
-                              <X
-                                size={13}
-                              />
-
-                            </button>
-
-                          )
-                        )}
-
-                      </div>
-
-                    )}
-
-                  </div>
-
-
-                  {/* ACTIONS */}
-
-                  <div className="flex justify-end gap-3 border-t border-border pt-5">
-
-                    <button
-                      type="button"
-                      onClick={
-                        handleCloseCreateForm
-                      }
-                      disabled={creating}
-                      className="rounded-xl border border-border px-5 py-3 text-sm font-semibold text-text hover:bg-background"
-                    >
-
-                      Cancel
-
-                    </button>
-
-
-                    <button
-                      type="button"
-                      onClick={
-                        handleGenerate
-                      }
-                      disabled={creating}
-                      className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-
-                      {creating && (
-
-                        <RefreshCw
-                          size={17}
-                          className="animate-spin"
-                        />
-
-                      )}
-
-                      {creating
-                        ? "Generating..."
-                        : "Generate Timetable"}
-
-                    </button>
-
-                  </div>
-
-                </>
-
+              {selected && (
+                <Check
+                  size={18}
+                  className="text-primary"
+                />
               )}
 
-            </section>
+            </button>
+          );
 
-          )}
+        })}
+
+      </div>
+
+    </div>
+
+
+    {/* EXCLUDED DATES */}
+    <div className="mb-6">
+
+      <label className="mb-3 block text-sm font-semibold text-sidebar">
+        Excluded Dates
+      </label>
+
+      <div className="flex gap-2">
+
+        <input
+          type="date"
+          value={newExcludedDate}
+          min={selectedPlan.start_date}
+          max={selectedPlan.end_date}
+          onChange={(event) =>
+            setNewExcludedDate(event.target.value)
+          }
+          className="flex-1 rounded-xl border border-border bg-background px-4 py-3 text-sm text-text outline-none focus:border-primary focus:ring-4 focus:ring-primary/10"
+        />
+
+        <button
+          type="button"
+          onClick={addExcludedDate}
+          className="rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-white hover:opacity-90"
+        >
+          Add
+        </button>
+
+      </div>
+
+      {excludedDates.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+
+          {excludedDates.map((date) => (
+            <div
+              key={date}
+              className="flex items-center gap-2 rounded-full bg-background px-3 py-1.5 text-xs font-medium text-text"
+            >
+
+              {date}
+
+              <button
+                type="button"
+                onClick={() =>
+                  removeExcludedDate(date)
+                }
+                className="text-text-muted hover:text-red-600"
+              >
+                <X size={14} />
+              </button>
+
+            </div>
+          ))}
+
+        </div>
+      )}
+
+    </div>
+
+
+    {/* ACTIONS */}
+    <div className="flex justify-end gap-3 border-t border-border pt-5">
+
+      <button
+        type="button"
+        onClick={handleCloseCreateForm}
+        disabled={creating}
+        className="rounded-xl border border-border bg-background px-5 py-3 text-sm font-semibold text-text hover:bg-surface disabled:opacity-50"
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        onClick={handleGenerate}
+        disabled={creating}
+        className="flex items-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+
+        {creating ? (
+          <>
+            <RefreshCw
+              size={17}
+              className="animate-spin"
+            />
+            Generating...
+          </>
+        ) : (
+          <>
+            <CalendarDays size={17} />
+            Generate Timetable
+          </>
+        )}
+
+      </button>
+
+    </div>
+
+  </div>
+)}
+           </div>
+</section>
+</div>
+)}
 
 
           {/* ================================================= */}
