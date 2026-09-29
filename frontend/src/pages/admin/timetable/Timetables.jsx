@@ -49,7 +49,7 @@ const [viewingExaminationId, setViewingExaminationId] =
   useState(null);
   const [selectedPlanKey, setSelectedPlanKey] = useState("");
 const [selectedSessions, setSelectedSessions] = useState([]);
-const [gapDays, setGapDays] = useState(1);
+const [gapDays, setGapDays] = useState(0);
 const [excludedDates, setExcludedDates] = useState([]);
 
   const [newExcludedDate, setNewExcludedDate] =
@@ -177,18 +177,17 @@ setExaminations(
     return;
   }
 
-  const numericGap = Number(gapDays);
+const numericGap = Number(gapDays);
 
-  if (
-    !Number.isInteger(numericGap) ||
-    numericGap < 0
-  ) {
-    setError(
-      "Gap between exams must be 0 or a positive whole number."
-    );
-    return;
-  }
-
+if (
+  !Number.isInteger(numericGap) ||
+  numericGap < 0
+) {
+  setError(
+    "Gap between exams must be 0 or a positive whole number."
+  );
+  return;
+}
   try {
     setCreating(true);
     setError("");
@@ -313,7 +312,7 @@ const referenceExamination =
 
   setSelectedPlanKey("");
   setSelectedSessions([]);
-  setGapDays(1);
+  setGapDays(0);
   setExcludedDates([]);
   setNewExcludedDate("");
 
@@ -845,15 +844,15 @@ function handleViewTimetable(examinationId) {
   </label>
 
   <p className="mb-3 text-xs text-text-muted">
-    Number of calendar days to leave between exam days.
-    0 means exams can be scheduled on consecutive days.
-  </p>
+  0 means exams can be scheduled on consecutive available days.
+  Higher values leave additional available days between exams.
+</p>
 
-  <input
-    type="number"
-    min="0"
-    step="1"
-    value={gapDays}
+<input
+  type="number"
+  min="0"
+  step="1"
+  value={gapDays}
     onChange={(event) =>
       setGapDays(event.target.value)
     }

@@ -174,6 +174,88 @@ COURSES = [
         "abbreviation": "MARCHA",
         "total_semesters": 4,
     },
+    # Arts Courses
+{
+    "course_code": "BAEN01",
+    "course_name": "Bachelor of Arts - English",
+    "program_level": "UG",
+    "study_shift": "Morning",
+    "session": "FN",
+    "department": "Arts",
+    "abbreviation": "BAEN",
+    "total_semesters": 6,
+},
+{
+    "course_code": "BATA01",
+    "course_name": "Bachelor of Arts - Tamil",
+    "program_level": "UG",
+    "study_shift": "Morning",
+    "session": "FN",
+    "department": "Arts",
+    "abbreviation": "BATA",
+    "total_semesters": 6,
+},
+{
+    "course_code": "BAHI01",
+    "course_name": "Bachelor of Arts - History",
+    "program_level": "UG",
+    "study_shift": "Afternoon",
+    "session": "AN",
+    "department": "Arts",
+    "abbreviation": "BAHI",
+    "total_semesters": 6,
+},
+{
+    "course_code": "BAEC01",
+    "course_name": "Bachelor of Arts - Economics",
+    "program_level": "UG",
+    "study_shift": "Afternoon",
+    "session": "AN",
+    "department": "Arts",
+    "abbreviation": "BAEC",
+    "total_semesters": 6,
+},
+{
+    "course_code": "BAPS01",
+    "course_name": "Bachelor of Arts - Political Science",
+    "program_level": "UG",
+    "study_shift": "Morning",
+    "session": "FN",
+    "department": "Arts",
+    "abbreviation": "BAPS",
+    "total_semesters": 6,
+},
+{
+    "course_code": "BASO01",
+    "course_name": "Bachelor of Arts - Sociology",
+    "program_level": "UG",
+    "study_shift": "Afternoon",
+    "session": "AN",
+    "department": "Arts",
+    "abbreviation": "BASO",
+    "total_semesters": 6,
+},
+{
+    "course_code": "BAPSYC01",
+    "course_name": "Bachelor of Arts - Psychology",
+    "program_level": "UG",
+    "study_shift": "Morning",
+    "session": "FN",
+    "department": "Arts",
+    "abbreviation": "BAPSYC",
+    "total_semesters": 6,
+},
+{
+    "course_code": "BAJMC01",
+    "course_name": "Bachelor of Arts - Journalism and Mass Communication",
+    "program_level": "UG",
+    "study_shift": "Afternoon",
+    "session": "AN",
+    "department": "Arts",
+    "abbreviation": "BAJMC",
+    "total_semesters": 6,
+},
+
 ]
 
 
@@ -194,6 +276,11 @@ DEPARTMENTS = [
         "code": "ARC1",
         "name": "Architecture",
     },
+    {
+    "code": "ART1",
+    "name": "Arts",
+},
+
 ]
 
 

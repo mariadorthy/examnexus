@@ -336,23 +336,40 @@ def generate_bulk_timetable(
 
     - Examination = one course + one semester/cohort.
     - Semesters of the SAME course are divided into sets.
-    - For 2 semesters: 1 + 1
-    - For 4 semesters: 2 + 2
-    - For 6 semesters: 3 + 3
-    - For 8 semesters: 4 + 4
+
+    Examples:
+        2 semesters:
+            Set 1 -> Sem 1
+            Set 2 -> Sem 2
+
+        4 semesters:
+            Set 1 -> Sem 1, Sem 2
+            Set 2 -> Sem 3, Sem 4
+
+        6 semesters:
+            Set 1 -> Sem 1, Sem 2, Sem 3
+            Set 2 -> Sem 4, Sem 5, Sem 6
+
+        8 semesters:
+            Set 1 -> Sem 1, Sem 2, Sem 3, Sem 4
+            Set 2 -> Sem 5, Sem 6, Sem 7, Sem 8
+
     - Set 1 starts on the examination plan start date.
     - Set 2 starts on the next available examination date.
-    - Additional sets continue on subsequent available dates.
-    - Within a set, semesters are distributed across FN/AN.
-    - Each semester gets only ONE subject per examination day.
-    - Different courses may have their own semester sets.
-    - Sundays and excluded dates are skipped.
-    - gap_days controls the gap between set-start/examination days.
+    - Each semester gets one subject per examination day.
+    - Subjects continue on the next available examination day.
+    - Sundays are automatically skipped.
+    - Excluded dates are automatically skipped.
+    - Sunday/excluded dates do NOT reset or change the current set.
+    - Different courses may use the same calendar dates.
+    - Within each set, semesters are distributed across FN/AN.
+    - gap_days is optional spacing between available examination days.
+      For normal scheduling, use gap_days=0.
     """
 
-    # ---------------------------------------------------------
+    # =========================================================
     # BASIC VALIDATION
-    # ---------------------------------------------------------
+    # =========================================================
 
     if not examination_ids:
         raise ValueError(
@@ -402,9 +419,9 @@ def generate_bulk_timetable(
         dict.fromkeys(examination_ids)
     )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # LOAD EXAMINATIONS
-    # ---------------------------------------------------------
+    # =========================================================
 
     examinations = (
         Examination.query
@@ -441,9 +458,9 @@ def generate_bulk_timetable(
             f"Examination(s) not found: {missing_ids}"
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # ALL SELECTED EXAMS MUST BELONG TO SAME PLAN
-    # ---------------------------------------------------------
+    # =========================================================
 
     reference_exam = examinations[0]
 
@@ -464,39 +481,79 @@ def generate_bulk_timetable(
                 "to the same examination plan."
             )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # EXCLUDED DATES
-    # ---------------------------------------------------------
-
-    excluded_dates = excluded_dates or []
+    # =========================================================
 
     normalized_excluded_dates = set()
 
-    for value in excluded_dates:
+    # 1. Excluded dates supplied from the Timetable form.
+    for value in (excluded_dates or []):
 
-        if isinstance(value, date):
-
+        if isinstance(value, datetime):
             normalized_excluded_dates.add(
-                value
+                value.date()
             )
 
-        else:
+        elif isinstance(value, date):
+            normalized_excluded_dates.add(value)
 
+        else:
             try:
                 normalized_excluded_dates.add(
-                    date.fromisoformat(
-                        str(value)
-                    )
+                    date.fromisoformat(str(value))
                 )
-
             except ValueError:
                 raise ValueError(
                     f"Invalid excluded date: {value}"
                 )
+    # 2. Excluded dates saved in Examination Creation.
+    # These apply to the entire selected examination plan.
+    for examination in examinations:
 
-    # ---------------------------------------------------------
+        for value in (
+            examination.excluded_dates or []
+        ):
+
+            if isinstance(value, datetime):
+                normalized_excluded_dates.add(
+                    value.date()
+                )
+
+            elif isinstance(value, date):
+                normalized_excluded_dates.add(value)
+
+            else:
+                try:
+                    normalized_excluded_dates.add(
+                       date.fromisoformat(str(value))
+                    )
+                except ValueError:
+                    raise ValueError(
+                        f"Invalid examination excluded date: {value}"
+                    )
+
+    # =========================================================
     # AVAILABLE DATES
-    # ---------------------------------------------------------
+    #
+    # IMPORTANT:
+    # get_available_dates() already removes Sundays.
+    #
+    # Example:
+    #
+    # Friday
+    # Saturday
+    # Sunday      <- removed
+    # Monday
+    #
+    # The scheduler therefore sees:
+    #
+    # Friday
+    # Saturday
+    # Monday
+    #
+    # Sunday does NOT reset the current set.
+    # =========================================================
 
     available_dates = get_available_dates(
         reference_exam.start_date,
@@ -510,9 +567,9 @@ def generate_bulk_timetable(
             "within the selected examination plan."
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # LOAD SUBJECTS FOR EACH EXAMINATION
-    # ---------------------------------------------------------
+    # =========================================================
 
     examination_subjects = {}
 
@@ -539,6 +596,9 @@ def generate_bulk_timetable(
             examination.id
         ] = subjects
 
+    # Only examinations that actually have subjects
+    # can participate in timetable generation.
+
     schedulable_examinations = [
         examination
         for examination in examinations
@@ -553,27 +613,9 @@ def generate_bulk_timetable(
             "the selected examinations."
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # GROUP EXAMINATIONS BY COURSE
-    #
-    # Example:
-    #
-    # Mechanical Engineering
-    #   Sem 1
-    #   Sem 2
-    #   Sem 3
-    #   Sem 4
-    #   Sem 5
-    #   Sem 6
-    #   Sem 7
-    #   Sem 8
-    #
-    # MCA
-    #   Sem 1
-    #   Sem 2
-    #   Sem 3
-    #   Sem 4
-    # ---------------------------------------------------------
+    # =========================================================
 
     examinations_by_course = {}
 
@@ -586,9 +628,9 @@ def generate_bulk_timetable(
             examination
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # SORT SEMESTERS WITHIN EACH COURSE
-    # ---------------------------------------------------------
+    # =========================================================
 
     for course_id in examinations_by_course:
 
@@ -601,29 +643,27 @@ def generate_bulk_timetable(
             )
         )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # BUILD SEMESTER SETS
     #
-    # The semester list is split into two balanced sets.
-    #
     # 2 semesters:
-    #   Set 1 -> 1, 2
+    #   Set 1 -> Sem 1
+    #   Set 2 -> Sem 2
     #
     # 4 semesters:
-    #   Set 1 -> 1, 2
-    #   Set 2 -> 3, 4
+    #   Set 1 -> Sem 1,2
+    #   Set 2 -> Sem 3,4
     #
     # 6 semesters:
-    #   Set 1 -> 1, 2, 3
-    #   Set 2 -> 4, 5, 6
+    #   Set 1 -> Sem 1,2,3
+    #   Set 2 -> Sem 4,5,6
     #
     # 8 semesters:
-    #   Set 1 -> 1, 2, 3, 4
-    #   Set 2 -> 5, 6, 7, 8
+    #   Set 1 -> Sem 1,2,3,4
+    #   Set 2 -> Sem 5,6,7,8
     #
-    # More generally, the semesters are divided into
-    # balanced sequential sets.
-    # ---------------------------------------------------------
+    # The split is balanced and sequential.
+    # =========================================================
 
     course_sets = {}
 
@@ -657,26 +697,29 @@ def generate_bulk_timetable(
 
         course_sets[course_id] = sets
 
-    # ---------------------------------------------------------
-    # CREATE GLOBAL SET SCHEDULE
+    # =========================================================
+    # ASSIGN START DATE TO EACH SET
     #
-    # Each course gets its own semester sets.
+    # Set 1 starts on the first available date.
+    #
+    # Set 2 starts on the next available date.
+    #
+    # Since Sundays are already removed from available_dates,
+    # a Sunday between these dates has no effect.
     #
     # Example:
     #
-    # Mechanical 8 semesters:
+    # available_dates:
+    #   Friday
+    #   Saturday
+    #   Monday
     #
-    # Day 1 -> Sem 1,2,3,4
-    # Day 2 -> Sem 5,6,7,8
+    # Set 1 -> Friday
+    # Set 2 -> Saturday
     #
-    # MCA 4 semesters:
-    #
-    # Day 1 -> Sem 1,2
-    # Day 2 -> Sem 3,4
-    #
-    # This means different courses can use the same
-    # calendar days.
-    # ---------------------------------------------------------
+    # If a later subject reaches Sunday, it simply continues
+    # on Monday.
+    # =========================================================
 
     scheduled_set_dates = {}
 
@@ -698,24 +741,41 @@ def generate_bulk_timetable(
                     "dates to create semester sets."
                 )
 
+            set_start_date = available_dates[
+                date_index
+            ]
+
             scheduled_set_dates[
                 course_id
             ].append(
                 (
                     semester_set,
-                    available_dates[
-                        date_index
-                    ]
+                    set_start_date
                 )
             )
+    # Each semester set starts on the next
+    # available examination day.
+    #
+    # The gap applies to subjects INSIDE
+    # each set, not between semester sets.
+    #
+    # Example with gap_days=1:
+    #
+    # Set 1 -> Oct 1
+    # Set 2 -> Oct 2
+    #
+    # Then subjects inside each set are spaced:
+    #
+    # Set 1 -> Oct 1, Oct 3, Oct 6, ...
+    # Set 2 -> Oct 2, Oct 4, Oct 7, ...
+    #
+    # Sundays are already removed from
+    # available_dates.
+            date_index += 1
 
-            # Move to next available examination date
-            # for the next semester set.
-            date_index += 1 + gap_days
-
-    # ---------------------------------------------------------
+    # =========================================================
     # CLEAR EXISTING ENTRIES
-    # ---------------------------------------------------------
+    # =========================================================
 
     if clear_existing:
 
@@ -732,9 +792,9 @@ def generate_bulk_timetable(
     created_entries = []
     skipped_entries = []
 
-    # ---------------------------------------------------------
+    # =========================================================
     # GENERATE SUBJECT TIMETABLE
-    # ---------------------------------------------------------
+    # =========================================================
 
     for course_id, semester_sets in (
         scheduled_set_dates.items()
@@ -745,25 +805,26 @@ def generate_bulk_timetable(
         ):
 
             # -------------------------------------------------
-            # Distribute semesters in this set across
-            # the selected sessions.
+            # DISTRIBUTE SEMESTERS ACROSS FN / AN
             #
-            # Example with 4 semesters:
+            # 4 semesters:
             #
             # Sem 1 -> FN
             # Sem 2 -> FN
             # Sem 3 -> AN
             # Sem 4 -> AN
             #
-            # Example with 2 semesters:
+            # 3 semesters:
+            #
+            # Sem 1 -> FN
+            # Sem 2 -> FN
+            # Sem 3 -> AN
+            #
+            # 2 semesters:
             #
             # Sem 1 -> FN
             # Sem 2 -> AN
-            #
-            # We split the set into balanced FN/AN groups.
             # -------------------------------------------------
-
-            session_groups = []
 
             total_in_set = len(
                 semester_set
@@ -797,6 +858,10 @@ def generate_bulk_timetable(
                             normalized_sessions[1]
                         )
 
+                # -------------------------------------------------
+                # SESSION TIME
+                # -------------------------------------------------
+
                 start_time, end_time = (
                     get_examination_session_times(
                         examination,
@@ -820,14 +885,44 @@ def generate_bulk_timetable(
                 )
 
                 # -------------------------------------------------
-                # Schedule every subject of this semester.
+                # FIND START INDEX OF THIS SET
+                # -------------------------------------------------
+
+                set_start_index = (
+                    available_dates.index(
+                        set_start_date
+                    )
+                )
+
+                # -------------------------------------------------
+                # SCHEDULE SUBJECTS
                 #
-                # Subject 1 starts on the set start date.
-                # Subject 2 goes to the next available date.
-                # Subject 3 to the next, etc.
+                # Subject 1:
+                #   set start date
                 #
-                # Therefore one semester never has two
-                # subjects on the same calendar day.
+                # Subject 2:
+                #   next available examination date
+                #
+                # Subject 3:
+                #   next available examination date
+                #
+                # ...
+                #
+                # IMPORTANT:
+                #
+                # Sunday is NOT handled here.
+                #
+                # It was already removed from available_dates.
+                #
+                # Therefore:
+                #
+                # Saturday -> Sunday -> Monday
+                #
+                # becomes:
+                #
+                # Saturday -> Monday
+                #
+                # The same set continues normally.
                 # -------------------------------------------------
 
                 for subject_index, subject in enumerate(
@@ -835,29 +930,36 @@ def generate_bulk_timetable(
                         examination.id
                     ]
                 ):
-                    set_start_index = available_dates.index(
-    set_start_date
-)
 
                     subject_date_index = (
-    set_start_index
-    + subject_index * (1 + gap_days)
-)
+                        set_start_index
+                        + (
+                            subject_index
+                            * (1 + gap_days)
+                        )
+                    )
 
-                    if subject_date_index >= len(available_dates):
-                            raise ValueError(
-        "Not enough available "
-        "examination dates to complete "
-        f"{examination.name} - "
-        f"Semester "
-        f"{examination.semester}."
-    )
+                    if (
+                        subject_date_index
+                        >= len(available_dates)
+                    ):
+                        raise ValueError(
+                            "Not enough available "
+                            "examination dates to complete "
+                            f"{examination.name} - "
+                            f"Semester "
+                            f"{examination.semester}."
+                        )
 
-                    exam_date = available_dates[subject_date_index]
-       
-                    # ---------------------------------------------
-                    # Check whether this subject already exists.
-                    # ---------------------------------------------
+                    exam_date = (
+                        available_dates[
+                            subject_date_index
+                        ]
+                    )
+
+                    # -------------------------------------------------
+                    # CHECK EXISTING SUBJECT ENTRY
+                    # -------------------------------------------------
 
                     existing_entry = (
                         Timetable.query
@@ -890,11 +992,12 @@ def generate_bulk_timetable(
 
                         continue
 
-                    # ---------------------------------------------
-                    # Safety check:
-                    # one semester/cohort cannot have two
-                    # subjects on the same day.
-                    # ---------------------------------------------
+                    # -------------------------------------------------
+                    # SAFETY CHECK
+                    #
+                    # One semester/cohort cannot have two
+                    # subjects on the same examination day.
+                    # -------------------------------------------------
 
                     same_day_entry = (
                         Timetable.query
@@ -918,9 +1021,9 @@ def generate_bulk_timetable(
                             f"{exam_date.isoformat()}."
                         )
 
-                    # ---------------------------------------------
-                    # Create timetable entry.
-                    # ---------------------------------------------
+                    # -------------------------------------------------
+                    # CREATE TIMETABLE ENTRY
+                    # -------------------------------------------------
 
                     entry = Timetable(
                         examination_id=(
@@ -943,15 +1046,15 @@ def generate_bulk_timetable(
                         entry
                     )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # COMMIT
-    # ---------------------------------------------------------
+    # =========================================================
 
     db.session.commit()
 
-    # ---------------------------------------------------------
+    # =========================================================
     # RETURN RESULT
-    # ---------------------------------------------------------
+    # =========================================================
 
     return {
         "created_count": len(
@@ -991,7 +1094,7 @@ def generate_bulk_timetable(
 
         "skipped": skipped_entries,
     }
-
+    
 def get_timetable_for_examination(examination_id):
     """
     Return all timetable entries for an examination.

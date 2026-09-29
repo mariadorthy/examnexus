@@ -37,6 +37,823 @@ RANDOM_SEED = 42
 SUBJECT_LIST = {
 
     # =====================================================
+# BACHELOR OF ARTS - ENGLISH
+# =====================================================
+
+"Bachelor of Arts - English": {
+
+    "UG": {
+
+        1: {
+            "core": [
+                "English Literature I",
+                "British Literature I",
+                "English Grammar",
+                "Communication Skills",
+                "Introduction to Literature",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        2: {
+            "core": [
+                "English Literature II",
+                "British Literature II",
+                "Indian Writing in English",
+                "Literary Criticism I",
+                "Academic Writing",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        3: {
+            "core": [
+                "American Literature",
+                "World Literature",
+                "Literary Criticism II",
+                "Shakespeare Studies",
+                "Language and Linguistics",
+            ],
+            "elective": [
+                "American Literature",
+                "World Literature",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        4: {
+            "core": [
+                "Modern English Literature",
+                "Postcolonial Literature",
+                "Indian Literature",
+                "Translation Studies",
+                "Literary Theory",
+            ],
+            "elective": [
+                "Translation Studies",
+                "Literary Theory",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        5: {
+            "core": [
+                "Contemporary Literature",
+                "Women and Literature",
+                "Drama Studies",
+                "Digital Humanities",
+                "Creative Writing",
+            ],
+            "elective": [
+                "Creative Writing",
+                "Digital Humanities",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        6: {
+            "core": [
+                "Research Methodology",
+                "Professional Communication",
+                "Literary Research",
+            ],
+            "elective": [
+                "Film and Literature",
+                "Comparative Literature",
+            ],
+            "lab": [],
+            "project": [
+                "Major Project"
+            ],
+        },
+    }
+},
+
+# =====================================================
+# BACHELOR OF ARTS - TAMIL
+# =====================================================
+
+"Bachelor of Arts - Tamil": {
+
+    "UG": {
+
+        1: {
+            "core": [
+                "Tamil Literature I",
+                "Tamil Grammar I",
+                "Classical Tamil Literature",
+                "Communication Tamil",
+                "Introduction to Tamil Studies",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        2: {
+            "core": [
+                "Tamil Literature II",
+                "Tamil Grammar II",
+                "Sangam Literature",
+                "Modern Tamil Literature",
+                "Tamil Prose",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        3: {
+            "core": [
+                "Medieval Tamil Literature",
+                "Tamil Poetry",
+                "Tamil Short Stories",
+                "Tamil Linguistics",
+                "Literary Criticism",
+            ],
+            "elective": [
+                "Tamil Poetry",
+                "Tamil Short Stories",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        4: {
+            "core": [
+                "Tamil Epics",
+                "Modern Tamil Poetry",
+                "Tamil Drama",
+                "Folklore Studies",
+                "Comparative Literature",
+            ],
+            "elective": [
+                "Folklore Studies",
+                "Comparative Literature",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        5: {
+            "core": [
+                "Contemporary Tamil Literature",
+                "Tamil Journalism",
+                "Translation Studies",
+                "Tamil Cultural Studies",
+                "Research Methods in Tamil",
+            ],
+            "elective": [
+                "Tamil Journalism",
+                "Translation Studies",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        6: {
+            "core": [
+                "Advanced Tamil Studies",
+                "Literary Research",
+                "Professional Tamil",
+            ],
+            "elective": [
+                "Digital Tamil",
+                "Comparative Tamil Literature",
+            ],
+            "lab": [],
+            "project": [
+                "Major Project"
+            ],
+        },
+    }
+},
+
+# =====================================================
+# BACHELOR OF ARTS - HISTORY
+# =====================================================
+
+"Bachelor of Arts - History": {
+
+    "UG": {
+
+        1: {
+            "core": [
+                "Ancient Indian History",
+                "World History I",
+                "Introduction to History",
+                "Indian Culture and Heritage",
+                "Archaeology Basics",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        2: {
+            "core": [
+                "Medieval Indian History",
+                "World History II",
+                "South Indian History",
+                "Historical Methods",
+                "Indian Art and Architecture",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        3: {
+            "core": [
+                "Modern Indian History I",
+                "European History",
+                "History of Tamil Nadu",
+                "Economic History",
+                "Political History",
+            ],
+            "elective": [
+                "History of Tamil Nadu",
+                "Economic History",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        4: {
+            "core": [
+                "Modern Indian History II",
+                "History of Colonialism",
+                "History of the Indian National Movement",
+                "Social and Cultural History",
+                "Historiography",
+            ],
+            "elective": [
+                "Social and Cultural History",
+                "Historiography",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        5: {
+            "core": [
+                "Contemporary World History",
+                "Indian Constitution and Political History",
+                "History of International Relations",
+                "Heritage Management",
+                "Museology",
+            ],
+            "elective": [
+                "Heritage Management",
+                "Museology",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        6: {
+            "core": [
+                "Historical Research Methods",
+                "Archives and Documentation",
+                "Contemporary Indian History",
+            ],
+            "elective": [
+                "Public History",
+                "Digital History",
+            ],
+            "lab": [],
+            "project": [
+                "Major Project"
+            ],
+        },
+    }
+},
+
+# =====================================================
+# BACHELOR OF ARTS - ECONOMICS
+# =====================================================
+
+"Bachelor of Arts - Economics": {
+
+    "UG": {
+
+        1: {
+            "core": [
+                "Microeconomics I",
+                "Macroeconomics I",
+                "Mathematics for Economics",
+                "Statistics for Economics",
+                "Indian Economy",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        2: {
+            "core": [
+                "Microeconomics II",
+                "Macroeconomics II",
+                "Economic Statistics",
+                "Public Finance",
+                "Money and Banking",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        3: {
+            "core": [
+                "Development Economics",
+                "International Economics",
+                "Econometrics I",
+                "Agricultural Economics",
+                "Industrial Economics",
+            ],
+            "elective": [
+                "Agricultural Economics",
+                "Industrial Economics",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        4: {
+            "core": [
+                "Econometrics II",
+                "Monetary Economics",
+                "Public Economics",
+                "Environmental Economics",
+                "Labour Economics",
+            ],
+            "elective": [
+                "Environmental Economics",
+                "Labour Economics",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        5: {
+            "core": [
+                "Financial Economics",
+                "International Trade",
+                "Economic Policy",
+                "Business Economics",
+                "Research Methodology",
+            ],
+            "elective": [
+                "Financial Economics",
+                "Business Economics",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        6: {
+            "core": [
+                "Advanced Economic Analysis",
+                "Indian Economic Policy",
+                "Applied Econometrics",
+            ],
+            "elective": [
+                "Development Policy",
+                "Financial Markets",
+            ],
+            "lab": [],
+            "project": [
+                "Major Project"
+            ],
+        },
+    }
+},
+
+# =====================================================
+# BACHELOR OF ARTS - POLITICAL SCIENCE
+# =====================================================
+
+"Bachelor of Arts - Political Science": {
+
+    "UG": {
+
+        1: {
+            "core": [
+                "Introduction to Political Science",
+                "Political Theory I",
+                "Indian Government and Politics I",
+                "Public Administration",
+                "Political Institutions",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        2: {
+            "core": [
+                "Political Theory II",
+                "Indian Government and Politics II",
+                "Comparative Politics",
+                "International Relations I",
+                "Constitutional Studies",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        3: {
+            "core": [
+                "International Relations II",
+                "Public Policy",
+                "Political Sociology",
+                "Indian Political Thought",
+                "Western Political Thought",
+            ],
+            "elective": [
+                "Political Sociology",
+                "Public Policy",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        4: {
+            "core": [
+                "International Organizations",
+                "Human Rights",
+                "Indian Foreign Policy",
+                "Political Economy",
+                "Electoral Politics",
+            ],
+            "elective": [
+                "Human Rights",
+                "Electoral Politics",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        5: {
+            "core": [
+                "Governance and Administration",
+                "Political Parties and Elections",
+                "Conflict and Peace Studies",
+                "Local Government",
+                "Contemporary Political Issues",
+            ],
+            "elective": [
+                "Conflict and Peace Studies",
+                "Local Government",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        6: {
+            "core": [
+                "Research Methodology",
+                "Contemporary Political Theory",
+                "Public Policy Analysis",
+            ],
+            "elective": [
+                "International Security",
+                "Political Communication",
+            ],
+            "lab": [],
+            "project": [
+                "Major Project"
+            ],
+        },
+    }
+},
+# =====================================================
+# BACHELOR OF ARTS - SOCIOLOGY
+# =====================================================
+
+"Bachelor of Arts - Sociology": {
+
+    "UG": {
+
+        1: {
+            "core": [
+                "Introduction to Sociology",
+                "Sociological Concepts",
+                "Indian Society",
+                "Social Institutions",
+                "Social Psychology",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        2: {
+            "core": [
+                "Sociological Thinkers I",
+                "Rural Sociology",
+                "Urban Sociology",
+                "Social Stratification",
+                "Population Studies",
+            ],
+            "elective": [],
+            "lab": [],
+            "project": [],
+        },
+
+        3: {
+            "core": [
+                "Sociological Thinkers II",
+                "Research Methods in Sociology",
+                "Gender Studies",
+                "Sociology of Education",
+                "Industrial Sociology",
+            ],
+            "elective": [
+                "Gender Studies",
+                "Industrial Sociology",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        4: {
+            "core": [
+                "Political Sociology",
+                "Economic Sociology",
+                "Family and Marriage",
+                "Sociology of Religion",
+                "Social Change",
+            ],
+            "elective": [
+                "Economic Sociology",
+                "Sociology of Religion",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        5: {
+            "core": [
+                "Development Sociology",
+                "Medical Sociology",
+                "Environmental Sociology",
+                "Criminology",
+                "Human Rights",
+            ],
+            "elective": [
+                "Medical Sociology",
+                "Criminology",
+            ],
+            "lab": [],
+            "project": [],
+        },
+
+        6: {
+            "core": [
+                "Contemporary Sociological Issues",
+                "Applied Sociology",
+                "Advanced Research Methods",
+            ],
+            "elective": [
+                "Digital Sociology",
+                "Sociology of Media",
+            ],
+            "lab": [],
+            "project": [
+                "Major Project"
+            ],
+        },
+    }
+},
+# =====================================================
+# BACHELOR OF ARTS - PSYCHOLOGY
+# =====================================================
+
+"Bachelor of Arts - Psychology": {
+
+    "UG": {
+
+        1: {
+            "core": [
+                "Introduction to Psychology",
+                "General Psychology",
+                "Developmental Psychology I",
+                "Social Psychology I",
+                "Biological Psychology",
+            ],
+            "elective": [],
+            "lab": [
+                "Psychology Practical I"
+            ],
+            "project": [],
+        },
+
+        2: {
+            "core": [
+                "Developmental Psychology II",
+                "Social Psychology II",
+                "Cognitive Psychology",
+                "Personality Psychology",
+                "Psychological Statistics",
+            ],
+            "elective": [],
+            "lab": [
+                "Psychology Practical II"
+            ],
+            "project": [],
+        },
+
+        3: {
+            "core": [
+                "Abnormal Psychology",
+                "Educational Psychology",
+                "Organizational Psychology",
+                "Research Methods in Psychology",
+                "Counselling Psychology",
+            ],
+            "elective": [
+                "Educational Psychology",
+                "Organizational Psychology",
+            ],
+            "lab": [
+                "Psychological Assessment"
+            ],
+            "project": [],
+        },
+
+        4: {
+            "core": [
+                "Clinical Psychology",
+                "Health Psychology",
+                "Consumer Psychology",
+                "Positive Psychology",
+                "Forensic Psychology",
+            ],
+            "elective": [
+                "Health Psychology",
+                "Forensic Psychology",
+            ],
+            "lab": [
+                "Clinical Psychology Practical"
+            ],
+            "project": [],
+        },
+
+        5: {
+            "core": [
+                "Counselling Techniques",
+                "Child Psychology",
+                "Neuropsychology",
+                "Community Psychology",
+                "Industrial Psychology",
+            ],
+            "elective": [
+                "Neuropsychology",
+                "Community Psychology",
+            ],
+            "lab": [
+                "Counselling Practical"
+            ],
+            "project": [],
+        },
+
+        6: {
+            "core": [
+                "Advanced Psychological Research",
+                "Contemporary Psychology",
+                "Professional Psychology",
+            ],
+            "elective": [
+                "Cyber Psychology",
+                "Sports Psychology",
+            ],
+            "lab": [],
+            "project": [
+                "Major Project"
+            ],
+        },
+    }
+},
+# =====================================================
+# BACHELOR OF ARTS - JOURNALISM AND MASS COMMUNICATION
+# =====================================================
+
+"Bachelor of Arts - Journalism and Mass Communication": {
+
+    "UG": {
+
+        1: {
+            "core": [
+                "Introduction to Journalism",
+                "Communication Theory",
+                "News Writing",
+                "Media Studies",
+                "Language and Communication",
+            ],
+            "elective": [],
+            "lab": [
+                "Journalism Practical I"
+            ],
+            "project": [],
+        },
+
+        2: {
+            "core": [
+                "Print Journalism",
+                "Broadcast Journalism",
+                "Editing Techniques",
+                "Media Ethics",
+                "Reporting Techniques",
+            ],
+            "elective": [],
+            "lab": [
+                "News Reporting Practical"
+            ],
+            "project": [],
+        },
+
+        3: {
+            "core": [
+                "Television Production",
+                "Radio Broadcasting",
+                "Photojournalism",
+                "Digital Journalism",
+                "Advertising and Public Relations",
+            ],
+            "elective": [
+                "Photojournalism",
+                "Digital Journalism",
+            ],
+            "lab": [
+                "Television Production Practical"
+            ],
+            "project": [],
+        },
+
+        4: {
+            "core": [
+                "Film Studies",
+                "Media Management",
+                "Online Media",
+                "Communication Research",
+                "Media Law",
+            ],
+            "elective": [
+                "Film Studies",
+                "Online Media",
+            ],
+            "lab": [
+                "Digital Media Production"
+            ],
+            "project": [],
+        },
+
+        5: {
+            "core": [
+                "Investigative Journalism",
+                "Corporate Communication",
+                "Social Media Communication",
+                "Documentary Production",
+                "Media Marketing",
+            ],
+            "elective": [
+                "Investigative Journalism",
+                "Documentary Production",
+            ],
+            "lab": [
+                "Documentary Production Practical"
+            ],
+            "project": [],
+        },
+
+        6: {
+            "core": [
+                "Advanced Media Research",
+                "Media Entrepreneurship",
+                "Professional Journalism",
+            ],
+            "elective": [
+                "Digital Content Creation",
+                "Media Analytics",
+            ],
+            "lab": [],
+            "project": [
+                "Major Project"
+            ],
+        },
+    }
+},
+
+    # =====================================================
     # COMPUTER SCIENCE ENGINEERING
     # =====================================================
 

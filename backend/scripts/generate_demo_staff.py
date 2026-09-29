@@ -29,7 +29,7 @@ from app.models.course import Course
 
 RANDOM_SEED = 42
 
-NUM_STAFF = 100
+NUM_STAFF = 160
 
 DEMO_PASSWORD = "Demo@123"
 
