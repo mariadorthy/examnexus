@@ -1,288 +1,282 @@
-from collections import defaultdict
-
-from app.models.allocation import Allocation
 from app.models.examination import Examination
-from app.models.exam_registration import ExamRegistration
+from app.models.timetable import Timetable
+from app.models.hall import Hall
+from app.models.hall_allocation import HallAllocation
+
+from app.services.eligibility import get_eligible_students
 
 
 def validate_allocation(examination_id):
 
-    examination = Examination.query.get(
-        examination_id
-    )
+    examination = Examination.query.get(examination_id)
 
     if not examination:
-
         return {
             "status": "INVALID",
             "message": "Examination not found",
-            "hard_violations": [],
             "allocated_students": 0,
-            "registered_students": 0,
             "unallocated_students": 0,
             "halls_used": 0
         }
 
+    timetables = (
+        Timetable.query
+        .filter_by(examination_id=examination_id)
+        .order_by(
+            Timetable.exam_date,
+            Timetable.start_time
+        )
+        .all()
+    )
+
+    allocations = (
+        HallAllocation.query
+        .filter_by(examination_id=examination_id)
+        .all()
+    )
+
+    eligible_students = get_eligible_students(
+        examination_id
+    )
+
+    eligible_count = len(eligible_students)
+
+    accessibility_count = sum(
+        1
+        for student in eligible_students
+        if getattr(student, "disability", False)
+    )
+
+    if not allocations:
+        return {
+            "status": "NOT GENERATED",
+            "message": "Hall allocation has not been generated",
+            "allocated_students": 0,
+            "unallocated_students": eligible_count,
+            "halls_used": 0,
+            "allocated_capacity": 0
+        }
+
+    errors = []
+
     # ---------------------------------------------------------
-    # Get registered students
+    # CHECK TIMETABLE COVERAGE
     # ---------------------------------------------------------
 
-    registrations = ExamRegistration.query.filter_by(
-        examination_id=examination_id,
-        status="REGISTERED"
-    ).all()
-
-    registered_student_ids = {
-        registration.student_id
-        for registration in registrations
+    allocated_timetable_ids = {
+        allocation.timetable_id
+        for allocation in allocations
     }
 
+    missing_timetables = [
+        timetable.id
+        for timetable in timetables
+        if timetable.id not in allocated_timetable_ids
+    ]
+
+    if missing_timetables:
+        errors.append(
+            f"Missing hall allocation for timetable entries: "
+            f"{missing_timetables}"
+        )
+
     # ---------------------------------------------------------
-    # Get allocations
+    # CHECK EACH HALL ALLOCATION
     # ---------------------------------------------------------
 
-    allocations = Allocation.query.filter_by(
-        examination_id=examination_id
-    ).all()
-
-    hard_violations = []
-
-    # ---------------------------------------------------------
-    # Check every allocation
-    # ---------------------------------------------------------
-
-    hall_counts = defaultdict(int)
-    hall_seats = defaultdict(list)
-    allocation_student_ids = []
+    seen_timetable_halls = set()
 
     for allocation in allocations:
 
-        student = allocation.student
         hall = allocation.hall
-
-        allocation_student_ids.append(
-            allocation.student_id
-        )
-
-        # -----------------------------------------------------
-        # Student validation
-        # -----------------------------------------------------
-
-        if not student:
-
-            hard_violations.append(
-                f"Allocation {allocation.id}: student not found"
-            )
-
-            continue
-
-        if not student.is_active:
-
-            hard_violations.append(
-                f"Student {student.student_id} is inactive"
-            )
-
-        # Student must be registered.
-        if student.id not in registered_student_ids:
-
-            hard_violations.append(
-                f"Student {student.student_id} is not registered "
-                "for this examination"
-            )
-
-        # -----------------------------------------------------
-        # Hall validation
-        # -----------------------------------------------------
+        timetable = allocation.timetable
 
         if not hall:
-
-            hard_violations.append(
-                f"Allocation {allocation.id}: hall not found"
+            errors.append(
+                f"Hall not found for allocation #{allocation.id}"
             )
-
             continue
 
-        if not hall.is_active:
+        if not timetable:
+            errors.append(
+                f"Timetable not found for allocation #{allocation.id}"
+            )
+            continue
 
-            hard_violations.append(
+        # Hall must be usable
+        if not hall.is_active:
+            errors.append(
                 f"Hall {hall.name} is inactive"
             )
 
         if not hall.is_available:
-
-            hard_violations.append(
+            errors.append(
                 f"Hall {hall.name} is unavailable"
             )
 
         if hall.is_under_maintenance:
-
-            hard_violations.append(
+            errors.append(
                 f"Hall {hall.name} is under maintenance"
             )
 
-        # -----------------------------------------------------
-        # Accessibility
-        # -----------------------------------------------------
+        if hall.examination_capacity <= 0:
+            errors.append(
+                f"Hall {hall.name} has no examination capacity"
+            )
+
+        # Allocated capacity must be valid
+        if allocation.allocated_capacity <= 0:
+            errors.append(
+                f"Hall {hall.name} has invalid allocated capacity"
+            )
 
         if (
-            student.disability
-            and not hall.is_accessible
+            allocation.allocated_capacity
+            > hall.examination_capacity
         ):
-
-            hard_violations.append(
-                f"Student {student.student_id} requires "
-                f"accessibility support but hall "
-                f"{hall.name} is not accessible"
+            errors.append(
+                f"Hall {hall.name} exceeds examination capacity"
             )
 
-        # -----------------------------------------------------
-        # Hall count
-        # -----------------------------------------------------
-
-        hall_counts[hall.id] += 1
-
-        # -----------------------------------------------------
-        # Seat number
-        # -----------------------------------------------------
-
-        if not allocation.seat_number:
-
-            hard_violations.append(
-                f"Allocation {allocation.id} has no seat number"
-            )
-
-        else:
-
-            hall_seats[hall.id].append(
-                allocation.seat_number
-            )
-
-    # ---------------------------------------------------------
-    # Check hall capacity
-    # ---------------------------------------------------------
-
-    for hall_id, count in hall_counts.items():
-
-        hall = next(
-            (
-                allocation.hall
-                for allocation in allocations
-                if allocation.hall_id == hall_id
-            ),
-            None
+        # Same hall cannot occur twice in same timetable
+        key = (
+            allocation.timetable_id,
+            allocation.hall_id
         )
 
-        if not hall:
+        if key in seen_timetable_halls:
+            errors.append(
+                f"Hall {hall.name} is duplicated for "
+                f"timetable #{timetable.id}"
+            )
+
+        seen_timetable_halls.add(key)
+
+    # ---------------------------------------------------------
+    # CHECK HALL TIME CONFLICTS
+    # ---------------------------------------------------------
+
+    for index, first in enumerate(allocations):
+
+        first_timetable = first.timetable
+
+        if not first_timetable:
             continue
 
-        if count > hall.examination_capacity:
+        for second in allocations[index + 1:]:
 
-            hard_violations.append(
-                f"Hall {hall.name} exceeds examination capacity "
-                f"of {hall.examination_capacity}"
-            )
+            if first.hall_id != second.hall_id:
+                continue
 
-    # ---------------------------------------------------------
-    # Check duplicate seat numbers
-    # ---------------------------------------------------------
+            second_timetable = second.timetable
 
-    for hall_id, seats in hall_seats.items():
+            if not second_timetable:
+                continue
 
-        if len(seats) != len(set(seats)):
+            if first.timetable_id == second.timetable_id:
+                continue
 
-            hall = next(
-                (
-                    allocation.hall
-                    for allocation in allocations
-                    if allocation.hall_id == hall_id
-                ),
-                None
-            )
+            if (
+                first_timetable.exam_date
+                != second_timetable.exam_date
+            ):
+                continue
 
-            hall_name = (
-                hall.name
-                if hall
-                else str(hall_id)
-            )
-
-            hard_violations.append(
-                f"Duplicate seat numbers detected in "
-                f"hall {hall_name}"
-            )
+            if (
+                first_timetable.start_time
+                < second_timetable.end_time
+                and first_timetable.end_time
+                > second_timetable.start_time
+            ):
+                errors.append(
+                    f"Hall {first.hall.name} has overlapping "
+                    f"timetable allocations"
+                )
 
     # ---------------------------------------------------------
-    # Check duplicate student allocations
+    # CAPACITY CHECK PER TIMETABLE
     # ---------------------------------------------------------
 
-    if len(allocation_student_ids) != len(
-        set(allocation_student_ids)
-    ):
+    for timetable in timetables:
 
-        hard_violations.append(
-            "A student has been allocated more than once"
+        timetable_allocations = [
+            allocation
+            for allocation in allocations
+            if allocation.timetable_id == timetable.id
+        ]
+
+        allocated_capacity = sum(
+            allocation.allocated_capacity
+            for allocation in timetable_allocations
         )
 
-    # ---------------------------------------------------------
-    # Check missing allocations
-    # ---------------------------------------------------------
+        if allocated_capacity < eligible_count:
+            errors.append(
+                f"Insufficient capacity for "
+                f"{timetable.exam_date} {timetable.session}: "
+                f"{allocated_capacity}/{eligible_count}"
+            )
 
-    allocated_student_ids = set(
-        allocation_student_ids
-    )
+        # -----------------------------------------------------
+        # ACCESSIBILITY CAPACITY
+        # -----------------------------------------------------
 
-    missing_student_ids = (
-        registered_student_ids
-        - allocated_student_ids
-    )
-
-    if missing_student_ids:
-
-        hard_violations.append(
-            f"{len(missing_student_ids)} registered student(s) "
-            "do not have an allocation"
+        accessibility_capacity = sum(
+            allocation.allocated_capacity
+            for allocation in timetable_allocations
+            if (
+                allocation.purpose in [
+                    "ACCESSIBILITY",
+                    "MIXED"
+                ]
+                and allocation.hall
+                and allocation.hall.floor_no == 0
+                and allocation.hall.is_accessible
+            )
         )
 
-    # ---------------------------------------------------------
-    # Summary
-    # ---------------------------------------------------------
-
-    allocated_students = len(
-        allocations
-    )
-
-    registered_students = len(
-        registered_student_ids
-    )
-
-    unallocated_students = len(
-        missing_student_ids
-    )
-
-    halls_used = len(
-        hall_counts
-    )
+        if accessibility_capacity < accessibility_count:
+            errors.append(
+                f"Insufficient accessibility capacity for "
+                f"{timetable.exam_date} {timetable.session}: "
+                f"{accessibility_capacity}/{accessibility_count}"
+            )
 
     # ---------------------------------------------------------
-    # Final status
+    # FINAL RESULT
     # ---------------------------------------------------------
 
-    if hard_violations:
+    allocated_capacity = sum(
+        allocation.allocated_capacity
+        for allocation in allocations
+    )
 
-        status = "INVALID"
-        message = "Allocation validation failed"
+    halls_used = len({
+        allocation.hall_id
+        for allocation in allocations
+    })
 
-    else:
-
-        status = "VALID"
-        message = "Allocation is valid"
+    if errors:
+        return {
+            "status": "INVALID",
+            "message": "Hall allocation validation failed",
+            "errors": errors,
+            "eligible_students": eligible_count,
+            "allocated_capacity": allocated_capacity,
+            "unallocated_students": max(
+                0,
+                eligible_count - allocated_capacity
+            ),
+            "halls_used": halls_used
+        }
 
     return {
-        "status": status,
-        "message": message,
-        "hard_violations": hard_violations,
-        "examination_id": examination.id,
-        "registered_students": registered_students,
-        "allocated_students": allocated_students,
-        "unallocated_students": unallocated_students,
-        "halls_used": halls_used
+        "status": "VALID",
+        "message": "Hall allocation is valid",
+        "eligible_students": eligible_count,
+        "allocated_capacity": allocated_capacity,
+        "unallocated_students": 0,
+        "halls_used": halls_used,
+        "timetable_entries": len(timetables),
+        "errors": []
     }

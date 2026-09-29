@@ -133,21 +133,39 @@ const handleToggleStatus = async (hall) => {
   };
 
   const filteredHalls = halls.filter((hall) => {
-    const searchValue = search.toLowerCase();
+  const searchValue = search.toLowerCase();
 
-    return (
-      hall.name?.toLowerCase().includes(searchValue) ||
-      hall.building_name
-        ?.toLowerCase()
-        .includes(searchValue) ||
-      hall.room_type
-        ?.toLowerCase()
-        .includes(searchValue) ||
-      getCourseName(hall.assigned_course_id)
-        .toLowerCase()
-        .includes(searchValue)
-    );
-  });
+  return (
+    hall.name?.toLowerCase().includes(searchValue) ||
+    hall.building_name
+      ?.toLowerCase()
+      .includes(searchValue) ||
+    hall.room_type
+      ?.toLowerCase()
+      .includes(searchValue) ||
+    getCourseName(hall.assigned_course_id)
+      .toLowerCase()
+      .includes(searchValue)
+  );
+});
+
+const usableHalls = halls.filter(
+  (hall) =>
+    hall.is_active &&
+    hall.is_available &&
+    !hall.is_under_maintenance &&
+    Number(hall.examination_capacity) > 0
+);
+
+const totalUsableCapacity = usableHalls.reduce(
+  (total, hall) =>
+    total + Number(hall.examination_capacity || 0),
+  0
+);
+
+const accessibleUsableHalls = usableHalls.filter(
+  (hall) => hall.is_accessible
+);
 
   return (
     <div className="min-h-screen bg-background">
@@ -228,75 +246,118 @@ const handleToggleStatus = async (hall) => {
           </div>
         )}
 
-        {/* Statistics */}
+    {/* Statistics */}
 
-        <div className="mb-6 grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-text-muted">
-                  Total Halls
-                </p>
+<div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
 
-                <p className="mt-2 text-3xl font-bold text-text">
-                  {loading ? "..." : halls.length}
-                </p>
-              </div>
+  {/* Total Halls */}
+  <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-text-muted">
+          Total Halls
+        </p>
 
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
-                <Building2 size={21} />
-              </div>
-            </div>
-          </div>
+        <p className="mt-2 text-3xl font-bold text-text">
+          {loading ? "..." : halls.length}
+        </p>
+      </div>
 
-          <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-text-muted">
-                  Available
-                </p>
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
+        <Building2 size={21} />
+      </div>
+    </div>
+  </div>
 
-                <p className="mt-2 text-3xl font-bold text-text">
-                  {loading
-                    ? "..."
-                    : halls.filter(
-                        (hall) =>
-                          hall.is_available &&
-                          hall.is_active &&
-                          !hall.is_under_maintenance
-                      ).length}
-                </p>
-              </div>
-                     
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-success">
-                <CheckCircle2 size={21} />
-              </div>
-            </div>
-          </div>
+  {/* Usable Halls */}
+  <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-text-muted">
+          Usable Halls
+        </p>
 
-          <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-text-muted">
-                  Maintenance
-                </p>
+        <p className="mt-2 text-3xl font-bold text-text">
+          {loading ? "..." : usableHalls.length}
+        </p>
+      </div>
 
-                <p className="mt-2 text-3xl font-bold text-text">
-                  {loading
-                    ? "..."
-                    : halls.filter(
-                        (hall) =>
-                          hall.is_under_maintenance
-                      ).length}
-                </p>
-              </div>
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-success">
+        <CheckCircle2 size={21} />
+      </div>
+    </div>
+  </div>
 
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-warning">
-                <Wrench size={21} />
-              </div>
-            </div>
-          </div>
-        </div>
+  {/* Maintenance */}
+  <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-text-muted">
+          Maintenance
+        </p>
+
+        <p className="mt-2 text-3xl font-bold text-text">
+          {loading
+            ? "..."
+            : halls.filter(
+                (hall) => hall.is_under_maintenance
+              ).length}
+        </p>
+      </div>
+
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-warning">
+        <Wrench size={21} />
+      </div>
+    </div>
+  </div>
+
+  {/* Exam Capacity */}
+  <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-text-muted">
+          Exam Capacity
+        </p>
+
+        <p className="mt-2 text-3xl font-bold text-text">
+          {loading ? "..." : totalUsableCapacity}
+        </p>
+
+        <p className="mt-1 text-xs text-text-muted">
+          Usable seats
+        </p>
+      </div>
+
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
+        <Building2 size={21} />
+      </div>
+    </div>
+  </div>
+
+  {/* Accessible Halls */}
+  <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm text-text-muted">
+          Accessible Halls
+        </p>
+
+        <p className="mt-2 text-3xl font-bold text-text">
+          {loading ? "..." : accessibleUsableHalls.length}
+        </p>
+
+        <p className="mt-1 text-xs text-text-muted">
+          Among usable halls
+        </p>
+      </div>
+
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-success">
+        <CheckCircle2 size={21} />
+      </div>
+    </div>
+  </div>
+
+</div>
 
         {/* Search */}
 
@@ -353,9 +414,10 @@ const handleToggleStatus = async (hall) => {
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filteredHalls.map((hall) => {
               const available =
-                hall.is_available &&
-                hall.is_active &&
-                !hall.is_under_maintenance;
+  hall.is_available &&
+  hall.is_active &&
+  !hall.is_under_maintenance &&
+  Number(hall.examination_capacity) > 0;
 
               return (
                 <div
@@ -591,12 +653,13 @@ const handleToggleStatus = async (hall) => {
               <InfoItem
                 label="Availability"
                 value={
-                  viewingHall.is_active &&
-                  viewingHall.is_available &&
-                  !viewingHall.is_under_maintenance
-                    ? "Available"
-                    : "Unavailable"
-                }
+  viewingHall.is_active &&
+  viewingHall.is_available &&
+  !viewingHall.is_under_maintenance &&
+  Number(viewingHall.examination_capacity) > 0
+    ? "Usable for Examination"
+    : "Not Usable"
+}
               />
 
               <InfoItem

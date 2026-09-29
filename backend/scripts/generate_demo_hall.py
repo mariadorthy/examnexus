@@ -114,6 +114,10 @@ AVAILABLE_AMENITIES = [
 
 ACCESSIBLE_PERCENTAGE = 0.30
 
+# Minimum examination capacity that must be available
+# in accessible ground-floor (floor 0) halls.
+MIN_ACCESSIBLE_GROUND_FLOOR_CAPACITY = 500
+
 
 # ---------------------------------------------------------
 # LOAD ACTIVE COURSES
@@ -270,8 +274,10 @@ def create_hall(
     )
 
     is_accessible = (
-        generate_accessibility()
-    )
+    True
+    if floor_no == 0
+    else generate_accessibility()
+)
 
     course, assigned_batch = (
         generate_course_assignment(
@@ -423,6 +429,8 @@ def generate_demo_halls():
 
         halls_to_insert = []
 
+        accessible_ground_floor_capacity = 0
+
         print("-" * 80)
         print("Generating halls...")
         print("-" * 80)
@@ -441,15 +449,14 @@ def generate_demo_halls():
         for building in CLASS_BUILDINGS:
 
             for floor_no in range(
-                1,
-                CLASS_FLOORS_PER_BUILDING + 1
-            ):
+    0,
+    CLASS_FLOORS_PER_BUILDING
+):
 
-                for room_no in range(
-                    1,
-                    ROOMS_PER_CLASS_FLOOR + 1
-                ):
-
+                for floor_no in range(
+    0,
+    LAB_FLOORS
+):
                     if (
                         len(halls_to_insert)
                         >= NUM_HALLS

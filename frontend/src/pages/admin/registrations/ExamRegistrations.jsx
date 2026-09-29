@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 
 
-import { get } from "../../../services/api";
+import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 
@@ -31,7 +31,7 @@ function ExamRegistrations({
 
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-
+  const [feeLoading, setFeeLoading] = useState(null);
   useEffect(() => {
     loadData();
   }, []);
@@ -176,6 +176,27 @@ setExaminations(data);
     }
   };
 
+  
+const getEligibility = (registration) => {
+  const student = getStudent(
+    registration.student_id
+  );
+
+  if (!student || !student.is_active) {
+    return "NOT READY";
+  }
+
+  if (registration.status !== "REGISTERED") {
+    return "NOT READY";
+  }
+
+  if (registration.fee_status !== "PAID") {
+    return "NOT READY";
+  }
+
+  return "ELIGIBLE";
+};
+
   const filteredRegistrations =
     registrations.filter((registration) => {
       const student = getStudent(
@@ -195,7 +216,9 @@ setExaminations(data);
         ${examination?.session || ""}
         ${examination?.exam_type || ""}
         ${registration.status}
-        ${registration.id}
+${registration.fee_status}
+${getEligibility(registration)}
+${registration.id}
       `.toLowerCase();
 
       return searchableText.includes(
@@ -213,6 +236,37 @@ setExaminations(data);
       (item) => item.examination_id
     )
   ).size;
+
+  const handleFeeStatusChange = async (
+  registration,
+  feeStatus
+) => {
+  try {
+    setFeeLoading(registration.id);
+    setError("");
+
+    await patch(
+      `/exam-registrations/${registration.id}/fee-status`,
+      {
+        fee_status: feeStatus,
+      }
+    );
+
+    await loadRegistrations();
+  } catch (err) {
+    console.error(
+      "Fee status update error:",
+      err
+    );
+
+    setError(
+      err.message ||
+      "Unable to update fee status."
+    );
+  } finally {
+    setFeeLoading(null);
+  }
+};
 
   return (
     <div className="min-h-screen bg-background">
@@ -423,12 +477,20 @@ setExaminations(data);
                 </th>
 
                 <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Status
-                </th>
+  Fee Status
+</th>
 
-                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Registered At
-                </th>
+<th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+  Eligibility
+</th>
+
+<th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+  Status
+</th>
+
+<th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+  Registered At
+</th>
 
               </tr>
             </thead>
@@ -438,7 +500,7 @@ setExaminations(data);
               {loading ? (
                 <tr>
                   <td
-                    colSpan="6"
+                    colSpan="8"
                     className="px-5 py-12 text-center text-sm text-text-muted"
                   >
                     Loading registrations...
@@ -448,7 +510,7 @@ setExaminations(data);
                 0 ? (
                 <tr>
                   <td
-                    colSpan="6"
+                    colSpan="8"
                     className="px-5 py-12 text-center"
                   >
                     <ClipboardList
@@ -535,19 +597,67 @@ setExaminations(data);
                           {examination?.session || "—"}
                         </td>
 
-                        {/* Status */}
+                      {/* Fee Status */}
 
-                        <td className="px-5 py-4">
+<td className="px-5 py-4">
+  <div className="flex items-center gap-2">
+    <span
+      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+        registration.fee_status === "PAID"
+          ? "bg-green-100 text-green-700"
+          : "bg-yellow-100 text-yellow-700"
+      }`}
+    >
+      {registration.fee_status}
+    </span>
 
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
-                              registration.status
-                            )}`}
-                          >
-                            {registration.status}
-                          </span>
+    <button
+      type="button"
+      disabled={feeLoading === registration.id}
+      onClick={() =>
+        handleFeeStatusChange(
+          registration,
+          registration.fee_status === "PAID"
+            ? "PENDING"
+            : "PAID"
+        )
+      }
+      className="text-xs font-semibold text-primary hover:underline disabled:opacity-50"
+    >
+      {feeLoading === registration.id
+        ? "Updating..."
+        : registration.fee_status === "PAID"
+          ? "Mark Pending"
+          : "Mark Paid"}
+    </button>
+  </div>
+</td>
 
-                        </td>
+{/* Eligibility */}
+
+<td className="px-5 py-4">
+  <span
+    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+      getEligibility(registration) === "ELIGIBLE"
+        ? "bg-green-100 text-green-700"
+        : "bg-yellow-100 text-yellow-700"
+    }`}
+  >
+    {getEligibility(registration)}
+  </span>
+</td>
+
+{/* Registration Status */}
+
+<td className="px-5 py-4">
+  <span
+    className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
+      registration.status
+    )}`}
+  >
+    {registration.status}
+  </span>
+</td>
 
                         {/* Registered */}
 

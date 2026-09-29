@@ -15,19 +15,20 @@ function AllocationDetails({
     return null;
   }
 
-  const halls = {};
+const hallGroups = allocations.reduce(
+  (groups, allocation) => {
+    const key = `${allocation.exam_date || "unknown"}-${allocation.session || "unknown"}`;
 
-  allocations.forEach((allocation) => {
-    const hallName = allocation.hall || "Unknown Hall";
-
-    if (!halls[hallName]) {
-      halls[hallName] = [];
+    if (!groups[key]) {
+      groups[key] = [];
     }
 
-    halls[hallName].push(allocation);
-  });
+    groups[key].push(allocation);
 
-  const hallGroups = Object.entries(halls);
+    return groups;
+  },
+  {}
+);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
@@ -77,29 +78,33 @@ function AllocationDetails({
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
 
-            <InfoCard
-              icon={ClipboardList}
-              label="Date"
-              value={examination.exam_date}
-            />
+<InfoCard
+  icon={ClipboardList}
+  label="Examination"
+  value={examination.name}
+/>
 
-            <InfoCard
-              icon={ClipboardList}
-              label="Session"
-              value={examination.session}
-            />
+<InfoCard
+  icon={Users}
+  label="Eligible Students"
+  value={allocations.length > 0 ? "Available" : "—"}
+/>
 
-            <InfoCard
-              icon={Users}
-              label="Students"
-              value={allocations.length}
-            />
+<InfoCard
+  icon={Building2}
+  label="Hall Records"
+  value={allocations.length}
+/>
 
-            <InfoCard
-              icon={Building2}
-              label="Halls"
-              value={hallGroups.length}
-            />
+<InfoCard
+  icon={Armchair}
+  label="Allocated Capacity"
+  value={allocations.reduce(
+    (total, allocation) =>
+      total + (allocation.allocated_capacity || 0),
+    0
+  )}
+/>
 
           </div>
 
@@ -119,155 +124,160 @@ function AllocationDetails({
               </div>
 
               <h3 className="mt-4 font-bold text-text">
-                No allocation records
-              </h3>
+  No hall allocation records
+</h3>
 
-              <p className="mt-2 text-sm text-text-muted">
-                There are no students allocated to
-                this examination.
-              </p>
+<p className="mt-2 text-sm text-text-muted">
+  No examination halls have been allocated
+  to this examination yet.
+</p>
 
             </div>
           ) : (
             <div className="space-y-6">
 
-              {hallGroups.map(
-                ([hallName, hallAllocations]) => (
-                  <section
-                    key={hallName}
-                    className="overflow-hidden rounded-2xl border border-border"
-                  >
+             <div className="space-y-6">
 
-                    {/* Hall Header */}
+  {Object.entries(hallGroups).map(
+    ([slotKey, slotAllocations]) => {
 
-                    <div className="flex flex-col gap-2 border-b border-border bg-surface-muted px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      const firstAllocation = slotAllocations[0];
 
-                      <div className="flex items-center gap-3">
+      return (
+        <section
+          key={slotKey}
+          className="overflow-hidden rounded-2xl border border-border"
+        >
 
-                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-light text-primary">
-                          <Building2 size={19} />
-                        </div>
+          {/* Timetable Slot Header */}
 
-                        <div>
-                          <h3 className="font-bold text-text">
-                            {hallName}
-                          </h3>
+          <div className="border-b border-border bg-surface-muted px-5 py-4">
 
-                          <p className="text-xs text-text-muted">
-                            {hallAllocations.length}{" "}
-                            student
-                            {hallAllocations.length !==
-                            1
-                              ? "s"
-                              : ""}{" "}
-                            allocated
-                          </p>
-                        </div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 
-                      </div>
+              <div>
+                <h3 className="font-bold text-text">
+                  {firstAllocation.exam_date || "Unknown Date"}
+                  {" — "}
+                  {firstAllocation.session || "Unknown Session"}
+                </h3>
 
-                      <span className="w-fit rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-primary">
-                        {hallAllocations.length} seats
-                      </span>
+                <p className="mt-1 text-xs text-text-muted">
+                  {firstAllocation.start_time || "—"}
+                  {" - "}
+                  {firstAllocation.end_time || "—"}
+                </p>
+              </div>
 
-                    </div>
+              <span className="w-fit rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-primary">
+                {slotAllocations.length} halls
+              </span>
 
-                    {/* Students */}
+            </div>
 
-                    <div className="overflow-x-auto">
+          </div>
 
-                      <table className="w-full min-w-[600px]">
+          {/* Hall Allocations */}
 
-                        <thead>
-                          <tr className="border-b border-border">
+          <div className="overflow-x-auto">
 
-                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                              #
-                            </th>
+            <table className="w-full min-w-[850px]">
 
-                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                              Student ID
-                            </th>
+              <thead>
+                <tr className="border-b border-border">
 
-                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                              Student Name
-                            </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Hall
+                  </th>
 
-                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                              Seat
-                            </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Building
+                  </th>
 
-                            <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                              Status
-                            </th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Floor
+                  </th>
 
-                          </tr>
-                        </thead>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Hall Capacity
+                  </th>
 
-                        <tbody>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Allocated Capacity
+                  </th>
 
-                          {hallAllocations.map(
-                            (
-                              allocation,
-                              index
-                            ) => (
-                              <tr
-                                key={allocation.id}
-                                className="border-b border-border last:border-0 hover:bg-surface-muted"
-                              >
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Purpose
+                  </th>
 
-                                <td className="px-5 py-3.5 text-sm text-text-muted">
-                                  {index + 1}
-                                </td>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Status
+                  </th>
 
-                                <td className="px-5 py-3.5 text-sm font-semibold text-sidebar">
-                                  {
-                                    allocation.student_id
-                                  }
-                                </td>
+                </tr>
+              </thead>
 
-                                <td className="px-5 py-3.5 text-sm text-text">
-                                  {
-                                    allocation.student_name
-                                  }
-                                </td>
+              <tbody>
 
-                                <td className="px-5 py-3.5">
+                {slotAllocations.map(
+                  (allocation) => (
+                    <tr
+                      key={allocation.id}
+                      className="border-b border-border last:border-0 hover:bg-surface-muted"
+                    >
 
-                                  <span className="inline-flex items-center gap-1.5 rounded-lg bg-accent-light px-3 py-1.5 text-xs font-bold text-primary">
-                                    <Armchair
-                                      size={14}
-                                    />
+                      <td className="px-5 py-4 text-sm font-semibold text-text">
+                        {allocation.hall || "Unknown Hall"}
+                      </td>
 
-                                    {allocation.seat_number ||
-                                      "—"}
-                                  </span>
+                      <td className="px-5 py-4 text-sm text-text">
+                        {allocation.building_name || "—"}
+                      </td>
 
-                                </td>
+                      <td className="px-5 py-4 text-sm text-text">
+                        {allocation.floor_no ?? "—"}
+                      </td>
 
-                                <td className="px-5 py-3.5">
+                      <td className="px-5 py-4 text-sm text-text">
+                        {allocation.examination_capacity ?? 0}
+                      </td>
 
-                                  <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-success">
-                                    {
-                                      allocation.status
-                                    }
-                                  </span>
+                      <td className="px-5 py-4 text-sm font-semibold text-primary">
+                        {allocation.allocated_capacity ?? 0}
+                      </td>
 
-                                </td>
+                      <td className="px-5 py-4">
 
-                              </tr>
-                            )
-                          )}
+                        <span className="inline-flex rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-primary">
+                          {allocation.purpose || "NORMAL"}
+                        </span>
 
-                        </tbody>
+                      </td>
 
-                      </table>
+                      <td className="px-5 py-4">
 
-                    </div>
+                        <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-success">
+                          {allocation.status}
+                        </span>
 
-                  </section>
-                )
-              )}
+                      </td>
+
+                    </tr>
+                  )
+                )}
+
+              </tbody>
+
+            </table>
+
+          </div>
+
+        </section>
+      );
+    }
+  )}
+
+</div>
 
             </div>
           )}

@@ -15,11 +15,12 @@ def get_exam_registrations():
 
     return [
         {
-            "id": registration.id,
-            "student_id": registration.student_id,
-            "examination_id": registration.examination_id,
-            "status": registration.status,
-            "registered_at": registration.registered_at.isoformat()
+        "id": registration.id,
+        "student_id": registration.student_id,
+        "examination_id": registration.examination_id,
+        "status": registration.status,
+        "fee_status": registration.fee_status,
+        "registered_at": registration.registered_at.isoformat()
         }
         for registration in registrations
     ]
@@ -31,9 +32,10 @@ def create_exam_registration():
     data = request.get_json()
 
     registration = ExamRegistration(
-        student_id=data["student_id"],
-        examination_id=data["examination_id"]
-    )
+    student_id=data["student_id"],
+    examination_id=data["examination_id"],
+    fee_status="PENDING"
+)
 
     db.session.add(registration)
     db.session.commit()
@@ -42,3 +44,39 @@ def create_exam_registration():
         "message": "Student registered for examination successfully",
         "id": registration.id
     }, 201
+
+@exam_registrations_bp.route(
+    "/<int:registration_id>/fee-status",
+    methods=["PATCH"]
+)
+@roles_required("admin")
+def update_fee_status(registration_id):
+    registration = ExamRegistration.query.get(
+        registration_id
+    )
+
+    if not registration:
+        return {
+            "success": False,
+            "message": "Exam registration not found"
+        }, 404
+
+    data = request.get_json() or {}
+    fee_status = data.get("fee_status")
+
+    if fee_status not in ["PENDING", "PAID"]:
+        return {
+            "success": False,
+            "message": "fee_status must be PENDING or PAID"
+        }, 400
+
+    registration.fee_status = fee_status
+
+    db.session.commit()
+
+    return {
+        "success": True,
+        "message": "Fee status updated successfully",
+        "registration_id": registration.id,
+        "fee_status": registration.fee_status
+    }

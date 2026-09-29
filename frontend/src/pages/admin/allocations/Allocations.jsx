@@ -215,10 +215,9 @@ function Allocations({
                 </h1>
 
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-text-muted">
-                  Generate, validate and review student
-                  hall and seat allocations for scheduled
-                  examinations.
-                </p>
+  Generate, validate and review examination
+  hall allocations for scheduled examinations.
+</p>
               </div>
 
               <button
@@ -316,11 +315,8 @@ function Allocations({
                         key={examination.id}
                         value={examination.id}
                       >
-                        {examination.subject_id
-                          ? `Subject #${examination.subject_id}`
-                          : `Examination #${examination.id}`}{" "}
-                        — {examination.exam_date} —{" "}
-                        {examination.session}
+                        {`Examination #${examination.id}`}{" "}
+— {examination.name}
                       </option>
                     )
                   )}
@@ -367,20 +363,20 @@ function Allocations({
                   value={`#${selectedExam.id}`}
                 />
 
-                <InfoItem
-                  label="Date"
-                  value={selectedExam.exam_date}
-                />
+              <InfoItem
+  label="Examination"
+  value={selectedExam.name}
+/>
 
-                <InfoItem
-                  label="Session"
-                  value={selectedExam.session}
-                />
+<InfoItem
+  label="Course"
+  value={selectedExam.course_name || "—"}
+/>
 
-                <InfoItem
-                  label="Time"
-                  value={`${selectedExam.start_time} - ${selectedExam.end_time}`}
-                />
+<InfoItem
+  label="Semester"
+  value={selectedExam.semester}
+/>
 
               </div>
             )}
@@ -394,38 +390,38 @@ function Allocations({
           {selectedExamination && (
             <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
-              <SummaryCard
-                title="Allocated Students"
-                value={
-                  loadingAllocations
-                    ? "..."
-                    : summary?.allocated_students ?? 0
-                }
-                description="Students with assigned seats"
-                icon={Users}
-              />
+             <SummaryCard
+  title="Eligible Students"
+  value={
+    loadingAllocations
+      ? "..."
+      : summary?.eligible_students ?? 0
+  }
+  description="Students requiring examination capacity"
+  icon={Users}
+/>
 
-              <SummaryCard
-                title="Halls Used"
-                value={
-                  loadingAllocations
-                    ? "..."
-                    : summary?.halls_used ?? 0
-                }
-                description="Examination halls in use"
-                icon={Building2}
-              />
+<SummaryCard
+  title="Halls Used"
+  value={
+    loadingAllocations
+      ? "..."
+      : summary?.halls_used ?? 0
+  }
+  description="Examination halls reserved"
+  icon={Building2}
+/>
 
-              <SummaryCard
-                title="Unallocated"
-                value={
-                  loadingAllocations
-                    ? "..."
-                    : summary?.unallocated_students ?? 0
-                }
-                description="Students without allocation"
-                icon={Armchair}
-              />
+<SummaryCard
+  title="Allocated Capacity"
+  value={
+    loadingAllocations
+      ? "..."
+      : summary?.allocated_capacity ?? 0
+  }
+  description="Total hall capacity reserved"
+  icon={Armchair}
+/>
 
               <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
 
@@ -481,12 +477,12 @@ function Allocations({
 
                 <div>
                   <h2 className="font-bold text-text">
-                    Allocation Records
-                  </h2>
+  Hall Allocation Records
+</h2>
 
-                  <p className="mt-1 text-sm text-text-muted">
-                    Student hall and seat assignments.
-                  </p>
+<p className="mt-1 text-sm text-text-muted">
+  Examination halls reserved for each timetable slot.
+</p>
                 </div>
 
                 <button
@@ -526,80 +522,105 @@ function Allocations({
               ) : (
                 <div className="overflow-x-auto">
 
-                  <table className="w-full min-w-[700px]">
+<table className="w-full min-w-[900px]">
 
-                    <thead>
-                      <tr className="border-b border-border bg-surface-muted">
+  <thead>
+    <tr className="border-b border-border bg-surface-muted">
 
-                        <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                          Student ID
-                        </th>
+      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Date
+      </th>
 
-                        <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                          Student Name
-                        </th>
+      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Session
+      </th>
 
-                        <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                          Hall
-                        </th>
+      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Hall
+      </th>
 
-                        <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                          Seat
-                        </th>
+      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Building
+      </th>
 
-                        <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                          Status
-                        </th>
+      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Floor
+      </th>
 
-                      </tr>
-                    </thead>
+      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Capacity
+      </th>
 
-                    <tbody>
+      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Purpose
+      </th>
 
-                      {allocations
-                        .slice(0, 10)
-                        .map((allocation) => (
-                          <tr
-                            key={allocation.id}
-                            className="border-b border-border last:border-0 hover:bg-surface-muted"
-                          >
+      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Status
+      </th>
 
-                            <td className="px-5 py-4 text-sm font-semibold text-sidebar">
-                              {allocation.student_id}
-                            </td>
+    </tr>
+  </thead>
 
-                            <td className="px-5 py-4 text-sm text-text">
-                              {allocation.student_name}
-                            </td>
+  <tbody>
 
-                            <td className="px-5 py-4 text-sm text-text">
-                              {allocation.hall}
-                            </td>
+    {allocations
+      .slice(0, 10)
+      .map((allocation) => (
+        <tr
+          key={allocation.id}
+          className="border-b border-border last:border-0 hover:bg-surface-muted"
+        >
 
-                            <td className="px-5 py-4 text-sm font-semibold text-primary">
-                              {allocation.seat_number || "—"}
-                            </td>
+          <td className="px-5 py-4 text-sm text-text">
+            {allocation.exam_date || "—"}
+          </td>
 
-                            <td className="px-5 py-4">
+          <td className="px-5 py-4 text-sm font-semibold text-sidebar">
+            {allocation.session || "—"}
+          </td>
 
-                              <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-success">
-                                {allocation.status}
-                              </span>
+          <td className="px-5 py-4 text-sm font-semibold text-text">
+            {allocation.hall || "—"}
+          </td>
 
-                            </td>
+          <td className="px-5 py-4 text-sm text-text">
+            {allocation.building_name || "—"}
+          </td>
 
-                          </tr>
-                        ))}
+          <td className="px-5 py-4 text-sm text-text">
+            {allocation.floor_no ?? "—"}
+          </td>
 
-                    </tbody>
+          <td className="px-5 py-4 text-sm font-semibold text-primary">
+            {allocation.allocated_capacity ?? 0}
+          </td>
 
-                  </table>
+          <td className="px-5 py-4">
+            <span className="inline-flex rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-primary">
+              {allocation.purpose || "NORMAL"}
+            </span>
+          </td>
 
+          <td className="px-5 py-4">
+
+            <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-success">
+              {allocation.status}
+            </span>
+
+          </td>
+
+        </tr>
+      ))}
+
+  </tbody>
+
+</table>
                   {allocations.length > 10 && (
                     <div className="border-t border-border px-5 py-4 text-center text-sm text-text-muted">
                       Showing first 10 of{" "}
-                      {allocations.length} allocations.
-                      Use View Details to see all records.
+{allocations.length} hall allocation records.
+Use View Details to see all records.
                     </div>
                   )}
 
@@ -620,11 +641,11 @@ function Allocations({
                 Select an examination
               </h3>
 
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
-                Select an examination above to view
-                existing allocations or generate a new
-                hall and seat allocation.
-              </p>
+             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
+  Select an examination above to view
+  existing hall allocations or generate a
+  new examination hall allocation.
+</p>
 
             </div>
           )}
@@ -720,13 +741,13 @@ function EmptyState() {
       </div>
 
       <h3 className="mt-5 font-bold text-text">
-        No allocations found
-      </h3>
+  No hall allocations found
+</h3>
 
-      <p className="mx-auto mt-2 max-w-md text-sm text-text-muted">
-        No student allocations have been generated
-        for this examination yet.
-      </p>
+<p className="mx-auto mt-2 max-w-md text-sm text-text-muted">
+  No examination halls have been allocated
+  for this examination yet.
+</p>
 
     </div>
   );

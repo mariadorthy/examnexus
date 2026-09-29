@@ -35,6 +35,11 @@ class ExamRegistration(db.Model):
         default="REGISTERED",
         nullable=False
     )
+    fee_status = db.Column(
+    db.String(20),
+    default="PENDING",
+    nullable=False
+)
 
     registered_at = db.Column(
         db.DateTime,
