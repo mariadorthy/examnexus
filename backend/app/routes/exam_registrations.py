@@ -1,7 +1,12 @@
 from flask import Blueprint, request
+
 from app import db
 from app.models.exam_registration import ExamRegistration
 from app.auth.decorators import roles_required
+from app.services.exam_registration import (
+    preview_bulk_registration,
+    create_bulk_registrations,
+)
 exam_registrations_bp = Blueprint(
     "exam_registrations",
     __name__
@@ -80,3 +85,70 @@ def update_fee_status(registration_id):
         "registration_id": registration.id,
         "fee_status": registration.fee_status
     }
+
+@exam_registrations_bp.route(
+    "/bulk-preview",
+    methods=["POST"]
+)
+@roles_required("admin")
+def bulk_preview():
+    data = request.get_json() or {}
+
+    examination_id = data.get("examination_id")
+
+    if not examination_id:
+        return {
+            "success": False,
+            "message": "examination_id is required"
+        }, 400
+
+    result = preview_bulk_registration(
+        examination_id=examination_id,
+        course_id=data.get("course_id"),
+        semester=data.get("semester"),
+        batch=data.get("batch"),
+        active_only=data.get("active_only", True),
+    )
+
+    if not result["success"]:
+        return result, 400
+
+    return result, 200
+
+
+@exam_registrations_bp.route(
+    "/bulk",
+    methods=["POST"]
+)
+@roles_required("admin")
+def bulk_create():
+    data = request.get_json() or {}
+
+    examination_id = data.get("examination_id")
+
+    if not examination_id:
+        return {
+            "success": False,
+            "message": "examination_id is required"
+        }, 400
+
+    try:
+        result = create_bulk_registrations(
+            examination_id=examination_id,
+            course_id=data.get("course_id"),
+            semester=data.get("semester"),
+            batch=data.get("batch"),
+            active_only=data.get("active_only", True),
+        )
+
+        if not result["success"]:
+            return result, 400
+
+        return result, 201
+
+    except Exception as error:
+        return {
+            "success": False,
+            "message": "Failed to create bulk registrations",
+            "error": str(error),
+        }, 500

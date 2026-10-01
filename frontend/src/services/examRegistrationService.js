@@ -1,3 +1,5 @@
+import { post } from "./api";
+
 const API_URL =
   `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/exam-registrations/`;
 
@@ -79,4 +81,18 @@ export async function deleteExamRegistration(id) {
   }
 
   return result;
+}
+
+export async function previewBulkExamRegistrations(data) {
+  return await post(
+    "/exam-registrations/bulk-preview",
+    data
+  );
+}
+
+export async function createBulkExamRegistrations(data) {
+  return await post(
+    "/exam-registrations/bulk",
+    data
+  );
 }

@@ -9,10 +9,16 @@ import {
   Eye,
   X,
   Loader2,
+  ClipboardList,
 } from "lucide-react";
 
 import StudentForm from "./StudentForm";
 import { get, patch } from "../../../services/api";
+import {
+  previewBulkExamRegistrations,
+  createBulkExamRegistrations,
+} from "../../../services/examRegistrationService";
+
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import CsvImport from "../../../components/admin/CsvImport/CsvImport";
@@ -46,6 +52,40 @@ const [detailsLoading, setDetailsLoading] =
 const [statusLoading, setStatusLoading] =
   useState(null);
 
+const [showBulkRegistration, setShowBulkRegistration] =
+  useState(false);
+
+const [examinations, setExaminations] =
+  useState([]);
+
+const [registrationForm, setRegistrationForm] = 
+  useState({ 
+    examination_id: "", 
+    batch: "", 
+    active_only: true, 
+  });
+
+const [registrationPreview, setRegistrationPreview] =
+  useState(null);
+
+const [registrationLoading, setRegistrationLoading] =
+  useState(false);
+
+const [registrationCreating, setRegistrationCreating] =
+  useState(false);
+
+  const selectedExamination = examinations.find(
+  (examination) =>
+    Number(examination.id) ===
+    Number(registrationForm.examination_id)
+);
+
+const selectedCourse = courses.find(
+  (course) =>
+    Number(course.id) ===
+    Number(selectedExamination?.course_id)
+);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -58,10 +98,16 @@ const [statusLoading, setStatusLoading] =
       const [
   studentsData,
   coursesData,
+  examinationsData,
 ] = await Promise.all([
   get("/students/"),
   get("/courses/"),
+  get("/examinations/"),
 ]);
+
+setStudents(studentsData);
+setCourses(coursesData);
+setExaminations(examinationsData);
 
 console.log(
   "STUDENTS GET response:",
@@ -171,6 +217,91 @@ setStudents((currentStudents) =>
     setStatusLoading(null);
   }
 };
+
+const handleBulkRegistrationPreview = async () => {
+  if (!registrationForm.examination_id) {
+    setError("Please select an examination.");
+    return;
+  }
+
+  try {
+    setRegistrationLoading(true);
+    setError("");
+    setRegistrationPreview(null);
+
+    const result =
+  await previewBulkExamRegistrations({
+    examination_id:
+      Number(registrationForm.examination_id),
+    batch:
+      registrationForm.batch || null,
+    active_only:
+      registrationForm.active_only,
+  });
+
+    setRegistrationPreview(result);
+  } catch (err) {
+    console.error(
+      "Bulk registration preview error:",
+      err
+    );
+
+    setError(
+      err.message ||
+        "Unable to generate registration preview."
+    );
+  } finally {
+    setRegistrationLoading(false);
+  }
+};
+
+const handleBulkRegistrationCreate = async () => {
+  if (!registrationPreview?.new_registrations) {
+    return;
+  }
+
+  try {
+    setRegistrationCreating(true);
+    setError("");
+
+    const result =
+  await createBulkExamRegistrations({
+    examination_id:
+      Number(registrationForm.examination_id),
+    batch:
+      registrationForm.batch || null,
+    active_only:
+      registrationForm.active_only,
+  });
+
+    alert(
+      `${result.created} student registrations created successfully.`
+    );
+
+    setRegistrationPreview(null);
+    setRegistrationForm({
+  examination_id: "",
+  batch: "",
+  active_only: true,
+});
+
+    setShowBulkRegistration(false);
+
+  } catch (err) {
+    console.error(
+      "Bulk registration creation error:",
+      err
+    );
+
+    setError(
+      err.message ||
+        "Unable to create bulk registrations."
+    );
+  } finally {
+    setRegistrationCreating(false);
+  }
+};
+
   const handleFormSuccess = () => {
     setShowForm(false);
     setEditingStudent(null);
@@ -281,6 +412,15 @@ setStudents((currentStudents) =>
   className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted"
 >
   Import CSV
+</button>
+
+<button
+  type="button"
+  onClick={() => setShowBulkRegistration(true)}
+  className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted"
+>
+  <ClipboardList size={18} />
+Bulk Exam Registration
 </button>
 
           <button
@@ -959,6 +1099,261 @@ setStudents((currentStudents) =>
 
 </div>
     </main>
+    {showBulkRegistration && (
+  <div
+    className="
+      fixed inset-0 z-[70]
+      flex items-center justify-center
+      bg-black/40 p-4
+      backdrop-blur-sm
+    "
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        setShowBulkRegistration(false);
+        setRegistrationPreview(null);
+      }
+    }}
+  >
+    <div
+      className="
+        w-full max-w-3xl
+        max-h-[90vh]
+        overflow-y-auto
+        rounded-2xl
+        bg-surface
+        shadow-2xl
+      "
+    >
+
+      <div className="flex items-center justify-between border-b border-border px-6 py-5">
+        <div>
+         <h2 className="text-lg font-bold text-text">
+  Bulk Exam Registration
+</h2>
+
+<p className="mt-1 text-sm text-text-muted">
+  Register students for the selected examination based on its course and semester.
+</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            setShowBulkRegistration(false);
+            setRegistrationPreview(null);
+          }}
+          className="rounded-lg p-2 text-text-muted hover:bg-surface-muted hover:text-text"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="space-y-5 p-6">
+
+{/* ================================================= */}
+{/* EXAMINATION */}
+{/* ================================================= */}
+
+<div>
+  <label className="mb-2 block text-sm font-semibold text-text">
+    Examination
+  </label>
+
+  <select
+    value={registrationForm.examination_id}
+    onChange={(event) =>
+      setRegistrationForm((current) => ({
+        ...current,
+        examination_id: event.target.value,
+      }))
+    }
+    className="w-full rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-text outline-none focus:border-primary"
+  >
+    <option value="">
+      Select examination
+    </option>
+
+    {examinations.map((examination) => (
+      <option
+        key={examination.id}
+        value={examination.id}
+      >
+        {examination.name} — {examination.exam_type}
+      </option>
+    ))}
+  </select>
+</div>
+
+{/* ================================================= */}
+{/* SELECTED EXAMINATION DETAILS */}
+{/* ================================================= */}
+
+{selectedExamination && (
+  <div className="rounded-2xl border border-border bg-surface-muted p-5">
+
+    <div className="mb-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Selected Examination
+      </p>
+
+      <h3 className="mt-1 text-lg font-bold text-text">
+        {selectedExamination.name}
+      </h3>
+
+      <p className="mt-1 text-sm text-text-muted">
+        {selectedExamination.exam_type}
+      </p>
+    </div>
+
+    <div className="grid gap-4 sm:grid-cols-2">
+
+      {/* COURSE */}
+
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+          Course
+        </p>
+
+        <p className="mt-2 text-sm font-bold text-text">
+          {selectedCourse
+            ? `${selectedCourse.course_code} — ${selectedCourse.course_name}`
+            : `Course ID ${selectedExamination.course_id}`}
+        </p>
+      </div>
+
+      {/* SEMESTER */}
+
+      <div className="rounded-xl border border-border bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+          Semester
+        </p>
+
+        <p className="mt-2 text-sm font-bold text-text">
+          Semester {selectedExamination.semester}
+        </p>
+      </div>
+
+    </div>
+
+    <p className="mt-4 text-xs text-text-muted">
+      Course and semester are taken directly from the selected examination.
+      They cannot be changed during bulk registration.
+    </p>
+
+  </div>
+)}
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-text">
+            Batch
+          </label>
+
+          <input
+            type="text"
+            value={registrationForm.batch}
+            onChange={(event) =>
+              setRegistrationForm((current) => ({
+                ...current,
+                batch: event.target.value,
+              }))
+            }
+            placeholder="Optional — e.g. 2024"
+            className="w-full rounded-xl border border-border bg-surface-muted px-4 py-3 text-sm text-text outline-none focus:border-primary"
+          />
+        </div>
+
+        <label className="flex items-center gap-3 rounded-xl border border-border bg-surface-muted p-4">
+          <input
+            type="checkbox"
+            checked={registrationForm.active_only}
+            onChange={(event) =>
+              setRegistrationForm((current) => ({
+                ...current,
+                active_only: event.target.checked,
+              }))
+            }
+          />
+
+          <span className="text-sm font-medium text-text">
+            Include active students only
+          </span>
+        </label>
+
+        <button
+          type="button"
+          onClick={handleBulkRegistrationPreview}
+          disabled={
+            registrationLoading ||
+            !registrationForm.examination_id
+          }
+          className="w-full rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary disabled:opacity-50"
+        >
+          {registrationLoading
+            ? "Generating Preview..."
+            : "Generate Preview"}
+        </button>
+
+        {registrationPreview && (
+          <div className="rounded-2xl border border-border bg-surface-muted p-5">
+
+            <h3 className="font-bold text-text">
+              Registration Preview
+            </h3>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+
+              <div className="rounded-xl bg-surface p-4">
+                <p className="text-xs text-text-muted">
+                  Matching Students
+                </p>
+
+                <p className="mt-1 text-2xl font-bold text-text">
+                  {registrationPreview.total_matching_students}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-surface p-4">
+                <p className="text-xs text-text-muted">
+                  Already Registered
+                </p>
+
+                <p className="mt-1 text-2xl font-bold text-text">
+                  {registrationPreview.already_registered}
+                </p>
+              </div>
+
+              <div className="rounded-xl bg-surface p-4">
+                <p className="text-xs text-text-muted">
+                  New Registrations
+                </p>
+
+                <p className="mt-1 text-2xl font-bold text-primary">
+                  {registrationPreview.new_registrations}
+                </p>
+              </div>
+
+            </div>
+
+            {registrationPreview.new_registrations > 0 && (
+              <button
+                type="button"
+                onClick={handleBulkRegistrationCreate}
+                disabled={registrationCreating}
+                className="mt-5 w-full rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary disabled:opacity-50"
+              >
+                {registrationCreating
+                  ? "Creating Registrations..."
+                  : `Create ${registrationPreview.new_registrations} Registrations`}
+              </button>
+            )}
+
+          </div>
+        )}
+
+      </div>
+    </div>
+  </div>
+)}
     </div>
   );
 }

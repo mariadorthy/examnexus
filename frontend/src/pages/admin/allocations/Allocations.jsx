@@ -9,6 +9,7 @@ import {
   Armchair,
   Eye,
   Sparkles,
+    Lock,
 } from "lucide-react";
 
 import AllocationDetails from "./AllocationDetails";
@@ -25,6 +26,10 @@ function Allocations({
 }) {
   const [sidebarOpen, setSidebarOpen] =
     useState(false);
+
+const [activeAllocationTab, setActiveAllocationTab] =
+  useState("hall");
+
   const [examinations, setExaminations] = useState([]);
   const [selectedExamination, setSelectedExamination] = useState("");
 
@@ -215,8 +220,8 @@ function Allocations({
                 </h1>
 
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-text-muted">
-  Generate, validate and review examination
-  hall allocations for scheduled examinations.
+  Manage examination hall, invigilator and
+  student seat allocations from one place.
 </p>
               </div>
 
@@ -241,6 +246,147 @@ function Allocations({
             </div>
 
           </section>
+
+{/* ================================================= */}
+{/* ALLOCATION MODULES */}
+{/* ================================================= */}
+
+<section className="mb-6 rounded-2xl border border-border bg-surface p-2 shadow-sm">
+
+  <div className="grid gap-2 md:grid-cols-3">
+
+    {/* Hall Allocation */}
+
+    <button
+      type="button"
+      onClick={() =>
+        setActiveAllocationTab("hall")
+      }
+      className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${
+        activeAllocationTab === "hall"
+          ? "bg-sidebar text-white shadow-md"
+          : "text-text hover:bg-surface-muted"
+      }`}
+    >
+
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+          activeAllocationTab === "hall"
+            ? "bg-white/10"
+            : "bg-accent-light text-primary"
+        }`}
+      >
+        <Building2 size={20} />
+      </div>
+
+      <div className="min-w-0">
+
+        <p className="text-sm font-bold">
+          Hall Allocation
+        </p>
+
+        <p
+          className={`mt-0.5 text-xs ${
+            activeAllocationTab === "hall"
+              ? "text-white/70"
+              : "text-text-muted"
+          }`}
+        >
+          Examination → Hall
+        </p>
+
+      </div>
+
+    </button>
+
+
+    {/* Invigilator Allocation */}
+
+    <button
+  type="button"
+  onClick={() =>
+    setActiveAllocationTab("invigilator")
+  }
+  className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${
+    activeAllocationTab === "invigilator"
+      ? "bg-sidebar text-white shadow-md"
+      : "text-text opacity-60 hover:bg-surface-muted"
+  }`}
+>
+
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
+        <Users size={20} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+
+        <div className="flex items-center gap-2">
+
+          <p className="text-sm font-bold text-text">
+            Invigilator Allocation
+          </p>
+
+          <Lock size={13} className="text-text-muted" />
+
+        </div>
+
+        <p className="mt-0.5 text-xs text-text-muted">
+          Hall → Staff
+        </p>
+
+      </div>
+
+      <span className="hidden rounded-full bg-surface-muted px-2.5 py-1 text-[10px] font-semibold text-text-muted sm:inline-flex">
+        Coming Next
+      </span>
+
+    </button>
+
+
+    {/* Student / Seat Allocation */}
+
+    <button
+  type="button"
+  onClick={() =>
+    setActiveAllocationTab("seat")
+  }
+  className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${
+    activeAllocationTab === "seat"
+      ? "bg-sidebar text-white shadow-md"
+      : "text-text opacity-60 hover:bg-surface-muted"
+  }`}
+>
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
+        <Armchair size={20} />
+      </div>
+
+      <div className="min-w-0 flex-1">
+
+        <div className="flex items-center gap-2">
+
+          <p className="text-sm font-bold text-text">
+            Student / Seat Allocation
+          </p>
+
+          <Lock size={13} className="text-text-muted" />
+
+        </div>
+
+        <p className="mt-0.5 text-xs text-text-muted">
+          Student → Hall → Seat
+        </p>
+
+      </div>
+
+      <span className="hidden rounded-full bg-surface-muted px-2.5 py-1 text-[10px] font-semibold text-text-muted sm:inline-flex">
+        Coming Later
+      </span>
+
+    </button>
+
+  </div>
+
+</section>
 
           {/* ================================================= */}
           {/* ERROR */}
@@ -276,11 +422,13 @@ function Allocations({
             </div>
           )}
 
-          {/* ================================================= */}
-          {/* EXAMINATION SELECTOR */}
-          {/* ================================================= */}
+{activeAllocationTab === "hall" && (
+  <>
+    {/* ================================================= */}
+    {/* EXAMINATION SELECTOR */}
+    {/* ================================================= */}
 
-          <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+    <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
 
             <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
 
@@ -650,12 +798,30 @@ Use View Details to see all records.
             </div>
           )}
 
-        </main>
+  </>
+)}
 
-        {/* ================================================= */}
-        {/* DETAILS MODAL */}
-        {/* ================================================= */}
+{activeAllocationTab === "invigilator" && (
+  <ComingSoonPanel
+    icon={Users}
+    title="Invigilator Allocation"
+    description="Assign invigilators to examination halls while managing staff availability and workload."
+    label="Coming Next"
+  />
+)}
 
+{activeAllocationTab === "seat" && (
+  <ComingSoonPanel
+    icon={Armchair}
+    title="Student / Seat Allocation"
+    description="Assign eligible students to examination halls and seats after hall allocation is completed."
+    label="Coming Later"
+  />
+)}
+
+{/* ================================================= */}
+{/* DETAILS MODAL */}
+{/* ================================================= */}
         {showDetails && (
           <AllocationDetails
             examination={selectedExam}
@@ -664,6 +830,7 @@ Use View Details to see all records.
           />
         )}
 
+      </main>
       </main>
     </div>
   );
@@ -727,6 +894,24 @@ function InfoItem({ label, value }) {
     </div>
   );
 }
+{/* 
+{activeAllocationTab === "invigilator" && (
+  <ComingSoonPanel
+    icon={Users}
+    title="Invigilator Allocation"
+    description="Assign invigilators to examination halls while managing staff availability and workload."
+    label="Coming Next"
+  />
+)}
+
+{activeAllocationTab === "seat" && (
+  <ComingSoonPanel
+    icon={Armchair}
+    title="Student / Seat Allocation"
+    description="Assign eligible students to examination halls and seats after hall allocation is completed."
+    label="Coming Later"
+  />
+)} */}
 
 /* ================================================= */
 /* EMPTY STATE */
@@ -750,6 +935,34 @@ function EmptyState() {
 </p>
 
     </div>
+  );
+}
+function ComingSoonPanel({
+  icon: Icon,
+  title,
+  description,
+  label,
+}) {
+  return (
+    <section className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
+
+      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-muted text-text-muted">
+        <Icon size={27} />
+      </div>
+
+      <span className="mt-5 inline-flex rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-text-muted">
+        {label}
+      </span>
+
+      <h3 className="mt-4 text-lg font-bold text-text">
+        {title}
+      </h3>
+
+      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-text-muted">
+        {description}
+      </p>
+
+    </section>
   );
 }
 

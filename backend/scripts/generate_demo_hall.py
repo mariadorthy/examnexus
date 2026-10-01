@@ -26,7 +26,7 @@ from app.models.course import Course
 RANDOM_SEED = 42
 
 # Total halls to generate
-NUM_HALLS = 148
+NUM_HALLS = 145
 
 # ---------------------------------------------------------
 # CLASSROOM SETTINGS
@@ -45,7 +45,7 @@ CLASS_BUILDINGS = [
 
 CLASS_FLOORS_PER_BUILDING = 3
 
-ROOMS_PER_CLASS_FLOOR = 2
+ROOMS_PER_CLASS_FLOOR = 5
 
 
 # ---------------------------------------------------------
@@ -54,9 +54,9 @@ ROOMS_PER_CLASS_FLOOR = 2
 
 LAB_BUILDING = "The Experimental Hub"
 
-LAB_FLOORS = 6
+LAB_FLOORS = 5
 
-LAB_ROOM_COUNT = 100
+LAB_ROOM_COUNT = 5
 
 
 # ---------------------------------------------------------
@@ -449,14 +449,15 @@ def generate_demo_halls():
         for building in CLASS_BUILDINGS:
 
             for floor_no in range(
-    0,
-    CLASS_FLOORS_PER_BUILDING
-):
+            0,
+            CLASS_FLOORS_PER_BUILDING
+        ):
 
-                for floor_no in range(
-    0,
-    LAB_FLOORS
-):
+                for room_no in range(
+            1,
+            ROOMS_PER_CLASS_FLOOR + 1
+        ):
+
                     if (
                         len(halls_to_insert)
                         >= NUM_HALLS
@@ -495,11 +496,12 @@ def generate_demo_halls():
                     )
 
                     print(
-                        f"{hall_name:<12} | "
-                        f"{building:<30} | "
-                        f"Floor {floor_no:<2} | "
-                        f"{hall.room_type:<6} | "
-                        f"Capacity: "
+                  f"{hall_name:<12} | "
+                f"{building:<30} | "
+                f"Floor {floor_no:<2} | "
+                f"{hall.room_type:<6} | "
+                f"Room {room_no:<2} | "
+                f"Capacity: "
                         f"{hall.capacity:<2} | "
                         f"Exam: "
                         f"{hall.examination_capacity:<2} | "
@@ -531,8 +533,8 @@ def generate_demo_halls():
         if len(halls_to_insert) < NUM_HALLS:
 
             for floor_no in range(
-                1,
-                LAB_FLOORS + 1
+                0,
+                LAB_FLOORS
             ):
 
                 for room_no in range(

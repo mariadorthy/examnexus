@@ -10,168 +10,208 @@ from app.models.exam_registration import ExamRegistration
 # CONFIGURATION
 # ============================================================
 
-EXAMINATION_IDS = [1]
+# Percentage of registered students whose fee is marked PAID.
+PAID_PERCENTAGE = 0.80
 
-# Number of students to register for the demo examination.
-TARGET_REGISTRATIONS = 8000
-
-# Percentage of registrations that should be marked PAID.
-PAID_PERCENTAGE = 0.90
-
-# Use a fixed seed so the result is repeatable.
+# Fixed seed so the demo data is repeatable.
 RANDOM_SEED = 42
 
 
 def populate_exam_registrations():
     random.seed(RANDOM_SEED)
 
-    for examination_id in EXAMINATION_IDS:
+    # --------------------------------------------------------
+    # 1. Get all examinations
+    # --------------------------------------------------------
 
-        # --------------------------------------------------------
-        # 1. Find examination
-        # --------------------------------------------------------
+    examinations = Examination.query.order_by(
+        Examination.id
+    ).all()
 
-        examination = Examination.query.get(examination_id)
-
-        if not examination:
-            print(f"ERROR: Examination {examination_id} not found.")
-            continue
-
-    print("=" * 60)
-    print("EXAM REGISTRATION DEMO DATA")
-    print("=" * 60)
-
-    print(f"Examination ID : {examination.id}")
-    print(f"Examination    : {examination.name}")
-    print(f"Course ID      : {examination.course_id}")
-    print(f"Semester       : {examination.semester}")
-    print()
+    if not examinations:
+        print("ERROR: No examinations found.")
+        return
 
     # --------------------------------------------------------
-    # 2. Find active students matching the examination
+    # 2. Get all active students
     # --------------------------------------------------------
 
     students = Student.query.filter_by(
-            is_active=True
-        ).all()
-
-    print(f"Matching active students: {len(students)}")
-
-    if not students:
-        print("No matching students found.")
-        return
-
-    # --------------------------------------------------------
-    # 3. Find existing registrations
-    # --------------------------------------------------------
-
-    existing_registrations = {
-        registration.student_id: registration
-        for registration in ExamRegistration.query.filter_by(
-            examination_id=examination.id
-        ).all()
-    }
-
-    print(
-        f"Existing registrations: "
-        f"{len(existing_registrations)}"
-    )
-
-    # --------------------------------------------------------
-    # 4. Create missing registrations as PENDING
-    # --------------------------------------------------------
-
-    new_registrations = []
-
-    random.shuffle(students)
-
-    for student in students:
-
-        if len(existing_registrations) + len(new_registrations) >= TARGET_REGISTRATIONS:
-            break
-
-        if student.id in existing_registrations:
-            continue
-
-        registration = ExamRegistration(
-            student_id=student.id,
-            examination_id=examination.id,
-            status="REGISTERED",
-            fee_status="PENDING"
-        )
-
-        new_registrations.append(registration)
-
-    if new_registrations:
-        db.session.add_all(new_registrations)
-        db.session.commit()
-
-    print(
-        f"New registrations created: "
-        f"{len(new_registrations)}"
-    )
-
-    # --------------------------------------------------------
-    # 5. Get all registrations for this examination
-    # --------------------------------------------------------
-
-    registrations = ExamRegistration.query.filter_by(
-        examination_id=examination.id,
-        status="REGISTERED"
+        is_active=True
     ).all()
 
-    if not registrations:
-        print("No registrations available.")
+    print("=" * 70)
+    print("EXAMNEXUS — EXAM REGISTRATION DEMO DATA")
+    print("=" * 70)
+
+    print(f"Active students found : {len(students)}")
+    print(f"Examinations found    : {len(examinations)}")
+    print(f"Paid percentage       : {PAID_PERCENTAGE * 100:.0f}%")
+    print()
+
+    if not students:
+        print("ERROR: No active students found.")
         return
 
-    # --------------------------------------------------------
-    # 6. Randomly assign PAID / PENDING
-    # --------------------------------------------------------
-
-    for registration in registrations:
-
-        if random.random() < PAID_PERCENTAGE:
-            registration.fee_status = "PAID"
-        else:
-            registration.fee_status = "PENDING"
-
-    db.session.commit()
+    total_created = 0
+    total_paid = 0
+    total_pending = 0
 
     # --------------------------------------------------------
-    # 7. Print final counts
+    # 3. Process every examination
     # --------------------------------------------------------
 
-    paid_count = sum(
-        1
-        for registration in registrations
-        if registration.fee_status == "PAID"
-    )
+    for examination in examinations:
 
-    pending_count = sum(
-        1
-        for registration in registrations
-        if registration.fee_status == "PENDING"
-    )
+        print("-" * 70)
+        print(
+            f"Examination {examination.id}: "
+            f"{examination.name}"
+        )
+        print(
+            f"Course ID: {examination.course_id} | "
+            f"Semester: {examination.semester}"
+        )
+
+        # ----------------------------------------------------
+        # 4. Match students to the examination
+        #
+        # Examination course + semester determine
+        # which students belong to this examination.
+        # ----------------------------------------------------
+
+        matching_students = [
+            student
+            for student in students
+            if student.course_id == examination.course_id
+            and student.semester == examination.semester
+        ]
+
+        print(
+            f"Matching students: "
+            f"{len(matching_students)}"
+        )
+
+        if not matching_students:
+            print("No matching students. Skipping.")
+            continue
+
+        # ----------------------------------------------------
+        # 5. Get existing registrations
+        # ----------------------------------------------------
+
+        existing_registrations = {
+            registration.student_id: registration
+            for registration in ExamRegistration.query.filter_by(
+                examination_id=examination.id
+            ).all()
+        }
+
+        print(
+            f"Existing registrations: "
+            f"{len(existing_registrations)}"
+        )
+
+        # ----------------------------------------------------
+        # 6. Create missing registrations
+        #
+        # Every registration starts as PENDING.
+        # ----------------------------------------------------
+
+        new_registrations = []
+
+        for student in matching_students:
+
+            if student.id in existing_registrations:
+                continue
+
+            registration = ExamRegistration(
+                student_id=student.id,
+                examination_id=examination.id,
+                status="REGISTERED",
+                fee_status="PENDING",
+            )
+
+            new_registrations.append(registration)
+
+        if new_registrations:
+            db.session.add_all(new_registrations)
+            db.session.commit()
+
+        print(
+            f"New registrations created: "
+            f"{len(new_registrations)}"
+        )
+
+        total_created += len(new_registrations)
+
+        # ----------------------------------------------------
+        # 7. Get all registrations for this examination
+        # ----------------------------------------------------
+
+        registrations = ExamRegistration.query.filter_by(
+            examination_id=examination.id,
+            status="REGISTERED",
+        ).all()
+
+        # ----------------------------------------------------
+        # 8. Assign PAID / PENDING
+        #
+        # Only registered students for THIS examination
+        # receive this examination's fee status.
+        # ----------------------------------------------------
+
+        paid_count = 0
+        pending_count = 0
+
+        for registration in registrations:
+
+            if random.random() < PAID_PERCENTAGE:
+                registration.fee_status = "PAID"
+                paid_count += 1
+            else:
+                registration.fee_status = "PENDING"
+                pending_count += 1
+
+        db.session.commit()
+
+        total_paid += paid_count
+        total_pending += pending_count
+
+        print(f"PAID       : {paid_count}")
+        print(f"PENDING    : {pending_count}")
+        print(
+            f"Total      : "
+            f"{paid_count + pending_count}"
+        )
+
+    # --------------------------------------------------------
+    # 9. Final result
+    # --------------------------------------------------------
+
+    total_registrations = ExamRegistration.query.count()
 
     print()
-    print("=" * 60)
+    print("=" * 70)
     print("FINAL RESULT")
-    print("=" * 60)
+    print("=" * 70)
 
-    print(f"Total registrations : {len(registrations)}")
-    print(f"PAID                : {paid_count}")
-    print(f"PENDING             : {pending_count}")
+    print(f"Students in database       : {len(students)}")
+    print(f"Examinations processed     : {len(examinations)}")
+    print(f"New registrations created  : {total_created}")
+    print(f"Total registrations        : {total_registrations}")
+    print()
+
+    print("Eligibility data:")
+    print(f"PAID                       : {total_paid}")
+    print(f"PENDING                    : {total_pending}")
 
     print()
-    print("Eligibility readiness:")
-    print(
-        f"Eligible candidates : {paid_count}"
-    )
-    print(
-        f"Not ready candidates: {pending_count}"
-    )
+    print("Meaning:")
+    print("PAID    → Eligible for examination allocation")
+    print("PENDING → Not ready for examination allocation")
 
-    print("=" * 60)
+    print("=" * 70)
 
 
 # ============================================================
