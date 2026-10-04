@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app import db
 
 from app.models.examination import Examination
@@ -385,4 +387,233 @@ def generate_allocation(examination_id):
         "halls_used": halls_used,
         "timetable_entries": len(timetables),
         "allocation_records": len(allocations)
+    }
+
+def update_hall_allocation(
+    allocation_id,
+    hall_id=None,
+    allocated_capacity=None,
+    purpose=None
+):
+    """
+    Update an existing Exam → Hall allocation.
+
+    Only hall, allocated capacity and purpose can be edited.
+    Examination and timetable relationships remain unchanged.
+    """
+
+    allocation = HallAllocation.query.get(allocation_id)
+
+    if not allocation:
+        return {
+            "success": False,
+            "message": "Hall allocation not found."
+        }
+
+    hall = None
+
+    if hall_id is not None:
+        try:
+            hall_id = int(hall_id)
+        except (TypeError, ValueError):
+            return {
+                "success": False,
+                "message": "Invalid hall ID."
+            }
+
+        hall = Hall.query.get(hall_id)
+
+        if not hall:
+            return {
+                "success": False,
+                "message": "Selected hall not found."
+            }
+
+        if not hall.is_active:
+            return {
+                "success": False,
+                "message": "Selected hall is inactive."
+            }
+
+        if not hall.is_available:
+            return {
+                "success": False,
+                "message": "Selected hall is currently unavailable."
+            }
+
+        if hall.is_under_maintenance:
+            return {
+                "success": False,
+                "message": "Selected hall is under maintenance."
+            }
+
+    else:
+        hall = allocation.hall
+
+    if not hall:
+        return {
+            "success": False,
+            "message": "Hall information is unavailable."
+        }
+
+    if allocated_capacity is not None:
+        try:
+            allocated_capacity = int(allocated_capacity)
+        except (TypeError, ValueError):
+            return {
+                "success": False,
+                "message": "Allocated capacity must be a number."
+            }
+
+        if allocated_capacity <= 0:
+            return {
+                "success": False,
+                "message": "Allocated capacity must be greater than zero."
+            }
+
+        if allocated_capacity > hall.examination_capacity:
+            return {
+                "success": False,
+                "message": (
+                    "Allocated capacity cannot exceed the "
+                    "hall examination capacity."
+                ),
+                "hall_capacity": hall.examination_capacity,
+                "requested_capacity": allocated_capacity
+            }
+
+    else:
+        allocated_capacity = allocation.allocated_capacity
+
+        if allocated_capacity > hall.examination_capacity:
+            return {
+                "success": False,
+                "message": (
+                    "Existing allocated capacity exceeds "
+                    "the selected hall capacity. Please "
+                    "provide a new allocated_capacity."
+                ),
+                "hall_capacity": hall.examination_capacity,
+                "allocated_capacity": allocated_capacity
+            }
+
+      # ---------------------------------------------------------
+    # CHECK UNIQUE (timetable_id, hall_id)
+    # ---------------------------------------------------------
+
+    duplicate = (
+        HallAllocation.query
+        .filter(
+            HallAllocation.timetable_id == allocation.timetable_id,
+            HallAllocation.hall_id == hall.id,
+            HallAllocation.id != allocation.id
+        )
+        .first()
+    )
+
+    if duplicate:
+        return {
+            "success": False,
+            "message": (
+                "This hall is already allocated to the "
+                "same timetable entry."
+            )
+        }
+
+    # ---------------------------------------------------------
+    # CHECK HALL CONFLICT
+    # ---------------------------------------------------------
+
+    timetable = allocation.timetable
+
+    if not timetable:
+        return {
+            "success": False,
+            "message": "Timetable information not found."
+        }
+
+    conflicting_allocations = (
+        HallAllocation.query
+        .join(
+            Timetable,
+            HallAllocation.timetable_id == Timetable.id
+        )
+        .filter(
+            HallAllocation.hall_id == hall.id,
+            Timetable.exam_date == timetable.exam_date,
+            HallAllocation.id != allocation.id
+        )
+        .all()
+    )
+
+    for existing_allocation in conflicting_allocations:
+        existing_timetable = existing_allocation.timetable
+
+        if not existing_timetable:
+            continue
+
+        if (
+            existing_timetable.start_time < timetable.end_time
+            and existing_timetable.end_time > timetable.start_time
+        ):
+            return {
+                "success": False,
+                "message": (
+                    "Selected hall is already allocated during "
+                    "an overlapping examination."
+                ),
+                "hall_id": hall.id,
+                "exam_date": timetable.exam_date.isoformat(),
+                "session": timetable.session
+            }
+
+    if purpose is not None:
+        allowed_purposes = {
+            "NORMAL",
+            "ACCESSIBILITY",
+            "MIXED"
+        }
+
+        purpose = str(purpose).upper()
+
+        if purpose not in allowed_purposes:
+            return {
+                "success": False,
+                "message": (
+                    "Invalid purpose. Allowed values are "
+                    "NORMAL, ACCESSIBILITY or MIXED."
+                )
+            }
+    else:
+        purpose = allocation.purpose
+
+    try:
+        allocation.hall_id = hall.id
+        allocation.allocated_capacity = allocated_capacity
+        allocation.purpose = purpose
+        allocation.updated_at = datetime.utcnow()
+
+        db.session.commit()
+
+    except Exception as error:
+        db.session.rollback()
+
+        return {
+            "success": False,
+            "message": "Failed to update hall allocation.",
+            "error": str(error)
+        }
+
+    return {
+        "success": True,
+        "message": "Hall allocation updated successfully.",
+        "allocation": {
+            "id": allocation.id,
+            "examination_id": allocation.examination_id,
+            "timetable_id": allocation.timetable_id,
+            "hall_id": allocation.hall_id,
+            "allocated_capacity": allocation.allocated_capacity,
+            "purpose": allocation.purpose,
+            "status": allocation.status
+        }
     }

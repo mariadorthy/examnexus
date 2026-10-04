@@ -1,9 +1,13 @@
-from flask import Blueprint
+from flask import Blueprint, request
 
 from app.models.hall_allocation import HallAllocation
 from app.models.timetable import Timetable
 
-from app.services.allocation import generate_allocation
+from app.services.allocation import (
+    generate_allocation,
+    update_hall_allocation
+)
+from app.services.bulk_allocation import generate_bulk_allocation
 from app.services.validation import validate_allocation
 
 from app.auth.decorators import roles_required
@@ -26,6 +30,51 @@ def generate(examination_id):
 
     return result, 400
 
+
+@allocations_bp.route(
+    "/bulk-generate",
+    methods=["POST"]
+)
+@roles_required("admin")
+def bulk_generate():
+
+    data = request.get_json() or {}
+
+    examination_ids = data.get(
+        "examination_ids",
+        []
+    )
+
+    if not isinstance(examination_ids, list):
+        return {
+            "success": False,
+            "message": (
+                "examination_ids must be a list."
+            )
+        }, 400
+
+    examination_ids = [
+        int(examination_id)
+        for examination_id in examination_ids
+        if str(examination_id).isdigit()
+    ]
+
+    if not examination_ids:
+        return {
+            "success": False,
+            "message": (
+                "At least one examination must be selected."
+            )
+        }, 400
+
+    result = generate_bulk_allocation(
+        examination_ids
+    )
+
+    if result["success"]:
+        return result, 200
+
+    return result, 400
 
 @allocations_bp.route(
     "/<int:examination_id>",
@@ -110,6 +159,47 @@ def get_allocations(examination_id):
         for allocation in allocations
     ]
 
+@allocations_bp.route(
+    "/<int:allocation_id>",
+    methods=["PATCH"]
+)
+@roles_required("admin")
+def update_allocation(allocation_id):
+
+    data = request.get_json() or {}
+
+    allowed_fields = {
+        "hall_id",
+        "allocated_capacity",
+        "purpose"
+    }
+
+    invalid_fields = set(data.keys()) - allowed_fields
+
+    if invalid_fields:
+        return {
+            "success": False,
+            "message": "Invalid fields in request.",
+            "invalid_fields": list(invalid_fields)
+        }, 400
+
+    if not data:
+        return {
+            "success": False,
+            "message": "No fields provided to update."
+        }, 400
+
+    result = update_hall_allocation(
+        allocation_id=allocation_id,
+        hall_id=data.get("hall_id"),
+        allocated_capacity=data.get("allocated_capacity"),
+        purpose=data.get("purpose")
+    )
+
+    if result["success"]:
+        return result, 200
+
+    return result, 400
 
 @allocations_bp.route(
     "/validate/<int:examination_id>",

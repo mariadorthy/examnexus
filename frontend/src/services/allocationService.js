@@ -73,3 +73,30 @@ export async function getAllocationSummary(
 
   return await response.json();
 }
+export async function generateBulkAllocation(
+  examinationIds
+) {
+  const response = await fetch(
+    `${API_URL}/bulk-generate`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        examination_ids: examinationIds,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result.message ||
+        "Failed to generate bulk allocation."
+    );
+  }
+
+  return result;
+}

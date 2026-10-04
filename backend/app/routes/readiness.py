@@ -5,6 +5,7 @@ from app.models.timetable import Timetable
 from app.auth.decorators import roles_required
 from app.services.eligibility import get_eligible_students
 from app.services.hall_availability import get_hall_readiness
+from app.services.allocation import get_available_halls
 
 
 readiness_bp = Blueprint(
@@ -45,9 +46,77 @@ def examination_readiness(examination_id):
         "total_available_capacity"
     ]
 
-    capacity_sufficient = (
+    # ---------------------------------------------------------
+    # GLOBAL CAPACITY CHECK
+    # ---------------------------------------------------------
+    #
+    # Does the campus own enough total exam capacity for this
+    # examination, ignoring date/time scheduling?
+    #
+
+    global_sufficient = (
         available_capacity >= eligible_count
     )
+
+    # ---------------------------------------------------------
+    # PER-TIMETABLE CAPACITY CHECK
+    # ---------------------------------------------------------
+    #
+    # For each timetable entry, compute the halls that are
+    # usable at that specific date/time (same filters used by
+    # the allocation engine). This is what Stage 7 will
+    # actually be able to allocate.
+    #
+
+    per_timetable = []
+    per_timetable_all_sufficient = True
+    worst_shortage = 0
+
+    for entry in timetable_entries:
+
+        usable_halls = get_available_halls(entry)
+
+        entry_capacity = sum(
+            hall.examination_capacity
+            for hall in usable_halls
+        )
+
+        entry_sufficient = (
+            entry_capacity >= eligible_count
+        )
+
+        entry_shortage = max(
+            0,
+            eligible_count - entry_capacity
+        )
+
+        if not entry_sufficient:
+            per_timetable_all_sufficient = False
+
+        if entry_shortage > worst_shortage:
+            worst_shortage = entry_shortage
+
+        per_timetable.append(
+            {
+                "timetable_id": entry.id,
+                "exam_date": entry.exam_date.isoformat(),
+                "session": entry.session,
+                "start_time": entry.start_time.strftime("%H:%M"),
+                "end_time": entry.end_time.strftime("%H:%M"),
+                "required_capacity": eligible_count,
+                "available_capacity": entry_capacity,
+                "available_hall_count": len(usable_halls),
+                "sufficient": entry_sufficient,
+                "shortage": entry_shortage
+            }
+        )
+
+    # Overall: sufficient only if every slot is sufficient.
+    # If there are no timetable entries, defer to global.
+    if timetable_entries:
+        capacity_sufficient = per_timetable_all_sufficient
+    else:
+        capacity_sufficient = global_sufficient
 
     return {
         "success": True,
@@ -88,14 +157,24 @@ def examination_readiness(examination_id):
                 "accessible_capacity"
             ]
         },
-        "capacity_check": {
+                "capacity_check": {
             "required_capacity": eligible_count,
             "available_capacity": available_capacity,
             "sufficient": capacity_sufficient,
-            "shortage": max(
+            "shortage": worst_shortage if timetable_entries else max(
                 0,
                 eligible_count - available_capacity
-            )
+            ),
+            "global": {
+                "required_capacity": eligible_count,
+                "available_capacity": available_capacity,
+                "sufficient": global_sufficient,
+                "shortage": max(
+                    0,
+                    eligible_count - available_capacity
+                )
+            },
+            "per_timetable": per_timetable
         },
         "ready_for_allocation": (
             bool(timetable_entries)

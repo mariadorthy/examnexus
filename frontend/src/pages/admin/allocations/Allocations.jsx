@@ -9,10 +9,12 @@ import {
   Armchair,
   Eye,
   Sparkles,
-    Lock,
+  Lock,
+  Pencil,
 } from "lucide-react";
 
 import AllocationDetails from "./AllocationDetails";
+import AllocationForm from "./AllocationForm";
 import {
   get,
   post,
@@ -43,7 +45,20 @@ const [activeAllocationTab, setActiveAllocationTab] =
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const [showDetails, setShowDetails] = useState(false);
+    const [showDetails, setShowDetails] =
+    useState(false);
+    
+        const [editingAllocation, setEditingAllocation] =
+    useState(null);
+
+    const [selectedBulkExaminations, setSelectedBulkExaminations] =
+    useState([]);
+
+  const [bulkGenerating, setBulkGenerating] =
+    useState(false);
+
+  const [bulkResult, setBulkResult] =
+    useState(null);
 
   useEffect(() => {
     loadExaminations();
@@ -157,13 +172,128 @@ const [activeAllocationTab, setActiveAllocationTab] =
     }
   };
 
-  const handleRefresh = async () => {
-    if (!selectedExamination) {
+    const handleGenerateBulkAllocation = async () => {
+    if (selectedBulkExaminations.length === 0) {
+      setError(
+        "Please select at least one examination."
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Generate hall allocation for ${selectedBulkExaminations.length} selected examination(s)?`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setBulkGenerating(true);
+      setError("");
+      setSuccess("");
+      setBulkResult(null);
+
+      const data = await post(
+        "/allocations/bulk-generate",
+        {
+          examination_ids:
+            selectedBulkExaminations,
+        }
+      );
+
+      if (!data.success) {
+        throw new Error(
+          data.message ||
+          "Failed to generate bulk allocation."
+        );
+      }
+
+      setBulkResult(data);
+
+      setSuccess(
+        data.message ||
+        "Bulk hall allocation generated successfully."
+      );
+
+      // Refresh the examination currently selected
+      // in the single-examination section if applicable.
+      if (selectedExamination) {
+        await loadAllocationData(
+          selectedExamination
+        );
+      }
+    } catch (err) {
+      console.error(
+        "Bulk allocation error:",
+        err
+      );
+
+      setError(
+        err.message ||
+        "Unable to generate bulk allocation."
+      );
+    } finally {
+      setBulkGenerating(false);
+    }
+  };
+
+  const handleBulkExaminationChange = (
+    examinationId
+  ) => {
+    setSelectedBulkExaminations(
+      (current) => {
+        if (
+          current.includes(examinationId)
+        ) {
+          return current.filter(
+            (id) => id !== examinationId
+          );
+        }
+
+        return [
+          ...current,
+          examinationId,
+        ];
+      }
+    );
+  };
+
+  const handleSelectAllBulkExaminations = () => {
+    if (
+      selectedBulkExaminations.length ===
+      examinations.length
+    ) {
+      setSelectedBulkExaminations([]);
+      return;
+    }
+
+    setSelectedBulkExaminations(
+      examinations.map(
+        (examination) =>
+          String(examination.id)
+      )
+    );
+  };
+
+   const handleRefresh = async () => {
+      if (!selectedExamination) {
       await loadExaminations();
       return;
     }
 
     await loadAllocationData(selectedExamination);
+  };
+
+  const handleEditSuccess = async () => {
+
+    setEditingAllocation(null);
+
+    setSuccess("Hall allocation updated successfully.");
+
+    if (selectedExamination) {
+      await loadAllocationData(selectedExamination);
+    }
   };
 
   const selectedExam = examinations.find(
@@ -529,6 +659,282 @@ const [activeAllocationTab, setActiveAllocationTab] =
               </div>
             )}
 
+                   </section>
+
+          {/* ================================================= */}
+          {/* BULK HALL ALLOCATION */}
+          {/* ================================================= */}
+
+          <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+
+            <div className="flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-center md:justify-between">
+
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-wider text-accent">
+                  Bulk Allocation
+                </p>
+
+                <h2 className="mt-1 text-lg font-bold text-text">
+                  Allocate Multiple Examinations
+                </h2>
+
+                <p className="mt-1 max-w-2xl text-sm leading-6 text-text-muted">
+                  Select multiple examinations to generate
+                  hall allocations together. Halls can be
+                  reused when examination timetable slots
+                  do not overlap.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={
+                  handleSelectAllBulkExaminations
+                }
+                disabled={
+                  loading ||
+                  examinations.length === 0 ||
+                  bulkGenerating
+                }
+                className="w-fit rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {selectedBulkExaminations.length ===
+                examinations.length
+                  ? "Clear All"
+                  : "Select All"}
+              </button>
+
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center py-10">
+
+                <RefreshCw
+                  size={24}
+                  className="animate-spin text-accent"
+                />
+
+                <span className="ml-3 text-sm text-text-muted">
+                  Loading examinations...
+                </span>
+
+              </div>
+            ) : examinations.length === 0 ? (
+              <div className="py-10 text-center">
+
+                <ClipboardList
+                  size={28}
+                  className="mx-auto text-text-muted"
+                />
+
+                <p className="mt-3 text-sm font-semibold text-text">
+                  No examinations available
+                </p>
+
+                <p className="mt-1 text-sm text-text-muted">
+                  Create an examination before generating
+                  bulk hall allocation.
+                </p>
+
+              </div>
+            ) : (
+              <>
+
+                <div className="mt-5 grid gap-3 md:grid-cols-2">
+
+                  {examinations.map(
+                    (examination) => {
+                      const examinationId =
+                        String(
+                          examination.id
+                        );
+
+                      const isSelected =
+                        selectedBulkExaminations.includes(
+                          examinationId
+                        );
+
+                      return (
+                        <label
+                          key={examination.id}
+                          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
+                            isSelected
+                              ? "border-primary bg-accent-light"
+                              : "border-border hover:border-accent hover:bg-surface-muted"
+                          }`}
+                        >
+
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() =>
+                              handleBulkExaminationChange(
+                                examinationId
+                              )
+                            }
+                            disabled={
+                              bulkGenerating
+                            }
+                            className="mt-1 h-4 w-4 accent-primary"
+                          />
+
+                          <div className="min-w-0">
+
+                            <p className="text-sm font-semibold text-text">
+                              {`Examination #${examination.id}`}
+                            </p>
+
+                            <p className="mt-1 truncate text-sm text-text-muted">
+                              {examination.name}
+                            </p>
+
+                            <div className="mt-2 flex flex-wrap gap-2">
+
+                              <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-text-muted">
+                                {examination.course_name ||
+                                  "Course —"}
+                              </span>
+
+                              <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-text-muted">
+                                Semester{" "}
+                                {examination.semester ??
+                                  "—"}
+                              </span>
+
+                              <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-text-muted">
+                                {examination.status ||
+                                  "—"}
+                              </span>
+
+                            </div>
+
+                          </div>
+
+                        </label>
+                      );
+                    }
+                  )}
+
+                </div>
+
+                <div className="mt-5 flex flex-col gap-4 rounded-xl bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+
+                  <div>
+                    <p className="text-sm font-semibold text-text">
+                      {selectedBulkExaminations.length}{" "}
+                      examination
+                      {selectedBulkExaminations.length !==
+                      1
+                        ? "s"
+                        : ""}{" "}
+                      selected
+                    </p>
+
+                    <p className="mt-1 text-xs text-text-muted">
+                      Only examinations with valid timetable
+                      entries and eligible students can be
+                      allocated.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={
+                      handleGenerateBulkAllocation
+                    }
+                    disabled={
+                      selectedBulkExaminations.length ===
+                        0 ||
+                      bulkGenerating
+                    }
+                    className="flex items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {bulkGenerating ? (
+                      <>
+                        <RefreshCw
+                          size={18}
+                          className="animate-spin"
+                        />
+
+                        Generating Bulk Allocation...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={18} />
+
+                        Generate Bulk Allocation
+                      </>
+                    )}
+                  </button>
+
+                </div>
+
+              </>
+            )}
+
+            {/* Bulk Result */}
+
+            {bulkResult && (
+              <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4">
+
+                <div className="flex items-start gap-3">
+
+                  <CheckCircle2
+                    size={20}
+                    className="mt-0.5 shrink-0 text-success"
+                  />
+
+                  <div className="min-w-0">
+
+                    <p className="text-sm font-bold text-green-800">
+                      Bulk Allocation Completed
+                    </p>
+
+                    <p className="mt-1 text-sm text-green-700">
+                      {bulkResult.message}
+                    </p>
+
+                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
+
+                      <div className="rounded-lg bg-white/70 px-3 py-2">
+                        <p className="text-xs text-text-muted">
+                          Examinations
+                        </p>
+                        <p className="mt-1 text-lg font-bold text-text">
+                          {bulkResult.examinations_processed ??
+                            0}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg bg-white/70 px-3 py-2">
+                        <p className="text-xs text-text-muted">
+                          Halls Used
+                        </p>
+                        <p className="mt-1 text-lg font-bold text-text">
+                          {bulkResult.halls_used ??
+                            0}
+                        </p>
+                      </div>
+
+                      <div className="rounded-lg bg-white/70 px-3 py-2">
+                        <p className="text-xs text-text-muted">
+                          Allocation Records
+                        </p>
+                        <p className="mt-1 text-lg font-bold text-text">
+                          {bulkResult.allocation_records ??
+                            0}
+                        </p>
+                      </div>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
           </section>
 
           {/* ================================================= */}
@@ -670,7 +1076,7 @@ const [activeAllocationTab, setActiveAllocationTab] =
               ) : (
                 <div className="overflow-x-auto">
 
-<table className="w-full min-w-[900px]">
+<table className="w-full min-w-[960px]">
 
   <thead>
     <tr className="border-b border-border bg-surface-muted">
@@ -703,8 +1109,12 @@ const [activeAllocationTab, setActiveAllocationTab] =
         Purpose
       </th>
 
-      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
         Status
+      </th>
+
+      <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-text-muted">
+        Actions
       </th>
 
     </tr>
@@ -750,7 +1160,7 @@ const [activeAllocationTab, setActiveAllocationTab] =
             </span>
           </td>
 
-          <td className="px-5 py-4">
+                   <td className="px-5 py-4">
 
             <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-success">
               {allocation.status}
@@ -758,11 +1168,36 @@ const [activeAllocationTab, setActiveAllocationTab] =
 
           </td>
 
+          <td className="px-5 py-4">
+
+            <div className="flex items-center justify-end gap-2">
+
+              <button
+                type="button"
+                onClick={() =>
+                  setEditingAllocation(allocation)
+                }
+                className="
+                  rounded-lg
+                  p-2
+                  text-text-muted
+                  transition
+                  hover:bg-accent-light
+                  hover:text-primary
+                "
+                title="Edit allocation"
+              >
+                <Pencil size={17} />
+              </button>
+
+            </div>
+
+          </td>
+
         </tr>
       ))}
 
   </tbody>
-
 </table>
                   {allocations.length > 10 && (
                     <div className="border-t border-border px-5 py-4 text-center text-sm text-text-muted">
@@ -822,11 +1257,21 @@ Use View Details to see all records.
 {/* ================================================= */}
 {/* DETAILS MODAL */}
 {/* ================================================= */}
-        {showDetails && (
+               {showDetails && (
           <AllocationDetails
             examination={selectedExam}
             allocations={allocations}
             onClose={() => setShowDetails(false)}
+          />
+        )}
+
+        {editingAllocation && (
+          <AllocationForm
+            allocation={editingAllocation}
+            onClose={() =>
+              setEditingAllocation(null)
+            }
+            onSuccess={handleEditSuccess}
           />
         )}
 
