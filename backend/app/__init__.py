@@ -40,7 +40,7 @@ def create_app():
     from app.routes.auth import auth_bp
     from app.routes.timetable import timetable_bp
     from app.routes.readiness import readiness_bp
-    
+    from app.models.seat_allocation import SeatAllocation
     # -----------------------------------------------------
     # REGISTER BLUEPRINTS
     # -----------------------------------------------------

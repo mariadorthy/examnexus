@@ -15,6 +15,8 @@ import {
 
 import AllocationDetails from "./AllocationDetails";
 import AllocationForm from "./AllocationForm";
+import SeatAllocationPanel from "./SeatAllocationPanel";
+
 import {
   get,
   post,
@@ -1246,11 +1248,17 @@ Use View Details to see all records.
 )}
 
 {activeAllocationTab === "seat" && (
-  <ComingSoonPanel
-    icon={Armchair}
-    title="Student / Seat Allocation"
-    description="Assign eligible students to examination halls and seats after hall allocation is completed."
-    label="Coming Later"
+  <SeatAllocationPanel
+    examinations={examinations}
+    onMessage={(message, type) => {
+      if (type === "error") {
+        setError(message);
+        setSuccess("");
+      } else {
+        setSuccess(message);
+        setError("");
+      }
+    }}
   />
 )}
 

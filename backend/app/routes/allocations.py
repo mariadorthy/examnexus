@@ -15,7 +15,6 @@ from app.auth.decorators import roles_required
 
 allocations_bp = Blueprint("allocations", __name__)
 
-
 @allocations_bp.route(
     "/generate/<int:examination_id>",
     methods=["POST"]
@@ -23,13 +22,19 @@ allocations_bp = Blueprint("allocations", __name__)
 @roles_required("admin")
 def generate(examination_id):
 
-    result = generate_allocation(examination_id)
+    data = request.get_json(silent=True) or {}
+
+    force = bool(data.get("force", False))
+
+    result = generate_allocation(
+        examination_id,
+        force=force
+    )
 
     if result["success"]:
         return result, 200
 
     return result, 400
-
 
 @allocations_bp.route(
     "/bulk-generate",
@@ -67,8 +72,11 @@ def bulk_generate():
             )
         }, 400
 
+    force = bool(data.get("force", False))
+
     result = generate_bulk_allocation(
-        examination_ids
+        examination_ids,
+        force=force
     )
 
     if result["success"]:
@@ -260,3 +268,76 @@ def summary(examination_id):
         ),
         "status": validation["status"]
     }
+
+@allocations_bp.route(
+    "/seats/generate/<int:examination_id>",
+    methods=["POST"]
+)
+@roles_required("admin")
+def generate_seats(examination_id):
+
+    from app.services.seat_allocation import (
+        generate_seat_allocation
+    )
+
+    data = request.get_json(silent=True) or {}
+    force = bool(data.get("force", False))
+
+    result = generate_seat_allocation(
+        examination_id,
+        force=force
+    )
+
+    if result["success"]:
+        return result, 200
+
+    return result, 400
+
+
+@allocations_bp.route(
+    "/seats/<int:examination_id>",
+    methods=["GET"]
+)
+@roles_required("admin")
+def list_seats(examination_id):
+
+    from app.services.seat_allocation import (
+        get_seat_allocations
+    )
+
+    return get_seat_allocations(examination_id), 200
+
+
+@allocations_bp.route(
+    "/hall-allocations/<int:hall_allocation_id>/seats",
+    methods=["GET"]
+)
+@roles_required("admin")
+def hall_seats(hall_allocation_id):
+
+    from app.services.seat_allocation import (
+        get_hall_seating
+    )
+
+    result = get_hall_seating(hall_allocation_id)
+
+    if result["success"]:
+        return result, 200
+
+    return result, 404
+
+
+@allocations_bp.route(
+    "/seats/<int:examination_id>",
+    methods=["DELETE"]
+)
+@roles_required("admin")
+def clear_seats(examination_id):
+
+    from app.services.seat_allocation import (
+        clear_seat_allocation
+    )
+
+    result = clear_seat_allocation(examination_id)
+
+    return result, 200

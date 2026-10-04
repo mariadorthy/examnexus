@@ -5,6 +5,9 @@ from app.models.subject import Subject
 from app.models.examination import Examination
 from app.models.exam_registration import ExamRegistration
 from app.models.hall import Hall
+from app.models.timetable import Timetable
+from app.models.hall_allocation import HallAllocation
+from app.models.seat_allocation import SeatAllocation
 from app.models.staff import Staff
 from app.models.allocation import Allocation
 from app.models.admin import Admin

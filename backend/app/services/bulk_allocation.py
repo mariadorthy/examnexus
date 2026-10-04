@@ -49,17 +49,12 @@ def get_bulk_available_halls(timetable, reserved_halls):
         if hall.id not in reserved_halls
     ]
 
-
-def generate_bulk_allocation(examination_ids):
+def generate_bulk_allocation(examination_ids, force=False):
     """
     Generate Exam -> Hall allocation for multiple examinations.
 
-    A hall can be reused by different examinations when their
-    timetable entries do not overlap.
-
-    A hall cannot be assigned to overlapping timetable entries.
-
-    This stage does NOT allocate individual students or seats.
+    If force=True, existing hall + seat allocations for the
+    selected examinations are cleared before regeneration.
     """
 
     # ---------------------------------------------------------
@@ -117,7 +112,6 @@ def generate_bulk_allocation(examination_ids):
     # ---------------------------------------------------------
     # CHECK EXISTING ALLOCATIONS
     # ---------------------------------------------------------
-
     existing_allocation = (
         HallAllocation.query
         .filter(
@@ -127,14 +121,54 @@ def generate_bulk_allocation(examination_ids):
     )
 
     if existing_allocation:
-        return {
-            "success": False,
-            "message": (
-                "One or more selected examinations already "
-                "have hall allocations."
-            )
-        }
 
+        if not force:
+            return {
+                "success": False,
+                "message": (
+                    "One or more selected examinations already "
+                    "have hall allocations. Use force=true to "
+                    "regenerate."
+                )
+            }
+
+        from app.models.seat_allocation import SeatAllocation
+
+        try:
+            (
+                SeatAllocation.query
+                .filter(
+                    SeatAllocation.examination_id.in_(
+                        examination_ids
+                    )
+                )
+                .delete(synchronize_session=False)
+            )
+
+            (
+                HallAllocation.query
+                .filter(
+                    HallAllocation.examination_id.in_(
+                        examination_ids
+                    )
+                )
+                .delete(synchronize_session=False)
+            )
+
+            db.session.commit()
+
+        except Exception as error:
+            db.session.rollback()
+
+            return {
+                "success": False,
+                "message": (
+                    "Failed to clear previous allocation for "
+                    "regeneration"
+                ),
+                "error": str(error)
+            }
+               
     # ---------------------------------------------------------
     # BUILD TIMETABLE + ELIGIBILITY DATA
     # ---------------------------------------------------------
@@ -588,24 +622,70 @@ def generate_bulk_allocation(examination_ids):
         }
     )
 
+        # ---------------------------------------------------------
+    # SEAT ALLOCATION FOR EACH EXAMINATION
+    # ---------------------------------------------------------
+
+    from app.services.seat_allocation import (
+        generate_seat_allocation
+    )
+
+    seat_totals = {}
+    seat_failures = []
+
+    for examination in examinations:
+
+        seat_result = generate_seat_allocation(
+            examination_id=examination.id,
+            force=True
+        )
+
+        if seat_result.get("success"):
+            seat_totals[examination.id] = (
+                seat_result.get("seat_records", 0)
+            )
+        else:
+            seat_failures.append(
+                {
+                    "examination_id": examination.id,
+                    "message": seat_result.get("message")
+                }
+            )
+
+    if seat_failures:
+        return {
+            "success": False,
+            "message": (
+                "Hall allocation succeeded for all selected "
+                "examinations, but seat allocation failed for "
+                "one or more examinations."
+            ),
+            "hall_allocation": {
+                "examinations_processed": len(examinations),
+                "allocated_capacity": total_allocated_capacity,
+                "halls_used": halls_used,
+                "allocation_records": len(allocations)
+            },
+            "seat_failures": seat_failures
+        }
+
+    total_seat_records = sum(seat_totals.values())
+
     return {
         "success": True,
         "message": (
-            "Bulk hall allocation generated successfully."
+            "Bulk hall and seat allocation generated successfully."
         ),
-        "examinations_processed": len(
-            examinations
-        ),
+        "examinations_processed": len(examinations),
         "examination_ids": [
             examination.id
             for examination in examinations
         ],
-        "allocated_capacity": (
-            total_allocated_capacity
-        ),
+        "allocated_capacity": total_allocated_capacity,
         "halls_used": halls_used,
-        "allocation_records": len(
-            allocations
-        ),
+        "allocation_records": len(allocations),
+        "seat_records": total_seat_records,
+        "seat_records_by_examination": seat_totals,
+        "regenerated": bool(force),
         "examinations": examination_results
     }

@@ -243,7 +243,7 @@ def validate_allocation(examination_id):
             )
 
     # ---------------------------------------------------------
-    # FINAL RESULT
+    # FINAL HALL RESULT (aggregate)
     # ---------------------------------------------------------
 
     allocated_capacity = sum(
@@ -256,10 +256,96 @@ def validate_allocation(examination_id):
         for allocation in allocations
     })
 
+    # ---------------------------------------------------------
+    # SEAT ALLOCATION COVERAGE
+    # ---------------------------------------------------------
+
+    from app.models.seat_allocation import SeatAllocation
+
+    seat_rows = (
+        SeatAllocation.query
+        .filter_by(examination_id=examination_id)
+        .all()
+    )
+
+    seat_by_timetable = {}
+
+    for row in seat_rows:
+        seat_by_timetable.setdefault(
+            row.timetable_id, []
+        ).append(row)
+
+    for timetable in timetables:
+
+        timetable_seats = seat_by_timetable.get(
+            timetable.id, []
+        )
+
+        timetable_student_ids = {
+            row.student_id for row in timetable_seats
+        }
+
+        expected_student_ids = {
+            student.id for student in eligible_students
+        }
+
+        missing = expected_student_ids - timetable_student_ids
+
+        if missing:
+            errors.append(
+                f"Missing seat for {len(missing)} student(s) "
+                f"in timetable #{timetable.id}"
+            )
+
+        # Duplicate student seat within a timetable
+        seen_students = set()
+        for row in timetable_seats:
+            if row.student_id in seen_students:
+                errors.append(
+                    f"Duplicate seat for student "
+                    f"#{row.student_id} in timetable "
+                    f"#{timetable.id}"
+                )
+            seen_students.add(row.student_id)
+
+        # Duplicate seat number within a hall for the timetable
+        seen_seats = set()
+        for row in timetable_seats:
+            key = (row.hall_id, row.seat_number)
+            if key in seen_seats:
+                errors.append(
+                    f"Duplicate seat {row.seat_number} in "
+                    f"hall #{row.hall_id} (timetable "
+                    f"#{timetable.id})"
+                )
+            seen_seats.add(key)
+
+        # Student must be seated in a hall allocated to this
+        # timetable entry.
+        timetable_hall_ids = {
+            allocation.hall_id
+            for allocation in allocations
+            if allocation.timetable_id == timetable.id
+        }
+
+        for row in timetable_seats:
+            if row.hall_id not in timetable_hall_ids:
+                errors.append(
+                    f"Student #{row.student_id} seated in "
+                    f"hall #{row.hall_id} not allocated to "
+                    f"timetable #{timetable.id}"
+                )
+
+    # ---------------------------------------------------------
+    # FINAL RESULT
+    # ---------------------------------------------------------
+
     if errors:
         return {
             "status": "INVALID",
-            "message": "Hall allocation validation failed",
+            "message": (
+                "Hall and seat allocation validation failed"
+            ),
             "errors": errors,
             "eligible_students": eligible_count,
             "allocated_capacity": allocated_capacity,
@@ -267,16 +353,19 @@ def validate_allocation(examination_id):
                 0,
                 eligible_count - allocated_capacity
             ),
-            "halls_used": halls_used
+            "halls_used": halls_used,
+            "timetable_entries": len(timetables),
+            "seat_records": len(seat_rows)
         }
 
     return {
         "status": "VALID",
-        "message": "Hall allocation is valid",
+        "message": "Hall and seat allocation is valid",
         "eligible_students": eligible_count,
         "allocated_capacity": allocated_capacity,
         "unallocated_students": 0,
         "halls_used": halls_used,
         "timetable_entries": len(timetables),
+        "seat_records": len(seat_rows),
         "errors": []
     }

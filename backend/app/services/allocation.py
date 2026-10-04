@@ -71,12 +71,13 @@ def get_available_halls(timetable):
     ]
 
 
-def generate_allocation(examination_id):
+def generate_allocation(examination_id, force=False):
     """
     Generate Exam → Hall allocation for every timetable entry
-    belonging to the examination.
+    belonging to the examination, then generate seat allocation.
 
-    This stage does NOT allocate individual students or seats.
+    If force=True, existing hall + seat allocations for this
+    examination are cleared before regeneration.
     """
 
     examination = Examination.query.get(examination_id)
@@ -111,11 +112,47 @@ def generate_allocation(examination_id):
     )
 
     if existing_allocation:
-        return {
-            "success": False,
-            "message": "Hall allocation already exists for this examination",
-            "examination_id": examination_id
-        }
+
+        if not force:
+            return {
+                "success": False,
+                "message": (
+                    "Hall allocation already exists for this "
+                    "examination. Use force=true to regenerate."
+                ),
+                "examination_id": examination_id
+            }
+
+        # Transactional cleanup of dependent seat allocations
+        # first, then the hall allocations themselves.
+        from app.models.seat_allocation import SeatAllocation
+
+        try:
+            (
+                SeatAllocation.query
+                .filter_by(examination_id=examination_id)
+                .delete(synchronize_session=False)
+            )
+
+            (
+                HallAllocation.query
+                .filter_by(examination_id=examination_id)
+                .delete(synchronize_session=False)
+            )
+
+            db.session.commit()
+
+        except Exception as error:
+            db.session.rollback()
+
+            return {
+                "success": False,
+                "message": (
+                    "Failed to clear previous allocation for "
+                    "regeneration"
+                ),
+                "error": str(error)
+            }
 
     students = get_eligible_students(examination_id)
 
@@ -374,9 +411,39 @@ def generate_allocation(examination_id):
         }
     )
 
+    # ---------------------------------------------------------
+    # SEAT ALLOCATION (integrated)
+    # ---------------------------------------------------------
+
+    from app.services.seat_allocation import (
+        generate_seat_allocation
+    )
+
+    seat_result = generate_seat_allocation(
+        examination_id=examination.id,
+        force=True
+    )
+
+    if not seat_result.get("success"):
+        return {
+            "success": False,
+            "message": (
+                "Hall allocation succeeded but seat "
+                "allocation failed"
+            ),
+            "hall_allocation": {
+                "eligible_students": total_students,
+                "allocated_capacity": total_allocated_capacity,
+                "halls_used": halls_used
+            },
+            "seat_allocation": seat_result
+        }
+
     return {
         "success": True,
-        "message": "Hall allocation generated successfully",
+        "message": (
+            "Hall and seat allocation generated successfully"
+        ),
         "examination_id": examination.id,
         "eligible_students": total_students,
         "students_requiring_accessibility": len(
@@ -386,7 +453,9 @@ def generate_allocation(examination_id):
         "unallocated_students": 0,
         "halls_used": halls_used,
         "timetable_entries": len(timetables),
-        "allocation_records": len(allocations)
+        "allocation_records": len(allocations),
+        "seat_records": seat_result.get("seat_records", 0),
+        "regenerated": bool(force)
     }
 
 def update_hall_allocation(
