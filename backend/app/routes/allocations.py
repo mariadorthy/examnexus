@@ -341,3 +341,231 @@ def clear_seats(examination_id):
     result = clear_seat_allocation(examination_id)
 
     return result, 200
+
+# =========================================================
+# INVIGILATOR ALLOCATION
+# =========================================================
+
+@allocations_bp.route(
+    "/invigilators/generate/<int:examination_id>",
+    methods=["POST"]
+)
+@roles_required("admin")
+def generate_invigilators(examination_id):
+
+    from app.services.invigilator_allocation import (
+        generate_invigilator_allocation
+    )
+
+    data = request.get_json(silent=True) or {}
+    force = bool(data.get("force", False))
+
+    result = generate_invigilator_allocation(
+        examination_id,
+        force=force
+    )
+
+    if result["success"]:
+        return result, 200
+
+    return result, 400
+
+
+@allocations_bp.route(
+    "/invigilators/<int:examination_id>",
+    methods=["GET"]
+)
+@roles_required("admin")
+def list_invigilators(examination_id):
+
+    from app.services.invigilator_allocation import (
+        get_invigilator_allocations
+    )
+
+    return get_invigilator_allocations(examination_id), 200
+
+
+@allocations_bp.route(
+    "/invigilators/<int:examination_id>",
+    methods=["DELETE"]
+)
+@roles_required("admin")
+def clear_invigilators(examination_id):
+
+    from app.services.invigilator_allocation import (
+        clear_invigilator_allocations
+    )
+
+    result = clear_invigilator_allocations(examination_id)
+
+    return result, 200
+
+
+@allocations_bp.route(
+    "/invigilators/validate/<int:examination_id>",
+    methods=["GET"]
+)
+@roles_required("admin")
+def validate_invigilators(examination_id):
+
+    from app.services.validation import (
+        validate_invigilator_allocation
+    )
+
+    result = validate_invigilator_allocation(examination_id)
+
+    status_code = (
+        200 if result["status"] == "VALID" else 400
+    )
+
+    return result, status_code
+
+
+@allocations_bp.route(
+    "/invigilators/workload/<int:examination_id>",
+    methods=["GET"]
+)
+@roles_required("admin")
+def invigilator_workload_route(examination_id):
+
+    from app.services.invigilator_allocation import (
+        invigilator_workload
+    )
+
+    return invigilator_workload(examination_id), 200
+
+# =========================================================
+# BULK OPERATIONS
+# =========================================================
+
+
+def _normalize_examination_ids(raw_ids):
+    """
+    Convert a raw list of examination ids into a clean list of
+    integers, discarding anything that is not a positive number.
+    """
+
+    if not isinstance(raw_ids, list):
+        return None
+
+    cleaned = []
+
+    for value in raw_ids:
+        if str(value).isdigit():
+            candidate = int(value)
+            if candidate > 0:
+                cleaned.append(candidate)
+
+    return cleaned
+
+
+@allocations_bp.route(
+    "/seats/bulk-generate",
+    methods=["POST"]
+)
+@roles_required("admin")
+def bulk_generate_seats():
+
+    from app.services.seat_allocation import (
+        generate_bulk_seat_allocation
+    )
+
+    data = request.get_json(silent=True) or {}
+
+    examination_ids = _normalize_examination_ids(
+        data.get("examination_ids", [])
+    )
+
+    if examination_ids is None:
+        return {
+            "success": False,
+            "message": "examination_ids must be a list."
+        }, 400
+
+    if not examination_ids:
+        return {
+            "success": False,
+            "message": "At least one examination must be selected."
+        }, 400
+
+    force = bool(data.get("force", False))
+
+    result = generate_bulk_seat_allocation(
+        examination_ids,
+        force=force
+    )
+
+    return result, (200 if result["success"] else 400)
+
+
+@allocations_bp.route(
+    "/invigilators/bulk-generate",
+    methods=["POST"]
+)
+@roles_required("admin")
+def bulk_generate_invigilators():
+
+    from app.services.invigilator_allocation import (
+        generate_bulk_invigilator_allocation
+    )
+
+    data = request.get_json(silent=True) or {}
+
+    examination_ids = _normalize_examination_ids(
+        data.get("examination_ids", [])
+    )
+
+    if examination_ids is None:
+        return {
+            "success": False,
+            "message": "examination_ids must be a list."
+        }, 400
+
+    if not examination_ids:
+        return {
+            "success": False,
+            "message": "At least one examination must be selected."
+        }, 400
+
+    force = bool(data.get("force", False))
+
+    result = generate_bulk_invigilator_allocation(
+        examination_ids,
+        force=force
+    )
+
+    return result, (200 if result["success"] else 400)
+
+
+@allocations_bp.route(
+    "/validate/bulk",
+    methods=["POST"]
+)
+@roles_required("admin")
+def bulk_validate():
+
+    from app.services.validation import (
+        bulk_validate_examinations
+    )
+
+    data = request.get_json(silent=True) or {}
+
+    examination_ids = _normalize_examination_ids(
+        data.get("examination_ids", [])
+    )
+
+    if examination_ids is None:
+        return {
+            "success": False,
+            "message": "examination_ids must be a list."
+        }, 400
+
+    if not examination_ids:
+        return {
+            "success": False,
+            "message": "At least one examination must be selected."
+        }, 400
+
+    result = bulk_validate_examinations(examination_ids)
+
+    return result, 200

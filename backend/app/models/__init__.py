@@ -12,3 +12,5 @@ from app.models.staff import Staff
 from app.models.allocation import Allocation
 from app.models.admin import Admin
 from app.models.activity import Activity
+from app.models.invigilator_allocation import InvigilatorAllocation
+from app.models.hall_ticket import HallTicket

@@ -81,6 +81,97 @@ def _ordered_students(students):
     )
 
 
+def _course_key(student):
+    """
+    Return a stable course identifier for seating distribution.
+
+    Student.course is already the normalized relationship used
+    by the current data model, so no duplicate course data is
+    stored in SeatAllocation.
+    """
+    if student.course is None:
+        return ("UNKNOWN",)
+
+    return (
+        student.course.id,
+        str(student.course.course_code or ""),
+    )
+
+
+def _mixed_course_order(students):
+    """
+    Distribute students from different courses across the hall.
+
+    Examples:
+        30 A + 30 B -> A B A B A B ...
+        40 A + 20 B -> A A B A A B A A B ...
+
+    The algorithm remains deterministic because each course group
+    is ordered using the existing student ordering.
+    """
+    ordered = _ordered_students(students)
+
+    course_groups = {}
+
+    for student in ordered:
+        key = _course_key(student)
+        course_groups.setdefault(key, []).append(student)
+
+    # A single course does not need special treatment.
+    if len(course_groups) <= 1:
+        return ordered
+
+    # Sort course groups deterministically:
+    # larger groups first, then stable course key.
+    groups = sorted(
+        course_groups.values(),
+        key=lambda group: (
+            -len(group),
+            _course_key(group[0]),
+        ),
+    )
+
+    # The main requirement is two-course mixing.
+    # For more than two courses, use deterministic round-robin
+    # distribution across the available course groups.
+    if len(groups) == 2:
+        larger = groups[0]
+        smaller = groups[1]
+
+        result = []
+        smaller_index = 0
+        smaller_count = len(smaller)
+        larger_count = len(larger)
+
+        for index, student in enumerate(larger):
+            result.append(student)
+
+            # Evenly distribute the smaller course through
+            # the larger course.
+            target_count = (
+                (index + 1) * smaller_count
+            ) // larger_count
+
+            while smaller_index < target_count:
+                result.append(smaller[smaller_index])
+                smaller_index += 1
+
+        while smaller_index < smaller_count:
+            result.append(smaller[smaller_index])
+            smaller_index += 1
+
+        return result
+
+    # Generic deterministic distribution for 3+ courses.
+    result = []
+
+    while any(groups):
+        for group in groups:
+            if group:
+                result.append(group.pop(0))
+
+    return result
+
 def _split_students(students):
     """
     Split students into accessibility-required and normal groups,
@@ -346,13 +437,25 @@ def generate_seat_allocation(examination_id, force=False):
 
                     del remaining_accessibility[:take]
 
+                # ---------------------------------------------------------
+                # MIXED-COURSE SEAT DISTRIBUTION
+                # ---------------------------------------------------------
+                #
+                # Hall allocation is already complete at this point.
+                # Accessibility and capacity rules have already been handled.
+                #
+                # Only the physical seat ordering is changed here.
+                students_for_this_hall = _mixed_course_order(
+                    students_for_this_hall
+                )
+
                 seats = _generate_seat_sequence(
                     len(students_for_this_hall)
                 )
 
                 for student, (seat_number, row_label, seat_index) \
                         in zip(students_for_this_hall, seats):
-
+                        
                     record = SeatAllocation(
                         examination_id=examination.id,
                         timetable_id=timetable.id,
@@ -513,6 +616,26 @@ def get_seat_allocations(examination_id):
                     row.student.student_id
                     if row.student else None
                 ),
+                "course_id": (
+                    row.student.course.id
+                    if row.student and row.student.course
+                    else None
+                ),
+                "course_code": (
+                    row.student.course.course_code
+                    if row.student and row.student.course
+                    else None
+                ),
+                "course_name": (
+                    row.student.course.course_name
+                    if row.student and row.student.course
+                    else None
+                ),
+                "course_abbreviation": (
+                    row.student.course.course_abbreviation
+                    if row.student and row.student.course
+                    else None
+                ),
                 "student_name": (
                     row.student.name if row.student else None
                 ),
@@ -561,6 +684,26 @@ def get_hall_seating(hall_allocation_id):
             "student_name": (
                 row.student.name if row.student else None
             ),
+            "course_id": (
+                row.student.course.id
+                if row.student and row.student.course
+                else None
+            ),
+            "course_code": (
+                row.student.course.course_code
+                if row.student and row.student.course
+                else None
+            ),
+            "course_name": (
+                row.student.course.course_name
+                if row.student and row.student.course
+                else None
+            ),
+            "course_abbreviation": (
+                row.student.course.course_abbreviation
+                if row.student and row.student.course
+                else None
+            ),
             "status": row.status
         }
         for row in rows
@@ -574,4 +717,64 @@ def get_hall_seating(hall_allocation_id):
         "allocated_capacity": allocation.allocated_capacity,
         "seats_used": len(seats),
         "seats": seats
+    }
+
+def generate_bulk_seat_allocation(
+    examination_ids,
+    force=False
+):
+    """
+    Generate seat allocation for multiple examinations.
+
+    Non-atomic by design: each examination is processed
+    independently through the existing single-examination
+    service. One failure does not roll back the others.
+
+    Reuses generate_seat_allocation() — does NOT duplicate the
+    seat allocation algorithm.
+    """
+
+    results = []
+
+    for examination_id in examination_ids:
+
+        single_result = generate_seat_allocation(
+            examination_id,
+            force=force
+        )
+
+        if single_result.get("success"):
+
+            results.append({
+                "examination_id": examination_id,
+                "status": "GENERATED",
+                "seat_records": single_result.get(
+                    "seat_records", 0
+                ),
+                "eligible_students": single_result.get(
+                    "eligible_students", 0
+                ),
+                "regenerated": single_result.get(
+                    "regenerated", False
+                ),
+            })
+
+        else:
+
+            results.append({
+                "examination_id": examination_id,
+                "status": "FAILED",
+                "message": single_result.get(
+                    "message", "Seat allocation failed"
+                ),
+            })
+
+    any_success = any(
+        r["status"] == "GENERATED" for r in results
+    )
+
+    return {
+        "success": any_success,
+        "processed": len(results),
+        "results": results,
     }

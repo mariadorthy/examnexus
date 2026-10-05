@@ -313,6 +313,35 @@ def get_examination(examination_id):
         "status": examination.status
     }
 
+# =========================================================
+# FIELDS THAT AFFECT PERSISTED ALLOCATION
+#
+# Once an examination has moved past DRAFT, changing any of
+# these fields would invalidate the hall / seat / invigilator
+# allocations that were generated against the old values.
+# =========================================================
+
+ALLOCATION_SENSITIVE_FIELDS = {
+    "start_date",
+    "end_date",
+    "duration_minutes",
+    "session_config",
+    "excluded_dates",
+    "course_id",
+    "semester",
+}
+
+# Lifecycle states in which the examination is considered
+# "in flight" — allocation-sensitive edits are blocked.
+LOCKED_STATUSES = {
+    "GENERATED",
+    "VALIDATED",
+    "REVIEW",
+    "APPROVED",
+    "PUBLISHED",
+}
+
+
 @examinations_bp.route(
     "/<int:examination_id>",
     methods=["PUT"]
@@ -334,6 +363,71 @@ def update_examination(examination_id):
 
     from datetime import date
 
+    current_status = examination.status or "DRAFT"
+
+    # ---------------------------------------------------------
+    # LIFECYCLE MUTATION GUARD
+    #
+    # DRAFT is fully editable. Once the examination has moved
+    # into any allocation-bearing state, we refuse edits that
+    # would invalidate persisted allocations.
+    #
+    # PUBLISHED is additionally strict: if any hall tickets
+    # have been issued, the entire record is frozen.
+    # ---------------------------------------------------------
+    if current_status == "PUBLISHED":
+        from app.models.hall_ticket import HallTicket
+
+        ticket_count = (
+            HallTicket.query
+            .filter_by(examination_id=examination_id)
+            .count()
+        )
+
+        if ticket_count > 0:
+            return {
+                "success": False,
+                "message": (
+                    "Examination is PUBLISHED and hall tickets "
+                    "have been issued. No modifications allowed."
+                ),
+                "status": current_status,
+                "issued_tickets": ticket_count
+            }, 409
+
+    if current_status in LOCKED_STATUSES:
+        attempted_sensitive = (
+            set(data.keys()) & ALLOCATION_SENSITIVE_FIELDS
+        )
+
+        # Any field beyond the trivially cosmetic "name"
+        # is blocked once we are past DRAFT. duration_minutes,
+        # dates, session config, excluded dates, course, and
+        # semester all affect persisted allocation.
+        if attempted_sensitive:
+            return {
+                "success": False,
+                "message": (
+                    "Cannot modify allocation-sensitive fields "
+                    "after allocation has begun. Reset the "
+                    "examination to DRAFT first."
+                ),
+                "status": current_status,
+                "blocked_fields": sorted(attempted_sensitive)
+            }, 409
+
+        # Nothing else may change once GENERATED or beyond.
+        disallowed = set(data.keys()) - {"name"}
+        if disallowed:
+            return {
+                "success": False,
+                "message": (
+                    "Cannot modify examination fields after "
+                    "allocation has begun."
+                ),
+                "status": current_status,
+                "blocked_fields": sorted(disallowed)
+            }, 409
     try:
         if "name" in data:
             examination.name = data["name"].strip()
@@ -397,3 +491,71 @@ def update_examination(examination_id):
             "success": False,
             "message": str(exc)
         }, 400
+
+# =========================================================
+# LIFECYCLE: REVIEW / APPROVE / PUBLISH
+# =========================================================
+
+@examinations_bp.route(
+    "/<int:examination_id>/generate",
+    methods=["POST"]
+)
+@roles_required("admin")
+def mark_generated(examination_id):
+    from app.services.lifecycle import transition_status
+
+    result = transition_status(examination_id, "GENERATED")
+
+    return result, (200 if result["success"] else 400)
+
+
+@examinations_bp.route(
+    "/<int:examination_id>/validate",
+    methods=["POST"]
+)
+@roles_required("admin")
+def mark_validated(examination_id):
+    from app.services.lifecycle import transition_status
+
+    result = transition_status(examination_id, "VALIDATED")
+
+    return result, (200 if result["success"] else 400)
+
+
+@examinations_bp.route(
+    "/<int:examination_id>/review",
+    methods=["POST"]
+)
+@roles_required("admin")
+def mark_review(examination_id):
+    from app.services.lifecycle import transition_status
+
+    result = transition_status(examination_id, "REVIEW")
+
+    return result, (200 if result["success"] else 400)
+
+
+@examinations_bp.route(
+    "/<int:examination_id>/approve",
+    methods=["POST"]
+)
+@roles_required("admin")
+def mark_approved(examination_id):
+    from app.services.lifecycle import transition_status
+
+    result = transition_status(examination_id, "APPROVED")
+
+    return result, (200 if result["success"] else 400)
+
+
+@examinations_bp.route(
+    "/<int:examination_id>/publish",
+    methods=["POST"]
+)
+@roles_required("admin")
+def mark_published(examination_id):
+    from app.services.lifecycle import transition_status
+
+    result = transition_status(examination_id, "PUBLISHED")
+
+    return result, (200 if result["success"] else 400)

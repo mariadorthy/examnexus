@@ -12,6 +12,8 @@ import Timetables from "./pages/admin/timetable/Timetables";
 import ExamRegistrations from "./pages/admin/registrations/ExamRegistrations";
 import Halls from "./pages/admin/halls/Halls";
 import Allocations from "./pages/admin/allocations/Allocations";
+import HallTickets from "./pages/admin/hall-tickets/HallTickets";
+import Reports from "./pages/admin/reports/Reports";
 import StaffDashboard from "./pages/staff/StaffDashboard";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import {
@@ -156,6 +158,26 @@ if (adminPage === "Halls") {
 if (adminPage === "Allocations") {
   return (
     <Allocations
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
+
+if (adminPage === "HallTickets") {
+  return (
+    <HallTickets
+      user={user}
+      onLogout={handleLogout}
+      onNavigate={setAdminPage}
+    />
+  );
+}
+
+if (adminPage === "Reports") {
+  return (
+    <Reports
       user={user}
       onLogout={handleLogout}
       onNavigate={setAdminPage}

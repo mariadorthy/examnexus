@@ -41,6 +41,8 @@ def create_app():
     from app.routes.timetable import timetable_bp
     from app.routes.readiness import readiness_bp
     from app.routes.imports import imports_bp
+    from app.routes.hall_tickets import hall_tickets_bp
+    from app.routes.reports import reports_bp
     from app.models.seat_allocation import SeatAllocation
     # -----------------------------------------------------
     # REGISTER BLUEPRINTS
@@ -111,6 +113,14 @@ def create_app():
     app.register_blueprint(
     imports_bp,
     url_prefix="/api/import"
+)
+    app.register_blueprint(
+    hall_tickets_bp,
+    url_prefix="/api/hall-tickets"
+)
+    app.register_blueprint(
+    reports_bp,
+    url_prefix="/api/reports"
 )
 
     # -----------------------------------------------------

@@ -100,3 +100,68 @@ export async function generateBulkAllocation(
 
   return result;
 }
+
+export async function generateBulkSeatAllocation(
+  examinationIds,
+  force = false
+) {
+  const response = await fetch(
+    `${API_URL}/seats/bulk-generate`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem(
+          "examnexus_token"
+        )}`,
+      },
+      body: JSON.stringify({
+        examination_ids: examinationIds,
+        force,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok && !result.results) {
+    throw new Error(
+      result.message ||
+        "Failed to generate bulk seat allocation."
+    );
+  }
+
+  return result;
+}
+
+
+export async function bulkValidateExaminations(
+  examinationIds
+) {
+  const response = await fetch(
+    `${API_URL}/validate/bulk`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem(
+          "examnexus_token"
+        )}`,
+      },
+      body: JSON.stringify({
+        examination_ids: examinationIds,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result.message ||
+        "Failed to bulk validate examinations."
+    );
+  }
+
+  return result;
+}

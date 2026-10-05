@@ -123,13 +123,24 @@ def generate_allocation(examination_id, force=False):
                 "examination_id": examination_id
             }
 
-        # Transactional cleanup of dependent seat allocations
-        # first, then the hall allocations themselves.
+        # Transactional cleanup of dependent rows first:
+        #   1. SeatAllocation        (FK -> hall_allocations)
+        #   2. InvigilatorAllocation (FK -> hall_allocations, Phase 8)
+        # then the hall allocations themselves.
         from app.models.seat_allocation import SeatAllocation
+        from app.models.invigilator_allocation import (
+            InvigilatorAllocation
+        )
 
         try:
             (
                 SeatAllocation.query
+                .filter_by(examination_id=examination_id)
+                .delete(synchronize_session=False)
+            )
+
+            (
+                InvigilatorAllocation.query
                 .filter_by(examination_id=examination_id)
                 .delete(synchronize_session=False)
             )
@@ -141,7 +152,7 @@ def generate_allocation(examination_id, force=False):
             )
 
             db.session.commit()
-
+            
         except Exception as error:
             db.session.rollback()
 
@@ -477,6 +488,26 @@ def update_hall_allocation(
         return {
             "success": False,
             "message": "Hall allocation not found."
+        }
+    # Hall allocations are immutable once the examination
+    # reaches APPROVED or PUBLISHED.
+    examination = Examination.query.get(
+        allocation.examination_id
+    )
+
+    if not examination:
+        return {
+            "success": False,
+            "message": "Examination not found."
+        }
+
+    if examination.status in {"APPROVED", "PUBLISHED"}:
+        return {
+            "success": False,
+            "message": (
+                f"Hall allocation cannot be modified when "
+                f"examination status is {examination.status}."
+            )
         }
 
     hall = None

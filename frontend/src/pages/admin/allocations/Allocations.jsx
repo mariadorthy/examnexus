@@ -16,11 +16,20 @@ import {
 import AllocationDetails from "./AllocationDetails";
 import AllocationForm from "./AllocationForm";
 import SeatAllocationPanel from "./SeatAllocationPanel";
+import InvigilatorPanel from "./InvigilatorPanel";
+import ApprovalPanel from "./ApprovalPanel";
 
 import {
   get,
   post,
 } from "../../../services/api";
+import {
+  generateBulkSeatAllocation,
+  bulkValidateExaminations,
+} from "../../../services/allocationService";
+import {
+  generateBulkInvigilators,
+} from "../../../services/invigilatorService";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 function Allocations({
@@ -59,7 +68,22 @@ const [activeAllocationTab, setActiveAllocationTab] =
   const [bulkGenerating, setBulkGenerating] =
     useState(false);
 
-  const [bulkResult, setBulkResult] =
+    const [bulkResult, setBulkResult] =
+    useState(null);
+
+  const [bulkSeatGenerating, setBulkSeatGenerating] =
+    useState(false);
+  const [bulkSeatResult, setBulkSeatResult] =
+    useState(null);
+
+  const [bulkInvigGenerating, setBulkInvigGenerating] =
+    useState(false);
+  const [bulkInvigResult, setBulkInvigResult] =
+    useState(null);
+
+  const [bulkValidating, setBulkValidating] =
+    useState(false);
+  const [bulkValidationResult, setBulkValidationResult] =
     useState(null);
 
   useEffect(() => {
@@ -240,7 +264,7 @@ const [activeAllocationTab, setActiveAllocationTab] =
     }
   };
 
-  const handleBulkExaminationChange = (
+    const handleBulkExaminationChange = (
     examinationId
   ) => {
     setSelectedBulkExaminations(
@@ -259,6 +283,126 @@ const [activeAllocationTab, setActiveAllocationTab] =
         ];
       }
     );
+  };
+
+  const handleBulkSeatGeneration = async () => {
+    if (selectedBulkExaminations.length === 0) {
+      setError("Please select at least one examination.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Generate seat allocation for ${selectedBulkExaminations.length} examination(s)?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setBulkSeatGenerating(true);
+      setError("");
+      setSuccess("");
+      setBulkSeatResult(null);
+
+      const result = await generateBulkSeatAllocation(
+        selectedBulkExaminations,
+        false
+      );
+
+      setBulkSeatResult(result);
+
+      if (result.success) {
+        setSuccess(
+          "Bulk seat allocation completed."
+        );
+      } else {
+        setError(
+          "Bulk seat allocation completed with failures."
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message ||
+          "Bulk seat allocation failed."
+      );
+    } finally {
+      setBulkSeatGenerating(false);
+    }
+  };
+
+  const handleBulkInvigilatorGeneration = async () => {
+    if (selectedBulkExaminations.length === 0) {
+      setError("Please select at least one examination.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Generate invigilator allocation for ${selectedBulkExaminations.length} examination(s)?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setBulkInvigGenerating(true);
+      setError("");
+      setSuccess("");
+      setBulkInvigResult(null);
+
+      const result = await generateBulkInvigilators(
+        selectedBulkExaminations,
+        false
+      );
+
+      setBulkInvigResult(result);
+
+      if (result.success) {
+        setSuccess(
+          "Bulk invigilator allocation completed."
+        );
+      } else {
+        setError(
+          "Bulk invigilator allocation completed with failures."
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message ||
+          "Bulk invigilator allocation failed."
+      );
+    } finally {
+      setBulkInvigGenerating(false);
+    }
+  };
+
+  const handleBulkValidation = async () => {
+    if (selectedBulkExaminations.length === 0) {
+      setError("Please select at least one examination.");
+      return;
+    }
+
+    try {
+      setBulkValidating(true);
+      setError("");
+      setSuccess("");
+      setBulkValidationResult(null);
+
+      const result = await bulkValidateExaminations(
+        selectedBulkExaminations
+      );
+
+      setBulkValidationResult(result);
+
+      setSuccess(
+        "Bulk validation completed. See per-examination results below."
+      );
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message ||
+          "Bulk validation failed."
+      );
+    } finally {
+      setBulkValidating(false);
+    }
   };
 
   const handleSelectAllBulkExaminations = () => {
@@ -385,7 +529,7 @@ const [activeAllocationTab, setActiveAllocationTab] =
 
 <section className="mb-6 rounded-2xl border border-border bg-surface p-2 shadow-sm">
 
-  <div className="grid gap-2 md:grid-cols-3">
+    <div className="grid gap-2 md:grid-cols-4">
 
     {/* Hall Allocation */}
 
@@ -510,10 +654,49 @@ const [activeAllocationTab, setActiveAllocationTab] =
 
       </div>
 
-      <span className="hidden rounded-full bg-surface-muted px-2.5 py-1 text-[10px] font-semibold text-text-muted sm:inline-flex">
+            <span className="hidden rounded-full bg-surface-muted px-2.5 py-1 text-[10px] font-semibold text-text-muted sm:inline-flex">
         Coming Later
       </span>
 
+    </button>
+
+    {/* Review / Approval */}
+
+    <button
+      type="button"
+      onClick={() =>
+        setActiveAllocationTab("approval")
+      }
+      className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${
+        activeAllocationTab === "approval"
+          ? "bg-sidebar text-white shadow-md"
+          : "text-text hover:bg-surface-muted"
+      }`}
+    >
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+          activeAllocationTab === "approval"
+            ? "bg-white/10"
+            : "bg-accent-light text-primary"
+        }`}
+      >
+        <CheckCircle2 size={20} />
+      </div>
+
+      <div className="min-w-0">
+        <p className="text-sm font-bold">
+          Review & Approve
+        </p>
+        <p
+          className={`mt-0.5 text-xs ${
+            activeAllocationTab === "approval"
+              ? "text-white/70"
+              : "text-text-muted"
+          }`}
+        >
+          Validate → Approve → Publish
+        </p>
+      </div>
     </button>
 
   </div>
@@ -939,10 +1122,141 @@ const [activeAllocationTab, setActiveAllocationTab] =
 
           </section>
 
+                   {/* ================================================= */}
+          {/* BULK SEAT / INVIGILATOR / VALIDATE */}
+          {/* ================================================= */}
+
+          <section className="mb-6 grid gap-5 lg:grid-cols-3">
+
+            {/* BULK SEAT */}
+
+            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+
+              <h3 className="text-sm font-bold text-text">
+                Bulk Seat Allocation
+              </h3>
+
+              <p className="mt-1 text-xs text-text-muted">
+                Generate seat allocation for the selected
+                examinations using the existing seat engine.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleBulkSeatGeneration}
+                disabled={
+                  selectedBulkExaminations.length === 0 ||
+                  bulkSeatGenerating
+                }
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-sidebar px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkSeatGenerating ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={16} />
+                    Generate Seats
+                  </>
+                )}
+              </button>
+
+              {bulkSeatResult && (
+                <BulkResultList result={bulkSeatResult} />
+              )}
+
+            </div>
+
+            {/* BULK INVIGILATOR */}
+
+            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+
+              <h3 className="text-sm font-bold text-text">
+                Bulk Invigilator Allocation
+              </h3>
+
+              <p className="mt-1 text-xs text-text-muted">
+                Deterministic invigilator allocation across
+                selected examinations.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleBulkInvigilatorGeneration}
+                disabled={
+                  selectedBulkExaminations.length === 0 ||
+                  bulkInvigGenerating
+                }
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-sidebar px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkInvigGenerating ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Users size={16} />
+                    Generate Invigilators
+                  </>
+                )}
+              </button>
+
+              {bulkInvigResult && (
+                <BulkResultList result={bulkInvigResult} />
+              )}
+
+            </div>
+
+            {/* BULK VALIDATE */}
+
+            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+
+              <h3 className="text-sm font-bold text-text">
+                Bulk Validation
+              </h3>
+
+              <p className="mt-1 text-xs text-text-muted">
+                Read-only validation of selected examinations.
+              </p>
+
+              <button
+                type="button"
+                onClick={handleBulkValidation}
+                disabled={
+                  selectedBulkExaminations.length === 0 ||
+                  bulkValidating
+                }
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {bulkValidating ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    Validating...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={16} />
+                    Validate Selected
+                  </>
+                )}
+              </button>
+
+              {bulkValidationResult && (
+                <BulkValidationList
+                  result={bulkValidationResult}
+                />
+              )}
+
+            </div>
+
+          </section>
+
           {/* ================================================= */}
           {/* SUMMARY */}
           {/* ================================================= */}
-
           {selectedExamination && (
             <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
@@ -1237,18 +1551,38 @@ Use View Details to see all records.
 
   </>
 )}
-
 {activeAllocationTab === "invigilator" && (
-  <ComingSoonPanel
-    icon={Users}
-    title="Invigilator Allocation"
-    description="Assign invigilators to examination halls while managing staff availability and workload."
-    label="Coming Next"
+  <InvigilatorPanel
+    examinations={examinations}
+    onMessage={(message, type) => {
+      if (type === "error") {
+        setError(message);
+        setSuccess("");
+      } else {
+        setSuccess(message);
+        setError("");
+      }
+    }}
   />
 )}
 
 {activeAllocationTab === "seat" && (
   <SeatAllocationPanel
+    examinations={examinations}
+    onMessage={(message, type) => {
+      if (type === "error") {
+        setError(message);
+        setSuccess("");
+      } else {
+        setSuccess(message);
+        setError("");
+      }
+    }}
+  />
+)}
+
+{activeAllocationTab === "approval" && (
+  <ApprovalPanel
     examinations={examinations}
     onMessage={(message, type) => {
       if (type === "error") {
@@ -1416,6 +1750,66 @@ function ComingSoonPanel({
       </p>
 
     </section>
+  );
+}
+
+function BulkResultList({ result }) {
+  return (
+    <div className="mt-4 space-y-2">
+      {result.results.map((row) => (
+        <div
+          key={row.examination_id}
+          className={`rounded-lg border px-3 py-2 text-xs ${
+            row.status === "GENERATED"
+              ? "border-green-200 bg-green-50 text-green-700"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
+          <p className="font-semibold">
+            Examination #{row.examination_id} — {row.status}
+          </p>
+          {row.status === "GENERATED" ? (
+            <p className="mt-0.5">
+              {row.seat_records !== undefined
+                ? `${row.seat_records} seats`
+                : ""}
+              {row.invigilator_assignments !== undefined
+                ? `${row.invigilator_assignments} assignments / ${row.distinct_staff_used} staff`
+                : ""}
+            </p>
+          ) : (
+            <p className="mt-0.5">{row.message}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+function BulkValidationList({ result }) {
+  return (
+    <div className="mt-4 space-y-2">
+      {result.results.map((row) => (
+        <div
+          key={row.examination_id}
+          className={`rounded-lg border px-3 py-2 text-xs ${
+            row.status === "VALID"
+              ? "border-green-200 bg-green-50 text-green-700"
+              : row.status === "NOT GENERATED"
+              ? "border-yellow-200 bg-yellow-50 text-yellow-800"
+              : "border-red-200 bg-red-50 text-red-700"
+          }`}
+        >
+          <p className="font-semibold">
+            Examination #{row.examination_id} — {row.status}
+          </p>
+          <p className="mt-0.5">
+            Hall: {row.hall_status} • Invigilator: {row.invigilator_status}
+          </p>
+        </div>
+      ))}
+    </div>
   );
 }
 

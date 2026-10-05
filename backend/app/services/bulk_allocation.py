@@ -90,7 +90,6 @@ def generate_bulk_allocation(examination_ids, force=False):
             "success": False,
             "message": "No valid examinations found."
         }
-
     found_ids = {
         examination.id
         for examination in examinations
@@ -102,13 +101,8 @@ def generate_bulk_allocation(examination_ids, force=False):
         if examination_id not in found_ids
     ]
 
-    if missing_ids:
-        return {
-            "success": False,
-            "message": "One or more examinations were not found.",
-            "missing_examination_ids": missing_ids
-        }
-
+    # Missing examinations are handled as per-examination failures.
+    # Valid examinations continue to be processed.
     # ---------------------------------------------------------
     # CHECK EXISTING ALLOCATIONS
     # ---------------------------------------------------------
@@ -131,16 +125,24 @@ def generate_bulk_allocation(examination_ids, force=False):
                     "regenerate."
                 )
             }
-
         from app.models.seat_allocation import SeatAllocation
+        from app.models.invigilator_allocation import InvigilatorAllocation
 
         try:
             (
                 SeatAllocation.query
                 .filter(
-                    SeatAllocation.examination_id.in_(
-                        examination_ids
-                    )
+                    SeatAllocation.examination_id.in_(found_ids)
+                )
+                .delete(synchronize_session=False)
+            )
+
+            # Invigilator allocations reference hall allocations,
+            # so they must be deleted before hall allocations.
+            (
+                InvigilatorAllocation.query
+                .filter(
+                    InvigilatorAllocation.examination_id.in_(found_ids)
                 )
                 .delete(synchronize_session=False)
             )
@@ -148,15 +150,12 @@ def generate_bulk_allocation(examination_ids, force=False):
             (
                 HallAllocation.query
                 .filter(
-                    HallAllocation.examination_id.in_(
-                        examination_ids
-                    )
+                    HallAllocation.examination_id.in_(found_ids)
                 )
                 .delete(synchronize_session=False)
             )
 
             db.session.commit()
-
         except Exception as error:
             db.session.rollback()
 
@@ -176,6 +175,14 @@ def generate_bulk_allocation(examination_ids, force=False):
     timetable_data = []
 
     examination_results = []
+    failed_examination_results = [
+        {
+            "examination_id": examination_id,
+            "status": "FAILED",
+            "message": "Examination not found."
+        }
+        for examination_id in missing_ids
+    ]
 
     for examination in examinations:
 
@@ -670,12 +677,33 @@ def generate_bulk_allocation(examination_ids, force=False):
         }
 
     total_seat_records = sum(seat_totals.values())
+    results = []
+
+    for examination in examinations:
+        results.append({
+            "examination_id": examination.id,
+            "status": "GENERATED",
+            "seat_records": seat_totals.get(
+                examination.id, 0
+            ),
+            "regenerated": bool(force)
+        })
+
+    results.extend(failed_examination_results)
+
+    results.sort(
+        key=lambda item: examination_ids.index(
+            item["examination_id"]
+        )
+    )
 
     return {
         "success": True,
         "message": (
             "Bulk hall and seat allocation generated successfully."
         ),
+        "processed": len(results),
+        "results": results,
         "examinations_processed": len(examinations),
         "examination_ids": [
             examination.id
@@ -687,5 +715,5 @@ def generate_bulk_allocation(examination_ids, force=False):
         "seat_records": total_seat_records,
         "seat_records_by_examination": seat_totals,
         "regenerated": bool(force),
-        "examinations": examination_results
+        "examinations": results
     }

@@ -13,6 +13,10 @@ from app.models.examination import Examination
 from app.models.allocation import Allocation
 from app.models.activity import Activity
 from app.models.timetable import Timetable
+from app.models.hall_allocation import HallAllocation
+from app.models.seat_allocation import SeatAllocation
+from app.models.invigilator_allocation import InvigilatorAllocation
+from app.models.hall_ticket import HallTicket
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -95,32 +99,80 @@ def get_dashboard():
             "exam_type": entry.examination.exam_type,
             "status": entry.status
         })
-
     # =====================================================
-    # ALLOCATION OVERVIEW
+    # ALLOCATION OVERVIEW (Phase 7 persisted system)
+    #
+    # The dashboard now reads the actual persisted allocation
+    # tables: HallAllocation, SeatAllocation and
+    # InvigilatorAllocation. The legacy Allocation model is no
+    # longer consulted for statistics.
     # =====================================================
 
     total_examinations = Examination.query.count()
 
-    examinations_with_allocations = (
-        Allocation.query
+    examinations_with_hall_allocations = (
+        HallAllocation.query
         .with_entities(
-            Allocation.examination_id
+            HallAllocation.examination_id
         )
         .distinct()
         .count()
     )
 
-    total_allocations = Allocation.query.count()
+    total_hall_allocations = HallAllocation.query.count()
+    total_seat_allocations = SeatAllocation.query.count()
+    total_invigilator_assignments = (
+        InvigilatorAllocation.query.count()
+    )
+
+    distinct_invigilators = (
+        InvigilatorAllocation.query
+        .with_entities(
+            InvigilatorAllocation.staff_id
+        )
+        .distinct()
+        .count()
+    )
+
+    # ---------------------------------------------------------
+    # LIFECYCLE BREAKDOWN
+    # ---------------------------------------------------------
+
+    validated_examinations = (
+        Examination.query
+        .filter(Examination.status == "VALIDATED")
+        .count()
+    )
+
+    approved_examinations = (
+        Examination.query
+        .filter(Examination.status == "APPROVED")
+        .count()
+    )
+
+    published_examinations = (
+        Examination.query
+        .filter(Examination.status == "PUBLISHED")
+        .count()
+    )
+
+    total_hall_tickets_issued = HallTicket.query.count()
+
+    # ---------------------------------------------------------
+    # AGGREGATED STATUS
+    # ---------------------------------------------------------
 
     allocation_status = "NOT_STARTED"
 
     if total_examinations > 0:
 
-        if examinations_with_allocations == 0:
+        if examinations_with_hall_allocations == 0:
             allocation_status = "NOT_STARTED"
 
-        elif examinations_with_allocations < total_examinations:
+        elif (
+            examinations_with_hall_allocations
+            < total_examinations
+        ):
             allocation_status = "PARTIAL"
 
         else:
@@ -183,15 +235,37 @@ def get_dashboard():
 
         "recent_activity": recent_activity,
     
-        "allocation": {
+                "allocation": {
             "total_examinations": total_examinations,
-            "examinations_with_allocations": examinations_with_allocations,
-            "total_allocations": total_allocations,
-            "status": allocation_status
+            "examinations_with_hall_allocations": (
+                examinations_with_hall_allocations
+            ),
+            "total_hall_allocations": total_hall_allocations,
+            "total_seat_allocations": total_seat_allocations,
+            "total_invigilator_assignments": (
+                total_invigilator_assignments
+            ),
+            "distinct_invigilators": distinct_invigilators,
+            "validated_examinations": validated_examinations,
+            "approved_examinations": approved_examinations,
+            "published_examinations": published_examinations,
+            "total_hall_tickets_issued": (
+                total_hall_tickets_issued
+            ),
+            "status": allocation_status,
+
+            # Legacy keys retained for backward compatibility
+            # with the existing AdminDashboard.jsx. They now
+            # reflect the current persisted system.
+            "examinations_with_allocations": (
+                examinations_with_hall_allocations
+            ),
+            "total_allocations": total_hall_allocations,
         },
 
         "system_status": system_status
     }
+     
 
 @dashboard_bp.route("/staff", methods=["GET"])
 @roles_required("staff")
