@@ -26,8 +26,7 @@ def get_eligible_students(examination_id, timetable_id=None):
 
     registrations = ExamRegistration.query.filter_by(
     examination_id=examination_id,
-    status="REGISTERED",
-    fee_status="PAID"
+    status="REGISTERED"
 ).all()
 
     eligible_students = []

@@ -206,8 +206,11 @@ def _is_accessible_hall(hall):
         and hall.floor_no == 0
     )
 
-
-def generate_seat_allocation(examination_id, force=False):
+def generate_seat_allocation(
+    examination_id,
+    force=False,
+    commit=True
+):
     """
     Generate seat allocation for every timetable entry of the
     examination, using the existing HallAllocation records.
@@ -416,27 +419,6 @@ def generate_seat_allocation(examination_id, force=False):
 
                     del remaining_normal[:take]
 
-                # Any remaining accessibility students may also
-                # be seated here if this is a normal hall with
-                # space (last resort, should not happen given
-                # the earlier validation).
-                space_left = (
-                    allocation.allocated_capacity
-                    - len(students_for_this_hall)
-                )
-
-                if space_left > 0 and remaining_accessibility:
-                    take = min(
-                        space_left,
-                        len(remaining_accessibility)
-                    )
-
-                    students_for_this_hall.extend(
-                        remaining_accessibility[:take]
-                    )
-
-                    del remaining_accessibility[:take]
-
                 # ---------------------------------------------------------
                 # MIXED-COURSE SEAT DISTRIBUTION
                 # ---------------------------------------------------------
@@ -470,14 +452,13 @@ def generate_seat_allocation(examination_id, force=False):
 
                     seat_records.append(record)
                     timetable_seats.append(record)
-
-            if remaining_accessibility or remaining_normal:
+            if remaining_accessibility:
                 db.session.rollback()
 
                 return {
                     "success": False,
                     "message": (
-                        "Unable to seat every student for "
+                        "Insufficient accessible hall capacity for "
                         f"timetable #{timetable.id}"
                     ),
                     "timetable_id": timetable.id,
@@ -487,6 +468,19 @@ def generate_seat_allocation(examination_id, force=False):
                     "unseated_normal": len(remaining_normal)
                 }
 
+            if remaining_normal:
+                db.session.rollback()
+
+                return {
+                    "success": False,
+                    "message": (
+                        "Unable to seat every student for "
+                        f"timetable #{timetable.id}"
+                    ),
+                    "timetable_id": timetable.id,
+                    "unseated_accessibility": 0,
+                    "unseated_normal": len(remaining_normal)
+                }
             per_timetable_summary.append(
                 {
                     "timetable_id": timetable.id,
@@ -519,7 +513,9 @@ def generate_seat_allocation(examination_id, force=False):
             )
 
         db.session.add_all(seat_records)
-        db.session.commit()
+
+        if commit:
+            db.session.commit()
 
     except Exception as error:
         db.session.rollback()

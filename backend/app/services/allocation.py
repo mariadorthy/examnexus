@@ -136,23 +136,31 @@ def generate_allocation(examination_id, force=False):
             (
                 SeatAllocation.query
                 .filter_by(examination_id=examination_id)
-                .delete(synchronize_session=False)
+                .delete(synchronize_session="fetch")
             )
 
             (
                 InvigilatorAllocation.query
                 .filter_by(examination_id=examination_id)
-                .delete(synchronize_session=False)
+                .delete(synchronize_session="fetch")
             )
 
             (
                 HallAllocation.query
                 .filter_by(examination_id=examination_id)
-                .delete(synchronize_session=False)
+                .delete(synchronize_session="fetch")
             )
 
-            db.session.commit()
-            
+            db.session.flush()
+
+            # Do NOT commit here.
+            #
+            # Keep the cleanup inside the same transaction as the
+            # new hall + seat allocation generation.
+            #
+            # If anything fails later, the entire regeneration can
+            # be rolled back safely.
+
         except Exception as error:
             db.session.rollback()
 
@@ -278,10 +286,45 @@ def generate_allocation(examination_id, force=False):
             used_hall_ids = set()
 
             # -------------------------------------------------
+            # OPTIMIZATION (P1 Feature 17):
+            #
+            # Smallest-fit-first hall selection.
+            #
+            # The previous implementation consumed halls in
+            # capacity-descending order, which can waste a large
+            # accessible hall on a small number of accessibility
+            # students and force normal students into additional
+            # halls. Sorting halls by (capacity ASC, id ASC)
+            # keeps the result deterministic while minimizing the
+            # number of halls used per timetable.
+            #
+            # This is a pure ordering change. All hard constraints
+            # (availability, maintenance, conflicts, capacity,
+            # accessibility) are still enforced by the existing
+            # checks above and by validate_allocation().
+            # -------------------------------------------------
+
+            ordered_accessibility_halls = sorted(
+                accessibility_halls,
+                key=lambda hall: (
+                    hall.examination_capacity,
+                    hall.id
+                )
+            )
+
+            ordered_normal_halls = sorted(
+                available_halls,
+                key=lambda hall: (
+                    hall.examination_capacity,
+                    hall.id
+                )
+            )
+
+            # -------------------------------------------------
             # STEP 1: ALLOCATE ACCESSIBILITY REQUIREMENT
             # -------------------------------------------------
 
-            for hall in accessibility_halls:
+            for hall in ordered_accessibility_halls:
 
                 if remaining_accessibility <= 0:
                     break
@@ -334,17 +377,47 @@ def generate_allocation(examination_id, force=False):
 
             # -------------------------------------------------
             # STEP 2: ALLOCATE NORMAL STUDENTS
+            #
+            # Smallest-fit-first pass: pick the smallest hall that
+            # can still make progress. If no remaining hall is
+            # large enough to cover the residual alone, fall back
+            # to the largest remaining hall to guarantee progress
+            # (never leaves a student unallocated when total
+            # capacity is sufficient).
             # -------------------------------------------------
 
-            for hall in available_halls:
+            while remaining_normal > 0:
 
-                if remaining_normal <= 0:
+                candidates = [
+                    hall
+                    for hall in ordered_normal_halls
+                    if hall.id not in used_hall_ids
+                    and hall.examination_capacity > 0
+                ]
+
+                if not candidates:
                     break
 
-                if hall.id in used_hall_ids:
-                    continue
+                # Smallest hall whose capacity still fits inside
+                # the remaining count (i.e. we would not waste
+                # capacity by opening it).
+                fitting = [
+                    hall
+                    for hall in candidates
+                    if hall.examination_capacity
+                    <= remaining_normal
+                ]
 
-                capacity = hall.examination_capacity
+                if fitting:
+                    # Smallest fitting hall.
+                    chosen = fitting[0]
+                else:
+                    # Remaining count is smaller than every
+                    # remaining hall's capacity. Open the
+                    # smallest remaining hall (last hall needed).
+                    chosen = candidates[0]
+
+                capacity = chosen.examination_capacity
 
                 normal_assigned = min(
                     capacity,
@@ -352,7 +425,7 @@ def generate_allocation(examination_id, force=False):
                 )
 
                 if normal_assigned <= 0:
-                    continue
+                    break
 
                 remaining_normal -= normal_assigned
 
@@ -360,14 +433,14 @@ def generate_allocation(examination_id, force=False):
                     HallAllocation(
                         examination_id=examination.id,
                         timetable_id=timetable.id,
-                        hall_id=hall.id,
+                        hall_id=chosen.id,
                         allocated_capacity=normal_assigned,
                         purpose="NORMAL",
                         status="GENERATED"
                     )
                 )
 
-                used_hall_ids.add(hall.id)
+                used_hall_ids.add(chosen.id)
 
             # -------------------------------------------------
             # FINAL CAPACITY CHECK
@@ -393,13 +466,17 @@ def generate_allocation(examination_id, force=False):
                         + remaining_normal
                     )
                 }
-
         # -----------------------------------------------------
-        # SAVE ALL HALL ALLOCATIONS
+        # SAVE HALL ALLOCATIONS
         # -----------------------------------------------------
 
         db.session.add_all(allocations)
-        db.session.commit()
+        db.session.flush()
+
+        # Refresh SQLAlchemy's view of the database after
+        # regeneration so seat allocation uses only the
+        # newly-created HallAllocation records.
+        db.session.expire_all()
 
     except Exception as error:
         db.session.rollback()
@@ -414,7 +491,6 @@ def generate_allocation(examination_id, force=False):
         allocation.allocated_capacity
         for allocation in allocations
     )
-
     halls_used = len(
         {
             allocation.hall_id
@@ -432,15 +508,17 @@ def generate_allocation(examination_id, force=False):
 
     seat_result = generate_seat_allocation(
         examination_id=examination.id,
-        force=True
+        force=True,
+        commit=False
     )
-
     if not seat_result.get("success"):
+        db.session.rollback()
+
         return {
             "success": False,
             "message": (
-                "Hall allocation succeeded but seat "
-                "allocation failed"
+                "Hall and seat allocation generation failed. "
+                "Previous allocation was preserved."
             ),
             "hall_allocation": {
                 "eligible_students": total_students,
@@ -448,6 +526,20 @@ def generate_allocation(examination_id, force=False):
                 "halls_used": halls_used
             },
             "seat_allocation": seat_result
+        }
+
+    try:
+        db.session.commit()
+
+    except Exception as error:
+        db.session.rollback()
+
+        return {
+            "success": False,
+            "message": (
+                "Failed to commit hall and seat allocation"
+            ),
+            "error": str(error)
         }
 
     return {

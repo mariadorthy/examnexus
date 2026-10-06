@@ -12,7 +12,10 @@ from app.models.seat_allocation import SeatAllocation
 from app.models.student import Student
 from app.services.eligibility import get_eligible_students
 from app.services.allocation import generate_allocation
-from app.services.validation import validate_allocation
+from app.services.validation import (
+    validate_allocation,
+    validate_invigilator_allocation
+)
 
 
 # ============================================================
@@ -796,19 +799,32 @@ def test_mixed_course_tamper_is_detected(
                     seat.id,
                 )
             )
+            course_counts = {}
 
-            course_ids = {
-                seat.student.course_id
-                for seat in candidate
-                if seat.student
-                and seat.student.course_id is not None
-            }
+            for seat in candidate:
+                if seat.student and seat.student.course_id is not None:
+                    course_id = seat.student.course_id
+                    course_counts[course_id] = (
+                        course_counts.get(course_id, 0) + 1
+                    )
 
-            if len(course_ids) == 2:
-                target_hall = hall_id
-                hall_seats = candidate
-                break
+            if len(course_counts) == 2:
+                values = sorted(course_counts.values())
 
+                smaller_count = values[0]
+                larger_count = values[1]
+
+                allowed_max_run = (
+                    (larger_count + smaller_count - 1)
+                    // smaller_count
+                )
+
+                # Only select a hall where grouping the two courses
+                # together will actually violate the mixed-course rule.
+                if larger_count > allowed_max_run:
+                    target_hall = hall_id
+                    hall_seats = candidate
+                    break
         if target_hall is not None:
             break
 
@@ -902,6 +918,73 @@ def test_final_validation_zero_unallocated(
     result = validate_allocation(examination_id)
     assert result.get("unallocated_students") == 0
 
+# ============================================================
+# 7I — Optimization determinism + non-regression (Feature 17)
+# ============================================================
+
+def test_optimization_halls_used_is_deterministic(
+    app_context, examination_id
+):
+    first = generate_allocation(examination_id, force=True)
+    assert first.get("success") is True, first
+    first_halls = first.get("halls_used")
+
+    second = generate_allocation(examination_id, force=True)
+    assert second.get("success") is True, second
+    second_halls = second.get("halls_used")
+
+    assert first_halls == second_halls
+    assert first_halls > 0
+
+
+def test_optimization_does_not_increase_halls_used(
+    app_context, examination_id
+):
+    """
+    Non-regression guard: the optimizer must never use more
+    halls than the naive capacity-descending greedy would.
+
+    The naive count is computed inline from the same inputs
+    the optimizer sees (eligible students + available halls
+    per timetable), so this test is self-contained.
+    """
+    from app.models.timetable import Timetable
+    from app.services.eligibility import get_eligible_students
+    from app.services.allocation import get_available_halls
+
+    result = generate_allocation(examination_id, force=True)
+    assert result.get("success") is True, result
+
+    optimized_halls = result.get("halls_used")
+
+    students = get_eligible_students(examination_id)
+    total_students = len(students)
+
+    naive_halls = 0
+
+    for timetable in Timetable.query.filter_by(
+        examination_id=examination_id
+    ).all():
+        available = get_available_halls(timetable)
+        # Naive strategy: capacity-descending, one pass.
+        available = sorted(
+            available,
+            key=lambda h: (-h.examination_capacity, h.id)
+        )
+
+        remaining = total_students
+        for hall in available:
+            if remaining <= 0:
+                break
+            remaining -= min(
+                hall.examination_capacity, remaining
+            )
+            naive_halls += 1
+
+    assert optimized_halls <= naive_halls, (
+        f"Optimizer used {optimized_halls} halls, "
+        f"naive would use {naive_halls}"
+    )
 
 # ============================================================
 # 8 — Sample student → hall → seat

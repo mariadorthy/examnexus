@@ -200,6 +200,8 @@ def generate_invigilator_allocation(examination_id, force=False):
         hall = allocation.hall
 
         if not timetable or not hall:
+            db.session.rollback()
+
             return {
                 "success": False,
                 "message": (
@@ -248,6 +250,8 @@ def generate_invigilator_allocation(examination_id, force=False):
             assigned_here += 1
 
         if assigned_here < required:
+            db.session.rollback()
+
             return {
                 "success": False,
                 "message": (
@@ -260,7 +264,6 @@ def generate_invigilator_allocation(examination_id, force=False):
                 "assigned": assigned_here,
                 "shortage": required - assigned_here
             }
-
         per_hall_summary.append(
             {
                 "timetable_id": timetable.id,

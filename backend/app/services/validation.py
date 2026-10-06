@@ -46,15 +46,32 @@ def validate_allocation(examination_id):
         for student in eligible_students
         if getattr(student, "disability", False)
     )
+    if not timetables:
+        return {
+            "status": "NOT GENERATED",
+            "message": "Timetable has not been generated",
+            "eligible_students": eligible_count,
+            "allocated_students": 0,
+            "unallocated_students": eligible_count,
+            "halls_used": 0,
+            "allocated_capacity": 0,
+            "timetable_entries": 0,
+            "seat_records": 0,
+            "errors": []
+        }
 
     if not allocations:
         return {
             "status": "NOT GENERATED",
             "message": "Hall allocation has not been generated",
+            "eligible_students": eligible_count,
             "allocated_students": 0,
             "unallocated_students": eligible_count,
             "halls_used": 0,
-            "allocated_capacity": 0
+            "allocated_capacity": 0,
+            "timetable_entries": len(timetables),
+            "seat_records": 0,
+            "errors": []
         }
 
     errors = []
@@ -90,6 +107,19 @@ def validate_allocation(examination_id):
 
         hall = allocation.hall
         timetable = allocation.timetable
+
+        if allocation.examination_id != examination_id:
+            errors.append(
+                f"Hall allocation #{allocation.id} has "
+                f"incorrect examination reference"
+            )
+
+        if timetable and timetable.examination_id != examination_id:
+            errors.append(
+                f"Hall allocation #{allocation.id} references "
+                f"timetable #{timetable.id} from another "
+                f"examination"
+            )
 
         if not hall:
             errors.append(
@@ -220,28 +250,76 @@ def validate_allocation(examination_id):
         # -----------------------------------------------------
         # ACCESSIBILITY CAPACITY
         # -----------------------------------------------------
-
-        accessibility_capacity = sum(
+        accessible_hall_capacity = sum(
             allocation.allocated_capacity
             for allocation in timetable_allocations
             if (
-                allocation.purpose in [
-                    "ACCESSIBILITY",
-                    "MIXED"
-                ]
-                and allocation.hall
-                and allocation.hall.floor_no == 0
+                allocation.hall
                 and allocation.hall.is_accessible
+                and allocation.hall.floor_no == 0
+                and allocation.hall.is_active
+                and allocation.hall.is_available
+                and not allocation.hall.is_under_maintenance
             )
         )
+        # -----------------------------------------------------
+        # SEAT COUNT MUST NOT EXCEED HALL ALLOCATION CAPACITY
+        # -----------------------------------------------------
 
-        if accessibility_capacity < accessibility_count:
-            errors.append(
-                f"Insufficient accessibility capacity for "
-                f"{timetable.exam_date} {timetable.session}: "
-                f"{accessibility_capacity}/{accessibility_count}"
+        from app.models.seat_allocation import SeatAllocation
+
+        timetable_seats = (
+            SeatAllocation.query
+            .filter_by(
+                examination_id=examination_id,
+                timetable_id=timetable.id
             )
+            .all()
+        )
 
+        timetable_hall_allocations = [
+            allocation
+            for allocation in allocations
+            if allocation.timetable_id == timetable.id
+        ]
+
+        for allocation in timetable_hall_allocations:
+
+            hall_seats = [
+                row
+                for row in timetable_seats
+                if row.hall_id == allocation.hall_id
+            ]
+
+            if len(hall_seats) > allocation.allocated_capacity:
+                errors.append(
+                    f"Hall #{allocation.hall_id} has "
+                    f"{len(hall_seats)} seat records but only "
+                    f"{allocation.allocated_capacity} seats were "
+                    f"allocated"
+                )
+
+            # Every generated seat must have a valid seat number.
+            for row in hall_seats:
+
+                if not row.seat_number:
+                    errors.append(
+                        f"Seat record #{row.id} has no seat number"
+                    )
+
+                if not row.row_label:
+                    errors.append(
+                        f"Seat record #{row.id} has no row label"
+                    )
+
+                if (
+                    row.seat_index is None
+                    or row.seat_index <= 0
+                ):
+                    errors.append(
+                        f"Seat record #{row.id} has invalid "
+                        f"seat index"
+                    )
     # ---------------------------------------------------------
     # FINAL HALL RESULT (aggregate)
     # ---------------------------------------------------------
@@ -275,6 +353,11 @@ def validate_allocation(examination_id):
             row.timetable_id, []
         ).append(row)
 
+    expected_student_ids = {
+        student.id
+        for student in eligible_students
+    }
+
     for timetable in timetables:
 
         timetable_seats = seat_by_timetable.get(
@@ -282,15 +365,27 @@ def validate_allocation(examination_id):
         )
 
         timetable_student_ids = {
-            row.student_id for row in timetable_seats
+            row.student_id
+            for row in timetable_seats
         }
 
-        expected_student_ids = {
-            student.id for student in eligible_students
-        }
+        missing = (
+            expected_student_ids
+            - timetable_student_ids
+        )
 
-        missing = expected_student_ids - timetable_student_ids
+        unexpected = (
+            timetable_student_ids
+            - expected_student_ids
+        )
 
+        if unexpected:
+            errors.append(
+                f"Timetable #{timetable.id} contains "
+                f"{len(unexpected)} seat(s) assigned to "
+                f"student(s) who are not eligible"
+            )
+            
         if missing:
             errors.append(
                 f"Missing seat for {len(missing)} student(s) "
@@ -322,18 +417,15 @@ def validate_allocation(examination_id):
 
         # Student must be seated in a hall allocated to this
         # timetable entry.
-        timetable_hall_ids = {
-            allocation.hall_id
+        timetable_hall_allocations = [
+            allocation
             for allocation in allocations
             if allocation.timetable_id == timetable.id
-        }
+        ]
 
-        # Student must be seated in a hall allocated to this
-        # timetable entry.
         timetable_hall_ids = {
             allocation.hall_id
-            for allocation in allocations
-            if allocation.timetable_id == timetable.id
+            for allocation in timetable_hall_allocations
         }
 
         accessibility_student_ids = {
@@ -343,11 +435,15 @@ def validate_allocation(examination_id):
         }
 
         allocation_map = {
-            allocation.hall_id: allocation
-            for allocation in timetable_allocations
+            (
+                allocation.timetable_id,
+                allocation.hall_id
+            ): allocation
+            for allocation in timetable_hall_allocations
         }
 
         for row in timetable_seats:
+
             if row.hall_id not in timetable_hall_ids:
                 errors.append(
                     f"Student #{row.student_id} seated in "
@@ -355,10 +451,62 @@ def validate_allocation(examination_id):
                     f"timetable #{timetable.id}"
                 )
                 continue
+            allocation = allocation_map.get(
+                (
+                    row.timetable_id,
+                    row.hall_id
+                )
+            )
+
+            if allocation is None:
+                errors.append(
+                    f"Seat record #{row.id} has no matching "
+                    f"hall allocation for timetable "
+                    f"#{row.timetable_id}"
+                )
+                continue
+
+            # Seat must reference the correct HallAllocation.
+            if row.hall_allocation_id != allocation.id:
+                errors.append(
+                    f"Seat record #{row.id} references hall "
+                    f"allocation #{row.hall_allocation_id}, "
+                    f"but expected #{allocation.id}"
+                )
+
+            # Seat record must belong to the same timetable.
+            if row.timetable_id != timetable.id:
+                errors.append(
+                    f"Seat record #{row.id} has incorrect "
+                    f"timetable reference"
+                )
+            # Seat record must belong to the same examination.
+            if row.examination_id != examination_id:
+                errors.append(
+                    f"Seat record #{row.id} has incorrect "
+                    f"examination reference"
+                )
+
+            # Seat must reference the same hall as its
+            # HallAllocation.
+            if row.hall_id != allocation.hall_id:
+                errors.append(
+                    f"Seat record #{row.id} has incorrect "
+                    f"hall reference"
+                )
+
+            # Seat must reference the same timetable as its
+            # HallAllocation.
+            if row.timetable_id != allocation.timetable_id:
+                errors.append(
+                    f"Seat record #{row.id} has incorrect "
+                    f"timetable reference"
+                )
 
             # Accessibility students must always be seated in
             # accessible ground-floor halls.
             if row.student_id in accessibility_student_ids:
+
                 hall = row.hall
 
                 if (
@@ -371,7 +519,6 @@ def validate_allocation(examination_id):
                         f"is seated in a non-accessible hall "
                         f"for timetable #{timetable.id}"
                     )
-
         # -----------------------------------------------------
         # MIXED-COURSE SEATING VALIDATION
         # -----------------------------------------------------
@@ -401,6 +548,39 @@ def validate_allocation(examination_id):
                     f"timetable #{timetable.id}: "
                     f"{mixing_error}"
                 )
+
+    # ---------------------------------------------------------
+    # ACTUAL UNALLOCATED STUDENT COUNT
+    # ---------------------------------------------------------
+
+    unallocated_students = 0
+
+    for timetable in timetables:
+
+        seated_student_ids = {
+            row.student_id
+            for row in seat_by_timetable.get(
+                timetable.id,
+                []
+            )
+        }
+
+        missing_student_ids = (
+            expected_student_ids - seated_student_ids
+        )
+
+        unallocated_students += len(missing_student_ids)
+
+    allocated_students = sum(
+        len({
+            row.student_id
+            for row in seat_by_timetable.get(
+                timetable.id,
+                []
+            )
+        })
+        for timetable in timetables
+    )
     # ---------------------------------------------------------
     # FINAL RESULT
     # ---------------------------------------------------------
@@ -414,10 +594,7 @@ def validate_allocation(examination_id):
             "errors": errors,
             "eligible_students": eligible_count,
             "allocated_capacity": allocated_capacity,
-            "unallocated_students": max(
-                0,
-                eligible_count - allocated_capacity
-            ),
+            "unallocated_students": unallocated_students,
             "halls_used": halls_used,
             "timetable_entries": len(timetables),
             "seat_records": len(seat_rows)
@@ -428,7 +605,7 @@ def validate_allocation(examination_id):
         "message": "Hall and seat allocation is valid",
         "eligible_students": eligible_count,
         "allocated_capacity": allocated_capacity,
-        "unallocated_students": 0,
+        "unallocated_students": unallocated_students,
         "halls_used": halls_used,
         "timetable_entries": len(timetables),
         "seat_records": len(seat_rows),
@@ -501,6 +678,44 @@ def validate_invigilator_allocation(examination_id):
 
     covered = {}
 
+    hall_allocation_map = {
+        (
+            allocation.timetable_id,
+            allocation.hall_id
+        ): allocation
+        for allocation in hall_allocations
+    }
+
+    for row in invigilator_rows:
+
+        key = (
+            row.timetable_id,
+            row.hall_id
+        )
+
+        allocation = hall_allocation_map.get(key)
+
+        if allocation is None:
+            errors.append(
+                f"Invigilator allocation #{row.id} references "
+                f"timetable #{row.timetable_id}, hall "
+                f"#{row.hall_id} without a matching "
+                f"HallAllocation"
+            )
+            continue
+
+        if row.hall_allocation_id != allocation.id:
+            errors.append(
+                f"Invigilator allocation #{row.id} references "
+                f"hall allocation #{row.hall_allocation_id}, "
+                f"but expected #{allocation.id}"
+            )
+
+        if row.examination_id != examination_id:
+            errors.append(
+                f"Invigilator allocation #{row.id} has an "
+                f"incorrect examination reference"
+            )
     for row in invigilator_rows:
         key = (row.timetable_id, row.hall_id)
         covered.setdefault(key, 0)
@@ -510,8 +725,7 @@ def validate_invigilator_allocation(examination_id):
         key = (allocation.timetable_id, allocation.hall_id)
         required = _required(allocation.allocated_capacity)
         assigned = covered.get(key, 0)
-
-        if assigned < required:
+        if assigned != required:
             errors.append(
                 f"Hall allocation #{allocation.id} "
                 f"(timetable #{allocation.timetable_id}, "
@@ -564,7 +778,23 @@ def validate_invigilator_allocation(examination_id):
             errors.append(
                 f"Staff {staff.name} is not available"
             )
+        if not row.timetable:
+            errors.append(
+                f"Invigilator allocation #{row.id} "
+                f"references a missing timetable"
+            )
 
+        if not row.hall:
+            errors.append(
+                f"Invigilator allocation #{row.id} "
+                f"references a missing hall"
+            )
+
+        if row.role != "INVIGILATOR":
+            errors.append(
+                f"Invigilator allocation #{row.id} has "
+                f"invalid role '{row.role}'"
+            )
     # ---------------------------------------------------------
     # Cross-session conflict check
     # ---------------------------------------------------------
@@ -582,8 +812,8 @@ def validate_invigilator_allocation(examination_id):
                 if not ta or not tb:
                     continue
 
-                if ta.id == tb.id:
-                    continue
+                # if ta.id == tb.id:
+                #     continue
 
                 if ta.exam_date != tb.exam_date:
                     continue
