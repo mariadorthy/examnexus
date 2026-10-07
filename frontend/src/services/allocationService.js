@@ -26,17 +26,35 @@ export async function generateAllocation(
 export async function getAllocations(
   examinationId
 ) {
-  const response = await fetch(
-    `${API_URL}/${examinationId}`
+  const token = localStorage.getItem(
+    "examnexus_token"
   );
+
+  const headers = {};
+
+  if (token) {
+    headers.Authorization =
+      `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `${API_URL}/${examinationId}`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+  const result = await response.json();
 
   if (!response.ok) {
     throw new Error(
-      "Failed to load allocations."
+      result.message ||
+        "Failed to load allocations."
     );
   }
 
-  return await response.json();
+  return result;
 }
 
 export async function validateAllocation(
@@ -160,6 +178,74 @@ export async function bulkValidateExaminations(
     throw new Error(
       result.message ||
         "Failed to bulk validate examinations."
+    );
+  }
+
+  return result;
+}
+// =========================================================
+// FEATURE 21 — DYNAMIC REALLOCATION / WHAT-IF
+// =========================================================
+
+export async function simulateReallocation(
+  examinationId,
+  excludedHallIds
+) {
+  const response = await fetch(
+    `${API_URL}/reallocate/what-if/${examinationId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem(
+          "examnexus_token"
+        )}`,
+      },
+      body: JSON.stringify({
+        excluded_hall_ids: excludedHallIds,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result.message ||
+        "Failed to simulate reallocation."
+    );
+  }
+
+  return result;
+}
+
+export async function applyReallocation(
+  examinationId,
+  excludedHallIds
+) {
+  const response = await fetch(
+    `${API_URL}/reallocate/apply/${examinationId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem(
+          "examnexus_token"
+        )}`,
+      },
+      body: JSON.stringify({
+        excluded_hall_ids: excludedHallIds,
+        confirm: true,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result.message ||
+        "Failed to apply reallocation."
     );
   }
 

@@ -21,6 +21,9 @@ from app.services.lifecycle import transition_status
 from app.services.invigilator_allocation import (
     generate_invigilator_allocation,
 )
+from app.services.allocation import (
+    generate_allocation,
+)
 
 def _ensure_published(examination_id):
     examination = db.session.get(Examination, examination_id)
@@ -76,6 +79,22 @@ def _ensure_invigilators(examination_id):
 
     assert result.get("success") is True, result
 
+
+def _prepare_hall_ticket_state(examination_id):
+    """
+    Prepare all dependencies required by hall-ticket tests.
+
+    Dependency order:
+    hall allocation -> invigilator allocation -> lifecycle -> published.
+    """
+    generate_allocation(
+        examination_id,
+        force=True
+    )
+
+    _ensure_invigilators(examination_id)
+    _ensure_published(examination_id)
+
 # ============================================================
 # 8C.1 — Generate hall tickets
 # ============================================================
@@ -83,8 +102,7 @@ def _ensure_invigilators(examination_id):
 def test_hall_ticket_generation_succeeds(
     app_context, examination_id
 ):
-    _ensure_published(examination_id)
-    _ensure_invigilators(examination_id)
+    _prepare_hall_ticket_state(examination_id)
 
     result = generate_hall_tickets(
         examination_id,
@@ -94,8 +112,7 @@ def test_hall_ticket_generation_succeeds(
     assert result.get("success") is True, result
 
 def test_hall_tickets_issued(app_context, examination_id):
-    _ensure_published(examination_id)
-    _ensure_invigilators(examination_id)
+    _prepare_hall_ticket_state(examination_id)
 
     result = generate_hall_tickets(
         examination_id,
@@ -108,8 +125,7 @@ def test_hall_tickets_issued(app_context, examination_id):
 def test_persisted_ticket_count_matches_issued(
     app_context, examination_id
 ):
-    _ensure_published(examination_id)
-    _ensure_invigilators(examination_id)
+    _prepare_hall_ticket_state(examination_id)
 
     result = generate_hall_tickets(
         examination_id,
@@ -148,6 +164,8 @@ def test_sample_hall_ticket_retrieval(app_context, examination_id):
 def test_ticket_has_verification_token(
     app_context, examination_id
 ):
+    _prepare_hall_ticket_state(examination_id)
+
     student_id = _sample_student(examination_id)
     result = get_hall_ticket(student_id, examination_id)
     assert result["ticket"].get("verification_token")
@@ -264,7 +282,7 @@ def test_hall_ticket_generation_blocked_when_not_published(
 def test_duplicate_ticket_generation_without_force_is_rejected(
     app_context, examination_id
 ):
-    _ensure_published(examination_id)
+    _prepare_hall_ticket_state(examination_id)
     generate_hall_tickets(examination_id, force=True)
     result = generate_hall_tickets(examination_id, force=False)
     assert result.get("success") is False
@@ -273,7 +291,7 @@ def test_duplicate_ticket_generation_without_force_is_rejected(
 def test_force_reissue_does_not_create_duplicates(
     app_context, examination_id
 ):
-    _ensure_published(examination_id)
+    _prepare_hall_ticket_state(examination_id)
     generate_hall_tickets(examination_id, force=True)
     before = HallTicket.query.filter_by(
         examination_id=examination_id

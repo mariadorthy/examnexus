@@ -7,6 +7,8 @@ from app.services.allocation import (
     generate_allocation,
     update_hall_allocation
 )
+from app.services.reallocation import simulate_reallocation
+
 from app.services.bulk_allocation import generate_bulk_allocation
 from app.services.validation import validate_allocation
 
@@ -569,3 +571,69 @@ def bulk_validate():
     result = bulk_validate_examinations(examination_ids)
 
     return result, 200
+
+# =========================================================
+# FEATURE 21 — DYNAMIC REALLOCATION / WHAT-IF
+# =========================================================
+
+@allocations_bp.route(
+    "/reallocate/what-if/<int:examination_id>",
+    methods=["POST"]
+)
+@roles_required("admin")
+def reallocate_what_if(examination_id):
+
+    data = request.get_json(silent=True) or {}
+
+    excluded = data.get("excluded_hall_ids")
+
+    if not isinstance(excluded, list) or not excluded:
+        return {
+            "success": False,
+            "message": (
+                "excluded_hall_ids must be a non-empty list."
+            ),
+        }, 400
+
+    result = simulate_reallocation(
+        examination_id,
+        excluded_hall_ids=excluded,
+    )
+
+    status_code = 200 if result.get("success") else 400
+
+    return result, status_code
+
+from app.services.reallocation import apply_reallocation
+
+
+@allocations_bp.route(
+    "/reallocate/apply/<int:examination_id>",
+    methods=["POST"]
+)
+@roles_required("admin")
+def reallocate_apply(examination_id):
+    data = request.get_json(silent=True) or {}
+
+    if not data.get("confirm"):
+        return {
+            "success": False,
+            "message": "Reallocation requires confirm=true."
+        }, 400
+
+    excluded = data.get("excluded_hall_ids")
+
+    if not isinstance(excluded, list) or not excluded:
+        return {
+            "success": False,
+            "message": (
+                "excluded_hall_ids must be a non-empty list."
+            )
+        }, 400
+
+    result = apply_reallocation(
+        examination_id,
+        excluded_hall_ids=excluded
+    )
+
+    return result, (200 if result.get("success") else 400)

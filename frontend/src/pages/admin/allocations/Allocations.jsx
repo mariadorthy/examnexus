@@ -18,6 +18,7 @@ import AllocationForm from "./AllocationForm";
 import SeatAllocationPanel from "./SeatAllocationPanel";
 import InvigilatorPanel from "./InvigilatorPanel";
 import ApprovalPanel from "./ApprovalPanel";
+import WhatIfReallocation from "./WhatIfReallocation";
 
 import {
   get,
@@ -152,53 +153,90 @@ const [activeAllocationTab, setActiveAllocationTab] =
     }
   };
 
-  const handleGenerateAllocation = async () => {
-    if (!selectedExamination) {
-      setError("Please select an examination first.");
-      return;
-    }
+const handleGenerateAllocation = async () => {
+  if (!selectedExamination) {
+    setError("Please select an examination first.");
+    return;
+  }
 
-    const confirmed = window.confirm(
-      "Generate examination hall allocation for this examination?"
-    );
+  const confirmed = window.confirm(
+    `Generate hall allocation for Examination #${selectedExamination}?`
+  );
 
-    if (!confirmed) {
-      return;
-    }
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    setGenerating(true);
+    setError("");
+    setSuccess("");
+
+    let data;
 
     try {
-      setGenerating(true);
-      setError("");
-      setSuccess("");
-
-      const data = await post(
+      // First attempt: normal generation.
+      data = await post(
         `/allocations/generate/${selectedExamination}`,
         {}
       );
-
-      if (!data.success) {
-        throw new Error(
-          data.message ||
-          "Failed to generate allocation."
-        );
-      }
-      setSuccess(
-        data.message ||
-        "Allocation generated successfully."
-      );
-
-      await loadAllocationData(selectedExamination);
     } catch (err) {
-      console.error("Generate allocation error:", err);
+      // Existing allocation detected.
+      if (
+        err.message?.includes(
+          "Use force=true to regenerate"
+        )
+      ) {
+        const regenerate = window.confirm(
+          `An allocation already exists for Examination #${selectedExamination}.\n\n` +
+          `Do you want to regenerate it?\n\n` +
+          `The existing hall, seat and invigilator allocation state will be replaced.`
+        );
 
-      setError(
-        err.message ||
-        "Unable to generate allocation."
-      );
-    } finally {
-      setGenerating(false);
+        if (!regenerate) {
+          return;
+        }
+
+        data = await post(
+          `/allocations/generate/${selectedExamination}`,
+          {
+            force: true,
+          }
+        );
+      } else {
+        throw err;
+      }
     }
-  };
+
+    if (!data.success) {
+      throw new Error(
+        data.message ||
+          "Failed to generate allocation."
+      );
+    }
+
+    setSuccess(
+      data.message ||
+        "Allocation generated successfully."
+    );
+
+    await loadAllocationData(
+      selectedExamination
+    );
+  } catch (err) {
+    console.error(
+      "Generate allocation error:",
+      err
+    );
+
+    setError(
+      err.message ||
+        "Unable to generate allocation."
+    );
+  } finally {
+    setGenerating(false);
+  }
+};
 
     const handleGenerateBulkAllocation = async () => {
     if (selectedBulkExaminations.length === 0) {
@@ -208,9 +246,16 @@ const [activeAllocationTab, setActiveAllocationTab] =
       return;
     }
 
-    const confirmed = window.confirm(
-      `Generate hall allocation for ${selectedBulkExaminations.length} selected examination(s)?`
-    );
+  const selectedExamLabels =
+  selectedBulkExaminations
+    .map((id) => `Examination #${id}`)
+    .join(", ");
+
+const confirmed = window.confirm(
+  `${selectedExamLabels} ${selectedBulkExaminations.length === 1 ? "is" : "are"} selected.\n\n` +
+  `Existing hall, seat and invigilator allocations for these examinations will be replaced if they already exist.\n\n` +
+  `Do you want to continue?`
+);
 
     if (!confirmed) {
       return;
@@ -223,12 +268,12 @@ const [activeAllocationTab, setActiveAllocationTab] =
       setBulkResult(null);
 
       const data = await post(
-        "/allocations/bulk-generate",
-        {
-          examination_ids:
-            selectedBulkExaminations,
-        }
-      );
+  "/allocations/bulk-generate",
+  {
+    examination_ids: selectedBulkExaminations,
+    force: true,
+  }
+);
 
       if (!data.success) {
         throw new Error(
@@ -1537,6 +1582,21 @@ Use View Details to see all records.
 
             </section>
           )}
+
+{/* ================================================= */}
+{/* FEATURE 21 — WHAT-IF / DYNAMIC REALLOCATION */}
+{/* ================================================= */}
+
+{selectedExamination && (
+  <section className="mb-6">
+    <WhatIfReallocation
+      examinationId={selectedExamination}
+      onApplied={() =>
+        loadAllocationData(selectedExamination)
+      }
+    />
+  </section>
+)}
 
           {!selectedExamination && (
             <div className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">

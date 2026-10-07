@@ -1014,3 +1014,198 @@ def _validate_course_mixing(seats):
         )
 
     return None
+
+def validate_proposed_plan(
+    examination_id,
+    proposed_allocations,
+    eligible_students=None,
+    accessibility_students=None
+):
+    """
+    Pure (non-persisting) validation for a proposed reallocation.
+
+    Mirrors the checks in validate_allocation() that can be
+    expressed without reading persisted HallAllocation /
+    SeatAllocation rows. Used only by Feature 21.
+
+    ``proposed_allocations`` is a list of dicts shaped like:
+        {
+          "timetable_id": int,
+          "hall_id": int,
+          "allocated_capacity": int,
+          "purpose": str,
+        }
+    """
+
+    errors = []
+
+    examination = Examination.query.get(examination_id)
+
+    if not examination:
+        return {
+            "status": "INVALID",
+            "source": "proposed",
+            "errors": ["Examination not found"],
+        }
+
+    timetables = (
+        Timetable.query
+        .filter_by(examination_id=examination_id)
+        .all()
+    )
+
+    if not timetables:
+        return {
+            "status": "INVALID",
+            "source": "proposed",
+            "errors": ["Timetable has not been generated"],
+        }
+
+    if eligible_students is None:
+        eligible_students = len(
+            get_eligible_students(examination_id)
+        )
+
+    if accessibility_students is None:
+        accessibility_students = len([
+            student
+            for student in get_eligible_students(examination_id)
+            if getattr(student, "disability", False)
+        ])
+
+    if not proposed_allocations:
+        return {
+            "status": "INVALID",
+            "source": "proposed",
+            "errors": [
+                "Proposed allocation is empty"
+            ],
+        }
+
+    hall_ids = {
+        row["hall_id"]
+        for row in proposed_allocations
+    }
+
+    halls = {
+        hall.id: hall
+        for hall in Hall.query.filter(
+            Hall.id.in_(list(hall_ids))
+        ).all()
+    } if hall_ids else {}
+
+    timetable_ids = {t.id for t in timetables}
+
+    seen_timetable_halls = set()
+
+    for row in proposed_allocations:
+
+        timetable_id = row.get("timetable_id")
+        hall_id = row.get("hall_id")
+        capacity = row.get("allocated_capacity")
+
+        if timetable_id not in timetable_ids:
+            errors.append(
+                f"Proposed row references unknown "
+                f"timetable #{timetable_id}"
+            )
+            continue
+
+        hall = halls.get(hall_id)
+
+        if not hall:
+            errors.append(
+                f"Proposed row references unknown hall #{hall_id}"
+            )
+            continue
+
+        if not hall.is_active:
+            errors.append(f"Hall {hall.name} is inactive")
+
+        if not hall.is_available:
+            errors.append(f"Hall {hall.name} is unavailable")
+
+        if hall.is_under_maintenance:
+            errors.append(
+                f"Hall {hall.name} is under maintenance"
+            )
+
+        if hall.examination_capacity <= 0:
+            errors.append(
+                f"Hall {hall.name} has no examination capacity"
+            )
+
+        if not isinstance(capacity, int) or capacity <= 0:
+            errors.append(
+                f"Hall {hall.name} has invalid allocated capacity"
+            )
+            continue
+
+        if capacity > hall.examination_capacity:
+            errors.append(
+                f"Hall {hall.name} exceeds examination capacity"
+            )
+
+        key = (timetable_id, hall_id)
+        if key in seen_timetable_halls:
+            errors.append(
+                f"Hall {hall.name} is duplicated for "
+                f"timetable #{timetable_id}"
+            )
+        seen_timetable_halls.add(key)
+
+    # Per-timetable capacity + accessibility coverage
+    by_timetable = {}
+
+    for row in proposed_allocations:
+        by_timetable.setdefault(
+            row["timetable_id"], []
+        ).append(row)
+
+    for timetable in timetables:
+
+        rows = by_timetable.get(timetable.id, [])
+
+        total_capacity = sum(
+            r["allocated_capacity"] for r in rows
+        )
+
+        if total_capacity < eligible_students:
+            errors.append(
+                f"Insufficient proposed capacity for "
+                f"{timetable.exam_date} {timetable.session}: "
+                f"{total_capacity}/{eligible_students}"
+            )
+
+        accessible_capacity = sum(
+            r["allocated_capacity"]
+            for r in rows
+            if (
+                halls.get(r["hall_id"]) is not None
+                and halls[r["hall_id"]].is_accessible
+                and halls[r["hall_id"]].floor_no == 0
+            )
+        )
+
+        if accessible_capacity < accessibility_students:
+            errors.append(
+                f"Insufficient accessible proposed capacity "
+                f"for {timetable.exam_date} {timetable.session}: "
+                f"{accessible_capacity}/"
+                f"{accessibility_students}"
+            )
+
+    if errors:
+        return {
+            "status": "INVALID",
+            "source": "proposed",
+            "errors": errors,
+        }
+
+    return {
+        "status": "VALID",
+        "source": "proposed",
+        "errors": [],
+        "eligible_students": eligible_students,
+        "accessibility_students": accessibility_students,
+    }

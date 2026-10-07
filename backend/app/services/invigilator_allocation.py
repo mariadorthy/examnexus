@@ -125,7 +125,11 @@ def _staff_has_conflict(
 
     return False
 
-def generate_invigilator_allocation(examination_id, force=False):
+def generate_invigilator_allocation(
+    examination_id,
+    force=False,
+    commit=True
+):
     """
     Generate invigilator allocations for every HallAllocation of the
     examination. If force=True, existing rows for the examination are

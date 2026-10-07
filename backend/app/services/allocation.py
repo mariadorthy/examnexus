@@ -9,14 +9,36 @@ from app.models.hall_allocation import HallAllocation
 
 from app.services.eligibility import get_eligible_students
 
-
-def hall_conflicts(hall_id, timetable):
+def hall_conflicts(
+    hall_id,
+    timetable,
+    excluded_hall_ids=None,
+    ignore_examination_id=None
+):
     """
     Check whether this hall is already allocated to another
     timetable entry on the same date with overlapping exam time.
+
+    ``excluded_hall_ids`` (Feature 21) is a transient in-memory
+    set of hall ids that are treated as unavailable for this
+    operation only. It is never persisted. A hall in the
+    exclusion set is considered conflicting by definition.
+
+    ``ignore_examination_id`` (Feature 21) causes HallAllocation
+    rows belonging to that examination to be ignored during the
+    conflict check. This is required because:
+      * generate_allocation(force=True) deletes the examination's
+        own rows before planning;
+      * simulate_reallocation does not delete them, but must
+        behave as if it did.
+    Both paths therefore see the same "world" the planner is
+    meant to act on.
     """
 
-    existing_allocations = (
+    if excluded_hall_ids and hall_id in excluded_hall_ids:
+        return True
+
+    query = (
         HallAllocation.query
         .join(
             Timetable,
@@ -26,8 +48,15 @@ def hall_conflicts(hall_id, timetable):
             HallAllocation.hall_id == hall_id,
             Timetable.exam_date == timetable.exam_date
         )
-        .all()
     )
+
+    if ignore_examination_id is not None:
+        query = query.filter(
+            HallAllocation.examination_id
+            != ignore_examination_id
+        )
+
+    existing_allocations = query.all()
 
     for allocation in existing_allocations:
         existing_timetable = allocation.timetable
@@ -42,12 +71,22 @@ def hall_conflicts(hall_id, timetable):
             return True
 
     return False
-
-
-def get_available_halls(timetable):
+def get_available_halls(
+    timetable,
+    excluded_hall_ids=None,
+    ignore_examination_id=None
+):
     """
     Return halls that are usable and not occupied during
     the timetable's date/time.
+
+    ``excluded_hall_ids`` (Feature 21) is an optional transient
+    set of hall ids excluded from the result without modifying
+    any Hall row in the database.
+
+    ``ignore_examination_id`` (Feature 21) is passed through to
+    hall_conflicts() so the examination's own current rows do
+    not block replanning.
     """
 
     halls = (
@@ -64,21 +103,326 @@ def get_available_halls(timetable):
         .all()
     )
 
+    if excluded_hall_ids:
+        halls = [
+            hall
+            for hall in halls
+            if hall.id not in excluded_hall_ids
+        ]
+
     return [
         hall
         for hall in halls
-        if not hall_conflicts(hall.id, timetable)
+        if not hall_conflicts(
+            hall.id,
+            timetable,
+            excluded_hall_ids=excluded_hall_ids,
+            ignore_examination_id=ignore_examination_id
+        )
+    ]
+    
+def _plan_hall_allocations(
+    examination,
+    timetables,
+    excluded_hall_ids=None
+):
+    """
+    Pure (non-persisting) hall allocation planner.
+
+    Reuses the exact same deterministic algorithm used by
+    generate_allocation(). Returns HallAllocation model
+    instances that have NOT been added to db.session — the
+    caller decides whether to persist them.
+
+    This is the single source of truth for both live
+    allocation (Feature 17) and what-if reallocation
+    (Feature 21).
+
+    The planner replaces this examination's own allocations,
+    so HallAllocation rows for ``examination.id`` are ignored
+    during conflict checks (see ignore_examination_id).
+    """
+
+    students = get_eligible_students(examination.id)
+
+    if not students:
+        return {
+            "success": False,
+            "message": "No eligible registered students found",
+            "eligible_students": 0,
+            "halls_used": 0
+        }
+
+    total_students = len(students)
+
+    accessibility_students = [
+        student
+        for student in students
+        if getattr(student, "disability", False)
     ]
 
+    normal_students_count = (
+        total_students - len(accessibility_students)
+    )
 
-def generate_allocation(examination_id, force=False):
+    allocations = []
+
+    for timetable in timetables:
+
+        available_halls = get_available_halls(
+            timetable,
+            excluded_hall_ids=excluded_hall_ids,
+            ignore_examination_id=examination.id
+        )
+
+        if not available_halls:
+            return {
+                "success": False,
+                "message": (
+                    f"No available halls for "
+                    f"{timetable.exam_date} {timetable.session}"
+                ),
+                "eligible_students": total_students,
+                "allocated_capacity": 0,
+                "shortage": total_students
+            }
+
+        accessibility_halls = [
+            hall
+            for hall in available_halls
+            if hall.floor_no == 0 and hall.is_accessible
+        ]
+
+        accessibility_capacity = sum(
+            hall.examination_capacity
+            for hall in accessibility_halls
+        )
+
+        if len(accessibility_students) > accessibility_capacity:
+            return {
+                "success": False,
+                "message": (
+                    "Insufficient accessible hall capacity"
+                ),
+                "exam_date": timetable.exam_date.isoformat(),
+                "session": timetable.session,
+                "eligible_students": total_students,
+                "students_requiring_accessibility": len(
+                    accessibility_students
+                ),
+                "accessible_capacity": accessibility_capacity,
+                "shortage": (
+                    len(accessibility_students)
+                    - accessibility_capacity
+                )
+            }
+
+        total_available_capacity = sum(
+            hall.examination_capacity
+            for hall in available_halls
+        )
+
+        if total_students > total_available_capacity:
+            return {
+                "success": False,
+                "message": "Insufficient hall capacity",
+                "exam_date": timetable.exam_date.isoformat(),
+                "session": timetable.session,
+                "eligible_students": total_students,
+                "available_capacity": total_available_capacity,
+                "shortage": (
+                    total_students
+                    - total_available_capacity
+                )
+            }
+
+        remaining_accessibility = len(
+            accessibility_students
+        )
+
+        remaining_normal = normal_students_count
+
+        used_hall_ids = set()
+
+        ordered_accessibility_halls = sorted(
+            accessibility_halls,
+            key=lambda hall: (
+                hall.examination_capacity,
+                hall.id
+            )
+        )
+
+        ordered_normal_halls = sorted(
+            available_halls,
+            key=lambda hall: (
+                hall.examination_capacity,
+                hall.id
+            )
+        )
+
+        # STEP 1: accessibility-first (smallest-fit-first)
+        for hall in ordered_accessibility_halls:
+
+            if remaining_accessibility <= 0:
+                break
+
+            if hall.id in used_hall_ids:
+                continue
+
+            capacity = hall.examination_capacity
+
+            accessibility_assigned = min(
+                capacity,
+                remaining_accessibility
+            )
+
+            remaining_accessibility -= accessibility_assigned
+
+            normal_assigned = min(
+                capacity - accessibility_assigned,
+                remaining_normal
+            )
+
+            remaining_normal -= normal_assigned
+
+            allocated_capacity = (
+                accessibility_assigned
+                + normal_assigned
+            )
+
+            if allocated_capacity <= 0:
+                continue
+
+            if normal_assigned > 0:
+                purpose = "MIXED"
+            else:
+                purpose = "ACCESSIBILITY"
+
+            allocations.append(
+                HallAllocation(
+                    examination_id=examination.id,
+                    timetable_id=timetable.id,
+                    hall_id=hall.id,
+                    allocated_capacity=allocated_capacity,
+                    purpose=purpose,
+                    status="GENERATED"
+                )
+            )
+
+            used_hall_ids.add(hall.id)
+
+        # STEP 2: normal students (smallest-fit-first, largest fallback)
+        while remaining_normal > 0:
+
+            candidates = [
+                hall
+                for hall in ordered_normal_halls
+                if hall.id not in used_hall_ids
+                and hall.examination_capacity > 0
+            ]
+
+            if not candidates:
+                break
+
+            fitting = [
+                hall
+                for hall in candidates
+                if hall.examination_capacity
+                <= remaining_normal
+            ]
+
+            if fitting:
+                chosen = fitting[0]
+            else:
+                chosen = candidates[0]
+
+            capacity = chosen.examination_capacity
+
+            normal_assigned = min(
+                capacity,
+                remaining_normal
+            )
+
+            if normal_assigned <= 0:
+                break
+
+            remaining_normal -= normal_assigned
+
+            allocations.append(
+                HallAllocation(
+                    examination_id=examination.id,
+                    timetable_id=timetable.id,
+                    hall_id=chosen.id,
+                    allocated_capacity=normal_assigned,
+                    purpose="NORMAL",
+                    status="GENERATED"
+                )
+            )
+
+            used_hall_ids.add(chosen.id)
+
+        if (
+            remaining_accessibility > 0
+            or remaining_normal > 0
+        ):
+            return {
+                "success": False,
+                "message": (
+                    "Unable to allocate sufficient "
+                    "hall capacity"
+                ),
+                "exam_date": timetable.exam_date.isoformat(),
+                "session": timetable.session,
+                "eligible_students": total_students,
+                "unallocated_count": (
+                    remaining_accessibility
+                    + remaining_normal
+                )
+            }
+
+    return {
+        "success": True,
+        "allocations": allocations,
+        "total_students": total_students,
+        "accessibility_students": accessibility_students,
+    }
+
+
+def generate_allocation(
+    examination_id,
+    force=False,
+    excluded_hall_ids=None
+):
     """
     Generate Exam → Hall allocation for every timetable entry
     belonging to the examination, then generate seat allocation.
 
     If force=True, existing hall + seat allocations for this
     examination are cleared before regeneration.
+
+    ``excluded_hall_ids`` (Feature 21) is an optional iterable of
+    hall ids that are transiently treated as unavailable for this
+    run only. It is never persisted to the Hall table.
     """
+
+    # Normalize the exclusion set once, so downstream code only
+    # ever deals with a clean set of ints (or None).
+    if excluded_hall_ids:
+        try:
+            excluded_hall_ids = {
+                int(hall_id)
+                for hall_id in excluded_hall_ids
+            }
+        except (TypeError, ValueError):
+            return {
+                "success": False,
+                "message": (
+                    "excluded_hall_ids must be a list of "
+                    "integer hall ids."
+                )
+            }
+    else:
+        excluded_hall_ids = None
 
     examination = Examination.query.get(examination_id)
 
@@ -153,13 +497,10 @@ def generate_allocation(examination_id, force=False):
 
             db.session.flush()
 
-            # Do NOT commit here.
-            #
-            # Keep the cleanup inside the same transaction as the
-            # new hall + seat allocation generation.
-            #
-            # If anything fails later, the entire regeneration can
-            # be rolled back safely.
+            # Do NOT commit here. Keep the cleanup inside the
+            # same transaction as the new hall + seat generation.
+            # If anything fails later, the entire regeneration
+            # can be rolled back safely.
 
         except Exception as error:
             db.session.rollback()
@@ -173,309 +514,44 @@ def generate_allocation(examination_id, force=False):
                 "error": str(error)
             }
 
-    students = get_eligible_students(examination_id)
-
-    if not students:
-        return {
-            "success": False,
-            "message": "No eligible registered students found",
-            "eligible_students": 0,
-            "halls_used": 0
-        }
-
-    total_students = len(students)
-
-    accessibility_students = [
-        student
-        for student in students
-        if getattr(student, "disability", False)
-    ]
-
-    normal_students_count = (
-        total_students - len(accessibility_students)
-    )
-
-    allocations = []
+    # ---------------------------------------------------------
+    # PLANNING (pure, in-memory)
+    # ---------------------------------------------------------
 
     try:
-        for timetable in timetables:
+        plan_result = _plan_hall_allocations(
+            examination=examination,
+            timetables=timetables,
+            excluded_hall_ids=excluded_hall_ids
+        )
+    except Exception as error:
+        db.session.rollback()
 
-            available_halls = get_available_halls(timetable)
+        return {
+            "success": False,
+            "message": "Failed to generate hall allocation",
+            "error": str(error)
+        }
 
-            if not available_halls:
-                db.session.rollback()
+    if not plan_result.get("success"):
+        # Planner already captured the specific reason.
+        db.session.rollback()
+        return plan_result
 
-                return {
-                    "success": False,
-                    "message": (
-                        f"No available halls for "
-                        f"{timetable.exam_date} {timetable.session}"
-                    ),
-                    "eligible_students": total_students,
-                    "allocated_capacity": 0,
-                    "shortage": total_students
-                }
+    allocations = plan_result["allocations"]
+    total_students = plan_result["total_students"]
+    accessibility_students = plan_result["accessibility_students"]
 
-            # -------------------------------------------------
-            # ACCESSIBILITY HALLS
-            # -------------------------------------------------
-            #
-            # Floor 0 + accessible flag are used for students
-            # requiring accessibility support.
-            #
+    # ---------------------------------------------------------
+    # PERSIST HALL ALLOCATIONS
+    # ---------------------------------------------------------
 
-            accessibility_halls = [
-                hall
-                for hall in available_halls
-                if hall.floor_no == 0 and hall.is_accessible
-            ]
-
-            accessibility_capacity = sum(
-                hall.examination_capacity
-                for hall in accessibility_halls
-            )
-
-            if len(accessibility_students) > accessibility_capacity:
-                db.session.rollback()
-
-                return {
-                    "success": False,
-                    "message": (
-                        "Insufficient accessible hall capacity"
-                    ),
-                    "exam_date": timetable.exam_date.isoformat(),
-                    "session": timetable.session,
-                    "eligible_students": total_students,
-                    "students_requiring_accessibility": len(
-                        accessibility_students
-                    ),
-                    "accessible_capacity": accessibility_capacity,
-                    "shortage": (
-                        len(accessibility_students)
-                        - accessibility_capacity
-                    )
-                }
-
-            total_available_capacity = sum(
-                hall.examination_capacity
-                for hall in available_halls
-            )
-
-            if total_students > total_available_capacity:
-                db.session.rollback()
-
-                return {
-                    "success": False,
-                    "message": "Insufficient hall capacity",
-                    "exam_date": timetable.exam_date.isoformat(),
-                    "session": timetable.session,
-                    "eligible_students": total_students,
-                    "available_capacity": total_available_capacity,
-                    "shortage": (
-                        total_students
-                        - total_available_capacity
-                    )
-                }
-
-            remaining_accessibility = len(
-                accessibility_students
-            )
-
-            remaining_normal = normal_students_count
-
-            used_hall_ids = set()
-
-            # -------------------------------------------------
-            # OPTIMIZATION (P1 Feature 17):
-            #
-            # Smallest-fit-first hall selection.
-            #
-            # The previous implementation consumed halls in
-            # capacity-descending order, which can waste a large
-            # accessible hall on a small number of accessibility
-            # students and force normal students into additional
-            # halls. Sorting halls by (capacity ASC, id ASC)
-            # keeps the result deterministic while minimizing the
-            # number of halls used per timetable.
-            #
-            # This is a pure ordering change. All hard constraints
-            # (availability, maintenance, conflicts, capacity,
-            # accessibility) are still enforced by the existing
-            # checks above and by validate_allocation().
-            # -------------------------------------------------
-
-            ordered_accessibility_halls = sorted(
-                accessibility_halls,
-                key=lambda hall: (
-                    hall.examination_capacity,
-                    hall.id
-                )
-            )
-
-            ordered_normal_halls = sorted(
-                available_halls,
-                key=lambda hall: (
-                    hall.examination_capacity,
-                    hall.id
-                )
-            )
-
-            # -------------------------------------------------
-            # STEP 1: ALLOCATE ACCESSIBILITY REQUIREMENT
-            # -------------------------------------------------
-
-            for hall in ordered_accessibility_halls:
-
-                if remaining_accessibility <= 0:
-                    break
-
-                if hall.id in used_hall_ids:
-                    continue
-
-                capacity = hall.examination_capacity
-
-                accessibility_assigned = min(
-                    capacity,
-                    remaining_accessibility
-                )
-
-                remaining_accessibility -= accessibility_assigned
-
-                # Use remaining capacity for normal students
-                normal_assigned = min(
-                    capacity - accessibility_assigned,
-                    remaining_normal
-                )
-
-                remaining_normal -= normal_assigned
-
-                allocated_capacity = (
-                    accessibility_assigned
-                    + normal_assigned
-                )
-
-                if allocated_capacity <= 0:
-                    continue
-
-                if normal_assigned > 0:
-                    purpose = "MIXED"
-                else:
-                    purpose = "ACCESSIBILITY"
-
-                allocations.append(
-                    HallAllocation(
-                        examination_id=examination.id,
-                        timetable_id=timetable.id,
-                        hall_id=hall.id,
-                        allocated_capacity=allocated_capacity,
-                        purpose=purpose,
-                        status="GENERATED"
-                    )
-                )
-
-                used_hall_ids.add(hall.id)
-
-            # -------------------------------------------------
-            # STEP 2: ALLOCATE NORMAL STUDENTS
-            #
-            # Smallest-fit-first pass: pick the smallest hall that
-            # can still make progress. If no remaining hall is
-            # large enough to cover the residual alone, fall back
-            # to the largest remaining hall to guarantee progress
-            # (never leaves a student unallocated when total
-            # capacity is sufficient).
-            # -------------------------------------------------
-
-            while remaining_normal > 0:
-
-                candidates = [
-                    hall
-                    for hall in ordered_normal_halls
-                    if hall.id not in used_hall_ids
-                    and hall.examination_capacity > 0
-                ]
-
-                if not candidates:
-                    break
-
-                # Smallest hall whose capacity still fits inside
-                # the remaining count (i.e. we would not waste
-                # capacity by opening it).
-                fitting = [
-                    hall
-                    for hall in candidates
-                    if hall.examination_capacity
-                    <= remaining_normal
-                ]
-
-                if fitting:
-                    # Smallest fitting hall.
-                    chosen = fitting[0]
-                else:
-                    # Remaining count is smaller than every
-                    # remaining hall's capacity. Open the
-                    # smallest remaining hall (last hall needed).
-                    chosen = candidates[0]
-
-                capacity = chosen.examination_capacity
-
-                normal_assigned = min(
-                    capacity,
-                    remaining_normal
-                )
-
-                if normal_assigned <= 0:
-                    break
-
-                remaining_normal -= normal_assigned
-
-                allocations.append(
-                    HallAllocation(
-                        examination_id=examination.id,
-                        timetable_id=timetable.id,
-                        hall_id=chosen.id,
-                        allocated_capacity=normal_assigned,
-                        purpose="NORMAL",
-                        status="GENERATED"
-                    )
-                )
-
-                used_hall_ids.add(chosen.id)
-
-            # -------------------------------------------------
-            # FINAL CAPACITY CHECK
-            # -------------------------------------------------
-
-            if (
-                remaining_accessibility > 0
-                or remaining_normal > 0
-            ):
-                db.session.rollback()
-
-                return {
-                    "success": False,
-                    "message": (
-                        "Unable to allocate sufficient "
-                        "hall capacity"
-                    ),
-                    "exam_date": timetable.exam_date.isoformat(),
-                    "session": timetable.session,
-                    "eligible_students": total_students,
-                    "unallocated_count": (
-                        remaining_accessibility
-                        + remaining_normal
-                    )
-                }
-        # -----------------------------------------------------
-        # SAVE HALL ALLOCATIONS
-        # -----------------------------------------------------
-
+    try:
         db.session.add_all(allocations)
         db.session.flush()
 
-        # Refresh SQLAlchemy's view of the database after
-        # regeneration so seat allocation uses only the
-        # newly-created HallAllocation records.
+        # Refresh SQLAlchemy's view so seat allocation reads only
+        # the newly-created HallAllocation records.
         db.session.expire_all()
 
     except Exception as error:
@@ -483,7 +559,7 @@ def generate_allocation(examination_id, force=False):
 
         return {
             "success": False,
-            "message": "Failed to generate hall allocation",
+            "message": "Failed to persist hall allocation",
             "error": str(error)
         }
 
@@ -511,6 +587,7 @@ def generate_allocation(examination_id, force=False):
         force=True,
         commit=False
     )
+
     if not seat_result.get("success"):
         db.session.rollback()
 
