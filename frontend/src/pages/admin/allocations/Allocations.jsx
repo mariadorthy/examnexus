@@ -32,6 +32,8 @@ import {
 } from "../../../services/invigilatorService";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
+import RequirementUnderstanding from "../../../components/admin/RequirementUnderstanding";
+
 function Allocations({
   user,
   onLogout,
@@ -844,14 +846,21 @@ const [activeAllocationTab, setActiveAllocationTab] =
               </div>
             )}
 
-                   </section>
+          </section>
+
+          {/* ================================================= */}
+          {/* NATURAL-LANGUAGE REQUIREMENT UNDERSTANDING */}
+          {/* ================================================= */}
+
+          <section className="mb-6">
+            <RequirementUnderstanding />
+          </section>
 
           {/* ================================================= */}
           {/* BULK HALL ALLOCATION */}
           {/* ================================================= */}
 
           <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
-
             <div className="flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-center md:justify-between">
 
               <div>

@@ -45,6 +45,7 @@ def create_app(config=None):
     from app.routes.imports import imports_bp
     from app.routes.hall_tickets import hall_tickets_bp
     from app.routes.reports import reports_bp
+    from app.routes.requirements import requirements_bp
     from app.models.seat_allocation import SeatAllocation
     # -----------------------------------------------------
     # REGISTER BLUEPRINTS
@@ -124,6 +125,7 @@ def create_app(config=None):
     reports_bp,
     url_prefix="/api/reports"
 )
+    app.register_blueprint(requirements_bp)
 
     # -----------------------------------------------------
     # CREATE DATABASE TABLES
