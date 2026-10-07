@@ -133,9 +133,9 @@ _HALL_STATUS_KEYWORDS = {
         r"\bnot\s+available\s+halls?\b",
     ],
     "available": [
-        r"\bavailable\s+halls?\b",
-        r"\bhalls?\s+(that\s+are\s+)?available\b",
-    ],
+    r"\bavailable\s+halls?\b",
+    r"\bhalls?\s+(?:that\s+)?are\s+available\b",
+],
 }
 
 
@@ -164,21 +164,20 @@ def _detect_sql_injection(text: str) -> bool:
         for pattern in SQL_INJECTION_PATTERNS
     )
 
-
 def _extract_course(text: str) -> str | None:
-    # "for computer science", "in computer science",
-    # "of the computer science course"
     match = re.search(
         r"\b(?:for|in|of)\s+(?:the\s+)?"
         r"([a-z][a-z\s&\-]{2,60}?)"
         r"(?:\s+(?:course|department|stream|programme|program))?\b"
         r"(?=\s+(?:exam|examination|timetable|students?|hall)|[?.!,]|$)",
         text,
+        flags=re.IGNORECASE,
     )
+
     if match:
         return match.group(1).strip()
-    return None
 
+    return None
 
 def _extract_status_filter(text: str) -> str | None:
     statuses = [
@@ -186,7 +185,7 @@ def _extract_status_filter(text: str) -> str | None:
         "approved", "published",
     ]
     for status in statuses:
-        if re.search(rf"\b{status}\b", text):
+        if re.search(rf"\b{status}\b", text, flags=re.IGNORECASE):
             return status.upper()
     return None
 
@@ -201,8 +200,12 @@ def _extract_hall_name(text: str) -> str | None:
     if match:
         return match.group(1).lstrip("-").upper()
 
-    # Bare code form: "H204", "h-204"
-    match = re.search(r"\b([a-z]\d{2,4})\b", text)
+    # Bare code form: "H204", "h204"
+    match = re.search(
+        r"\b([a-z]\d{2,4})\b",
+        text,
+        flags=re.IGNORECASE,
+    )
     if match:
         return match.group(1).upper()
 
@@ -210,14 +213,23 @@ def _extract_hall_name(text: str) -> str | None:
 
 def _extract_examination_name(text):
     patterns = [
+        # "status of Database Management Examination"
+        r"(?:status of|status for)\s+(?:the\s+)?(.+?)(?:\?|$)",
+
+        # "status of the Database Management Examination"
+        r"(?:what is|what's)\s+(?:the\s+)?status\s+of\s+(?:the\s+)?(.+?)(?:\?|$)",
+
+        # "status of examination Database Management Examination"
         r"(?:status of|status for)\s+(?:the\s+)?(?:examination|exam)\s+(.+?)(?:\?|$)",
-        r"(?:what is|what's)\s+(?:the\s+)?status\s+of\s+(?:the\s+)?(?:examination|exam)\s+(.+?)(?:\?|$)",
     ]
 
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            return match.group(1).strip(" .?")
+            name = match.group(1).strip(" .?")
+
+            if name:
+                return name
 
     return None
 
@@ -236,7 +248,11 @@ def _extract_examination_id(text: str) -> int | None:
 # INTENT DETECTION
 # =========================================================
 
-def _detect_intent(text: str) -> Dict[str, Any]:
+def _detect_intent(
+    text: str,
+    original_text: str | None = None,
+) -> Dict[str, Any]:
+    original_text = original_text if original_text is not None else text
     """
     Return {"intent": str|None, "params": dict, "unsupported": bool}.
     No guessing — if nothing matches cleanly, intent is None.
@@ -286,7 +302,7 @@ def _detect_intent(text: str) -> Dict[str, Any]:
         or re.search(r"\bhow\s+many\s+students?\s+in\s+hall\b", text)
         or re.search(r"\bstudents?\s+in\s+hall\b", text)
     ):
-        hall = _extract_hall_name(text)
+        hall = _extract_hall_name(original_text)
         if hall:
             return {
                 "intent": "STUDENTS_IN_HALL",
@@ -303,21 +319,32 @@ def _detect_intent(text: str) -> Dict[str, Any]:
     # Hall status queries
     # --------------------------------------------------
     for status, patterns in _HALL_STATUS_KEYWORDS.items():
-        if any(re.search(pattern, text) for pattern in patterns):
-            return {
+        if any(
+            re.search(pattern, text, flags=re.IGNORECASE)
+            for pattern in patterns
+        ):
+                    return {
                 "intent": "HALLS_BY_STATUS",
                 "params": {"status": status},
             }
 
     # Hall capacity query
-    if re.search(r"\bhall\s+capacit(y|ies)\b", text, re.IGNORECASE) or (
-        re.search(r"\bhow\s+many\s+seats\b", text, re.IGNORECASE)
-        and re.search(r"\bhall\b", text, re.IGNORECASE)
+    if (
+        re.search(r"\bhall\s+capacit(y|ies)\b", text, re.IGNORECASE)
+        or re.search(
+            r"\bcapacit(y|ies)\s+of\s+hall\b",
+            text,
+            re.IGNORECASE,
+        )
+        or (
+            re.search(r"\bhow\s+many\s+seats\b", text, re.IGNORECASE)
+            and re.search(r"\bhall\b", text, re.IGNORECASE)
+        )
     ):
         return {
             "intent": "HALL_CAPACITY",
             "params": {
-                "hall": _extract_hall_name(text)
+                "hall": _extract_hall_name(original_text)
             },
         }
 
@@ -328,7 +355,7 @@ def _detect_intent(text: str) -> Dict[str, Any]:
         return {
             "intent": "EXAMINATION_TIMETABLE",
             "params": {
-                "course": _extract_course(text),
+                "course": _extract_course(original_text),
                 "examination_id": _extract_examination_id(text),
             },
         }
@@ -364,7 +391,7 @@ def _detect_intent(text: str) -> Dict[str, Any]:
     # --------------------------------------------------
     # Examination status
     # --------------------------------------------------
-    exam_name = _extract_examination_name(text)
+    exam_name = _extract_examination_name(original_text)
 
     if re.search(
         r"\b(status|state)\b.*\b(examination|exam)\b",
@@ -491,7 +518,9 @@ def parse_query(text: Any) -> Dict[str, Any]:
         }
 
     # Intent detection
-    detection = _detect_intent(normalized)
+    # Use normalized text for case-insensitive intent matching,
+    # while passing original text for preserving extracted names.
+    detection = _detect_intent(normalized, text)
 
     if detection.get("intent") is None:
         return {

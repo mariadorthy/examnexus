@@ -15,7 +15,7 @@ from flask import Blueprint, jsonify, request
 
 from app.auth.decorators import roles_required
 from app.services.natural_language_query_parser import parse_query
-from backend.app.services.natural_language_query import execute_query
+from app.services.natural_language_query import execute_query
 
 
 nl_queries_bp = Blueprint(

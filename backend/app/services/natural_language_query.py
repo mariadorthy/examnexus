@@ -24,6 +24,7 @@ from app.models.hall import Hall
 from app.models.timetable import Timetable
 from app.models.hall_allocation import HallAllocation
 from app.models.allocation import Allocation
+from app.models.seat_allocation import SeatAllocation
 from app.models.exam_registration import ExamRegistration
 from app.services.eligibility import get_eligible_students
 
@@ -87,13 +88,13 @@ def _examination_status(params):
     if not exam:
         return _err("Examination not found.")
 
-    return [
+    return _ok([
         {
             "id": exam.id,
             "name": exam.name,
             "status": exam.status,
         }
-    ]
+    ])
     
 
 def _eligible_student_count(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -274,12 +275,12 @@ def _unallocated_student_count(params):
         or 0
     )
 
-    return {
+    return _ok({
         "examination_id": examination_id,
         "registered": registered,
         "allocated": allocated,
         "unallocated": max(registered - allocated, 0),
-    }
+    })
 
 
 def _examination_timetable(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -332,7 +333,6 @@ def _examination_timetable(params: Dict[str, Any]) -> Dict[str, Any]:
             for t in rows
         ],
     })
-
 def _hall_capacity(params):
     hall_name = params.get("hall")
 
@@ -348,7 +348,7 @@ def _hall_capacity(params):
     if not hall:
         return _err("Hall not found.")
 
-    return [
+    return _ok([
         {
             "id": hall.id,
             "name": hall.name,
@@ -359,8 +359,7 @@ def _hall_capacity(params):
                 None,
             ),
         }
-    ]
-
+    ])
 
 _HANDLERS = {
     "LIST_EXAMINATIONS": _list_examinations,
