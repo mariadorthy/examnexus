@@ -15,8 +15,7 @@ The layer must:
 - be deterministic
 """
 import pytest
-from app.services.nl_query_parser import parse_query
-
+from backend.app.services.natural_lanuage_query_parser import parse_query
 
 # ============================================================
 # Parser — supported intents
