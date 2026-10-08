@@ -1,6 +1,6 @@
 const API_URL =
-  `${import.meta.env.VITE_API_BASE_URL|| "http://127.0.0.1:5000"}/api/auth`;
-
+  `${import.meta.env.VITE_API_BASE_URL}/api/auth`;
+  
 export async function login(
   email,
   password,

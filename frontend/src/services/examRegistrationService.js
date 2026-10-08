@@ -1,7 +1,7 @@
 import { post } from "./api";
 
-const API_URL =
-  `${import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"}/api/exam-registrations/`;
+  const API_URL =
+  `${import.meta.env.VITE_API_BASE_URL}/api/exam-registrations`;
 
 export async function getExamRegistrations() {
   const response = await fetch(API_URL);

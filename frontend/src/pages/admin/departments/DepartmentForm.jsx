@@ -6,8 +6,6 @@ import {
 } from "lucide-react";
 
 import { post, put } from "../../../services/api";
-const API_URL =
-  "http://127.0.0.1:5000/api/departments";
 
 function DepartmentForm({
   department,

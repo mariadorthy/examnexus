@@ -20,8 +20,6 @@ import {
   importCsv,
 } from "../../../services/api";
 import CsvImport from "../../../components/admin/CsvImport/CsvImport";
-const API_URL = "http://127.0.0.1:5000/api/departments";
-
 
 function Departments({
   user,
