@@ -33,6 +33,20 @@ function App() {
   const [adminPage, setAdminPage] =
     useState("Dashboard");
 
+
+  // --------------------------------------------------
+  // PUBLIC HALL-TICKET QR VERIFICATION
+  // Must run BEFORE authentication checks.
+  // QR scanners must not be redirected to Login.
+  // --------------------------------------------------
+  if (
+    window.location.pathname.startsWith(
+      "/verify-hall-ticket/"
+    )
+  ) {
+    return <HallTicketVerification />;
+  }
+
   const handleLogin = (userData) => {
 
     setUser(userData);
@@ -77,115 +91,115 @@ function App() {
     }
 
 
-if (adminPage === "Courses") {
-  return (
-    <Courses
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "Courses") {
+      return (
+        <Courses
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "Subjects") {
-  return (
-    <Subjects
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "Subjects") {
+      return (
+        <Subjects
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "Students") {
-  return (
-    <Students
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "Students") {
+      return (
+        <Students
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "Staff") {
-  return (
-    <Staff
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "Staff") {
+      return (
+        <Staff
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "Examinations") {
-  return (
-    <Examinations
-  user={user}
-  onLogout={handleLogout}
-  onNavigate={setAdminPage}
-/>
-  );
-}
+    if (adminPage === "Examinations") {
+      return (
+        <Examinations
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "Timetable") {
-  return (
-    <Timetables
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "Timetable") {
+      return (
+        <Timetables
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "Registrations") {
-  return (
-    <ExamRegistrations
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "Registrations") {
+      return (
+        <ExamRegistrations
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "Halls") {
-  return (
-    <Halls
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "Halls") {
+      return (
+        <Halls
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "Allocations") {
-  return (
-    <Allocations
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "Allocations") {
+      return (
+        <Allocations
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "HallTickets") {
-  return (
-    <HallTickets
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "HallTickets") {
+      return (
+        <HallTickets
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
 
-if (adminPage === "Reports") {
-  return (
-    <Reports
-      user={user}
-      onLogout={handleLogout}
-      onNavigate={setAdminPage}
-    />
-  );
-}
+    if (adminPage === "Reports") {
+      return (
+        <Reports
+          user={user}
+          onLogout={handleLogout}
+          onNavigate={setAdminPage}
+        />
+      );
+    }
     return (
       <AdminDashboard
         user={user}
@@ -201,28 +215,20 @@ if (adminPage === "Reports") {
 
     return (
       <StaffDashboard
-      user={user}
-      onLogout={handleLogout}
-    />
+        user={user}
+        onLogout={handleLogout}
+      />
     );
 
   }
 
-  if (
-  window.location.pathname.startsWith(
-    "/verify-hall-ticket/"
-  )
-) {
-  return <HallTicketVerification />;
-}
-
   if (user.role === "student") {
 
     return (
-       <StudentDashboard
-      user={user}
-      onLogout={handleLogout}
-    />
+      <StudentDashboard
+        user={user}
+        onLogout={handleLogout}
+      />
     );
 
   }
