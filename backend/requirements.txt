@@ -3,6 +3,7 @@ Flask-SQLAlchemy
 flask-cors
 python-dotenv
 psycopg2-binary
+psycopg
 PyJWT
 Flask-Migrate
 qrcode 
