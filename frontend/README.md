@@ -1,79 +1,187 @@
 # ExamNexus — Dynamic Examination Resource Orchestration Platform
 
-ExamNexus is a web application that helps universities manage examination data, timetables, eligibility, halls, student seating, invigilators, validation, hall tickets, and AI-assisted planning (later).  
-The MVP focuses on a **deterministic, reliable examination workflow** before adding AI or advanced features.
+ExamNexus is a web-based examination resource orchestration platform that helps universities plan, allocate, validate, and manage examination resources.
 
----
+It connects examination data, timetables, student eligibility, halls, seating, invigilators, validation, hall tickets, reporting, and controlled intelligent assistance into one workflow.
 
-## 🎯 Project Vision
-Workflow: **Login → Role-based dashboard → Master data → Examination creation → Timetable → Registration → Eligibility → Hall allocation → Seat allocation → Invigilator allocation → Validation → Admin approval → Hall ticket generation → Reports/Dashboard**
+## Project Vision
 
----
+ExamNexus supports the complete examination planning lifecycle:
 
-## 👥 User Roles
-- **Admin**: Full exam management (departments, courses, subjects, students, staff, halls, exams, timetables, allocations, validation, approval, hall tickets, reports).  
-- **Staff/Invigilator**: Login, view assigned exams/halls/duties, access permitted reports.  
-- **Student**: Login, view profile, exam schedule, eligibility, hall/seat allocation, hall ticket with QR verification.
+```text
+Login
+  ↓
+Master Data
+  ↓
+Examination + Timetable
+  ↓
+Registration + Eligibility
+  ↓
+Hall Allocation
+  ↓
+Seat + Invigilator Allocation
+  ↓
+Validation
+  ↓
+Review + Approval
+  ↓
+Publication + Hall Tickets
+  ↓
+Reports
+```
 
----
+The platform also supports adaptive planning when examination resources change.
 
-## 🔐 Authentication
-- Email/ID + password login  
-- Password hashing (never plaintext)  
-- Role-based access control (Admin, Staff, Student)  
-- Protected routes + logout  
-- No 2FA for MVP (Admin 2FA deferred)  
+```text
+Existing Allocation
+       ↓
+Resource / Constraint Change
+       ↓
+What-If Reallocation
+       ↓
+Validation
+       ↓
+Administrator Approval
+       ↓
+Apply Changes
+```
 
----
+## User Roles
 
-## 🚀 MVP Features (P0)
-Mandatory for MVP:
-1. Authentication & RBAC  
-2. Department/Course/Subject/Student/Staff/Hall CRUD  
-3. Manual entry + CSV upload  
-4. Examination creation + timetable validation  
-5. Student registration + eligibility checking  
-6. Hall availability + hall allocation (capacity, accessibility-first)  
-7. Seat allocation (valid numbering, no duplicates)  
-8. Invigilator allocation (availability, no overlaps)  
-9. Independent validation service  
-10. Admin review & approval  
-11. Hall ticket generation + QR verification  
-12. Dashboard & basic reports  
+### Administrator
 
----
+Manages examination data, timetables, registrations, allocations, validation, approval, hall tickets, reports, and reallocation.
 
-## ⛔ Exclusions (MVP)
-Do not introduce unless justified later:
-- FastAPI, Next.js, Redux  
-- MongoDB, Redis  
-- Docker/Kubernetes, microservices  
-- LangChain/LangGraph, ML, vector DBs  
-- WebSockets, OR-Tools, complex distributed architecture  
+### Staff / Invigilator
 
----
+Views assigned examinations, halls, duties, and permitted information.
 
-## 📊 Demo Story
-1. Admin logs in.  
-2. Creates master data (departments, courses, subjects, students, staff, halls).  
-3. Creates an examination and timetable.  
-4. Registers students and checks eligibility.  
-5. Allocates halls and seats.  
-6. Assigns invigilators.  
-7. Runs validation service.  
-8. Reviews and approves plan.  
-9. Generates hall tickets with QR codes.  
-10. Views dashboard and reports.  
+### Student
 
----
+Views examination information, eligibility, timetable, hall/seat allocation, and hall tickets.
 
-## ✅ MVP Stop Condition
-Phase 0 is complete when the **basic examination workflow works reliably end-to-end** with authentication, CRUD, timetable, eligibility, allocation, validation, approval, hall tickets, and dashboard.
+## Core Capabilities
 
----
+* Authentication and role-based access control
+* Department, course, subject, student, staff, and hall management
+* CSV-based data import and validation
+* Examination and timetable management
+* Student registration and eligibility checking
+* Capacity- and constraint-aware hall allocation
+* Accessibility-aware hall allocation
+* Seat allocation with uniqueness checks
+* Invigilator allocation
+* Independent allocation validation
+* Examination lifecycle and administrator approval
+* Dynamic what-if reallocation
+* Hall ticket generation and invalidation after affected reallocations
+* Allocation and examination reports
+* Natural-language read-only queries
+* Explainable allocation decisions
+* Requirement understanding for supported allocation options
 
-## 🛠 Tech Stack
-- **Frontend**: React, Vite, Tailwind CSS  
-- **Backend**: Flask, Flask-SQLAlchemy, SQLAlchemy, Flask-Login, Werkzeug hashing  
-- **Database**: PostgreSQL (normalized schema)  
-- **Tools**: Git/GitHub, Postman/Thunder Client, pytest, qrcode, ReportLab, dotenv, Flask-CORS
+## Intelligent Assistance
+
+ExamNexus uses controlled intelligent-assistance features to help administrators understand requirements, query examination information, explain allocation decisions, and evaluate resource changes.
+
+The system does **not** treat intelligent assistance as an unrestricted decision-maker.
+
+> **AI assists understanding, querying, explanation, and adaptation; deterministic constraints, validation, optimization, and administrator approval govern critical examination decisions.**
+
+Unsupported requirements and unsafe mutation requests are rejected rather than guessed or executed.
+
+## Safety and Reliability
+
+Critical examination decisions are governed by explicit rules.
+
+The system validates:
+
+* Hall capacity and availability
+* Timetable conflicts
+* Accessibility requirements
+* Student eligibility
+* Seat uniqueness
+* Invigilator consistency
+* Allocation completeness
+* Examination lifecycle transitions
+* Reallocation proposals
+
+Database constraints provide an additional integrity layer, while transactional operations help prevent partially applied changes.
+
+## Verification
+
+The backend test suite currently verifies:
+
+```text
+290 tests collected
+288 passed
+2 skipped
+0 failed
+0 errors
+```
+
+A focused intelligent-feature suite also verifies:
+
+```text
+116 tests
+116 passed
+```
+
+Coverage includes allocation, accessibility, validation, requirements, natural-language queries, dynamic reallocation, explainability, CSV validation, lifecycle controls, and end-to-end regression.
+
+## Technology Stack
+
+| Layer            | Technology                                        |
+| ---------------- | ------------------------------------------------- |
+| Frontend         | React, Vite, Tailwind CSS                         |
+| Backend          | Python, Flask                                     |
+| ORM              | Flask-SQLAlchemy / SQLAlchemy                     |
+| Database         | PostgreSQL                                        |
+| Authentication   | JWT-based authentication                          |
+| Testing          | pytest                                            |
+| Supporting Tools | QRCode, Pillow, Flask-CORS, Flask-Migrate, dotenv |
+| Development      | Git / GitHub                                      |
+
+## Project Structure
+
+```text
+ExamNexus/
+├── backend/
+│   ├── app/
+│   │   ├── auth/
+│   │   ├── models/
+│   │   ├── routes/
+│   │   └── services/
+│   ├── migrations/
+│   ├── scripts/
+│   ├── tests/
+│   ├── requirements.txt
+│   └── run.py
+│
+├── frontend/
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── vite.config.js
+│
+└── docs/
+```
+
+## Documentation
+
+Detailed documentation is available in [`docs/README.md`](docs/README.md).
+
+* [Project Overview](docs/project-overview.md)
+* [System Architecture](docs/system-architecture.md)
+* [Features and Workflows](docs/features-and-workflows.md)
+* [AI and Intelligent Orchestration](docs/ai-and-intelligent-orchestration.md)
+* [Development Setup](docs/development-setup.md)
+* [Testing and Verification](docs/testing-and-verification.md)
+
+UI evidence is available under [`docs/screenshots/`](docs/screenshots/).
+
+## Project Outcome
+
+ExamNexus provides a unified workflow for examination resource orchestration while keeping critical decisions **deterministic, validated, explainable, and under administrator control**.
+
+The result is a system designed not only to generate examination allocations, but also to verify, explain, and safely adapt them when examination conditions change.

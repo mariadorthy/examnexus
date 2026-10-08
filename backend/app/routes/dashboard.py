@@ -290,8 +290,80 @@ def get_staff_dashboard():
             "message": "This account is inactive."
         }, 403
 
+    # =====================================================
+    # STAFF EXAMINATION DUTIES
+    # =====================================================
+
+    staff_duties = (
+        InvigilatorAllocation.query
+        .filter_by(staff_id=staff.id)
+        .join(
+            Timetable,
+            InvigilatorAllocation.timetable_id == Timetable.id
+        )
+        .order_by(
+            Timetable.exam_date.asc(),
+            Timetable.start_time.asc(),
+            InvigilatorAllocation.hall_id.asc()
+        )
+        .all()
+    )
+
+    duties = []
+
+    for duty in staff_duties:
+
+        timetable = duty.timetable
+        hall = duty.hall
+        examination = duty.examination
+
+        if not timetable or not examination:
+            continue
+
+        duties.append({
+            "id": duty.id,
+            "examination_id": examination.id,
+            "examination_name": examination.name,
+            "exam_type": examination.exam_type,
+
+            "timetable_id": timetable.id,
+            "subject_id": timetable.subject_id,
+            "subject_name": (
+                timetable.subject.subject_name
+                if timetable.subject
+                else None
+            ),
+            "subject_code": (
+                timetable.subject.subject_code
+                if timetable.subject
+                else None
+            ),
+
+            "exam_date": timetable.exam_date.isoformat(),
+            "session": timetable.session,
+            "start_time": timetable.start_time.strftime("%H:%M"),
+            "end_time": timetable.end_time.strftime("%H:%M"),
+
+            "hall_id": hall.id if hall else None,
+            "hall_name": hall.name if hall else None,
+            "building_name": (
+                hall.building_name
+                if hall
+                else None
+            ),
+            "floor_no": (
+                hall.floor_no
+                if hall
+                else None
+            ),
+
+            "role": duty.role,
+            "status": duty.status
+        })
+
     return {
         "success": True,
+
         "user": {
             "id": staff.id,
             "name": staff.name,
@@ -301,7 +373,10 @@ def get_staff_dashboard():
             "department_id": staff.department_id,
             "availability": staff.availability,
             "assigned_batch": staff.assigned_batch
-        }
+        },
+
+        "examination_duties": duties
+
     }, 200
 
 
@@ -325,8 +400,177 @@ def get_student_dashboard():
             "message": "This account is inactive."
         }, 403
 
+    # =====================================================
+    # STUDENT TIMETABLE
+    # =====================================================
+
+    student_timetable = (
+        Timetable.query
+        .join(
+            Examination,
+            Timetable.examination_id == Examination.id
+        )
+        .filter(
+            Examination.course_id == student.course_id,
+            Examination.semester == student.semester,
+            Examination.status == "PUBLISHED",
+            Timetable.exam_date >= date.today()
+        )
+        .order_by(
+            Timetable.exam_date.asc(),
+            Timetable.start_time.asc()
+        )
+        .all()
+    )
+
+    timetable_entries = []
+
+    for entry in student_timetable:
+
+        examination = entry.examination
+
+        timetable_entries.append({
+            "id": entry.id,
+            "examination_id": entry.examination_id,
+            "examination_name": (
+                examination.name
+                if examination
+                else None
+            ),
+            "exam_type": (
+                examination.exam_type
+                if examination
+                else None
+            ),
+
+            "subject_id": entry.subject_id,
+            "subject_name": (
+                entry.subject.subject_name
+                if entry.subject
+                else None
+            ),
+            "subject_code": (
+                entry.subject.subject_code
+                if entry.subject
+                else None
+            ),
+
+            "exam_date": entry.exam_date.isoformat(),
+            "session": entry.session,
+            "start_time": entry.start_time.strftime("%H:%M"),
+            "end_time": entry.end_time.strftime("%H:%M"),
+            "duration_minutes": entry.duration_minutes,
+            "status": entry.status
+        })
+
+
+    # =====================================================
+    # STUDENT HALL TICKETS + SEAT INFORMATION
+    # =====================================================
+
+    student_tickets = (
+        HallTicket.query
+        .filter_by(
+            student_id=student.id
+        )
+        .join(
+            Examination,
+            HallTicket.examination_id == Examination.id
+        )
+        .filter(
+            Examination.status == "PUBLISHED"
+        )
+        .order_by(
+            Examination.start_date.asc()
+        )
+        .all()
+    )
+
+    hall_tickets = []
+
+    from app.services.qr import make_qr_base64
+
+    for ticket in student_tickets:
+
+        seat_rows = (
+            SeatAllocation.query
+            .filter_by(
+                examination_id=ticket.examination_id,
+                student_id=student.id
+            )
+            .order_by(
+                SeatAllocation.timetable_id.asc()
+            )
+            .all()
+        )
+
+        entries = []
+
+        for row in seat_rows:
+
+            timetable = row.timetable
+            hall = row.hall
+
+            if not timetable or not hall:
+                continue
+
+            entries.append({
+                "timetable_id": timetable.id,
+
+                "subject_name": (
+                    timetable.subject.subject_name
+                    if timetable.subject
+                    else None
+                ),
+
+                "subject_code": (
+                    timetable.subject.subject_code
+                    if timetable.subject
+                    else None
+                ),
+
+                "exam_date": timetable.exam_date.isoformat(),
+                "session": timetable.session,
+                "start_time": timetable.start_time.strftime("%H:%M"),
+                "end_time": timetable.end_time.strftime("%H:%M"),
+
+                "hall_name": hall.name,
+                "building_name": hall.building_name,
+                "floor_no": hall.floor_no,
+
+                "seat_number": row.seat_number,
+                "row_label": row.row_label,
+                "seat_index": row.seat_index
+            })
+
+        hall_tickets.append({
+            "id": ticket.id,
+            "examination_id": ticket.examination_id,
+            "examination_name": (
+                ticket.examination.name
+                if ticket.examination
+                else None
+            ),
+            "status": ticket.status,
+            "issued_at": ticket.issued_at.isoformat(),
+
+            # QR contains ONLY the verification token.
+            # Do not expose the raw token separately.
+            "qr_base64": make_qr_base64({
+                "t": ticket.verification_token
+            }),
+
+            "entries": entries
+        })
+
+
+    # =====================================================
+    # RESPONSE
+    # =====================================================
+
     return {
         "success": True,
+
         "user": {
             "id": student.id,
             "student_id": student.student_id,
@@ -338,5 +582,10 @@ def get_student_dashboard():
             "semester": student.semester,
             "class_name": student.class_name,
             "session": student.session
-        }
+        },
+
+        "timetable": timetable_entries,
+
+        "hall_tickets": hall_tickets
+
     }, 200

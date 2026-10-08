@@ -290,18 +290,130 @@ function StaffDashboard({
                 size={22}
                 className="text-primary"
               />
+<section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
 
-              <div>
-                <h3 className="font-bold text-text">
-                  Examination Duties
-                </h3>
+    <div className="mb-5 flex items-center gap-3">
+        <CalendarDays className="h-6 w-6" />
 
-                <p className="mt-1 text-sm text-text-muted">
-                  Assigned examinations, halls and
-                  invigilation duties will appear here
-                  in the later examination workflow.
-                </p>
-              </div>
+        <div>
+            <h2 className="text-lg font-semibold">
+                Examination Duties
+            </h2>
+
+            <p className="text-sm text-muted-foreground">
+                Your assigned invigilation duties
+            </p>
+        </div>
+    </div>
+
+
+    {data?.examination_duties?.length > 0 ? (
+
+        <div className="space-y-4">
+
+            {data.examination_duties.map((duty) => (
+
+                <div
+                    key={duty.id}
+                    className="rounded-xl border border-border p-4"
+                >
+
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+
+                        <div>
+                            <h3 className="font-semibold">
+                                {duty.examination_name}
+                            </h3>
+
+                            <p className="text-sm text-muted-foreground">
+                                {duty.subject_code || "—"} ·{" "}
+                                {duty.subject_name || "Subject"}
+                            </p>
+                        </div>
+
+                        <span className="rounded-full border px-3 py-1 text-xs">
+                            {duty.role}
+                        </span>
+
+                    </div>
+
+
+                    <div className="mt-4 grid gap-4 text-sm md:grid-cols-2 lg:grid-cols-4">
+
+                        <div>
+                            <p className="text-muted-foreground">
+                                Date
+                            </p>
+                            <p className="font-medium">
+                                {duty.exam_date}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-muted-foreground">
+                                Session
+                            </p>
+                            <p className="font-medium">
+                                {duty.session}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-muted-foreground">
+                                Time
+                            </p>
+                            <p className="font-medium">
+                                {duty.start_time} - {duty.end_time}
+                            </p>
+                        </div>
+
+                        <div>
+                            <p className="text-muted-foreground">
+                                Status
+                            </p>
+                            <p className="font-medium">
+                                {duty.status}
+                            </p>
+                        </div>
+
+                    </div>
+
+
+                    <div className="mt-4 rounded-lg border border-border p-4">
+
+                        <p className="text-xs text-muted-foreground">
+                            Assigned Hall
+                        </p>
+
+                        <p className="mt-1 font-medium">
+                            {duty.hall_name || "Hall not assigned"}
+                        </p>
+
+                        {duty.building_name && (
+                            <p className="text-sm text-muted-foreground">
+                                {duty.building_name}
+                                {" · "}
+                                Floor {duty.floor_no}
+                            </p>
+                        )}
+
+                    </div>
+
+                </div>
+
+            ))}
+
+        </div>
+
+    ) : (
+
+        <p className="text-sm text-muted-foreground">
+            No examination duties have been assigned yet.
+        </p>
+
+    )}
+
+</section>
             </div>
           </section>
         </div>

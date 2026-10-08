@@ -310,18 +310,288 @@ function StudentDashboard({
                 className="text-primary"
               />
 
-              <div>
-                <h3 className="font-bold text-text">
-                  Examination Information
-                </h3>
+           <div className="space-y-6">
 
-                <p className="mt-1 text-sm text-text-muted">
-                  Examination timetable, eligibility,
-                  hall allocation, seat information and
-                  hall ticket will appear here as those
-                  modules are implemented.
+    {/* =====================================================
+        EXAMINATION TIMETABLE
+    ====================================================== */}
+
+    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+
+        <div className="mb-5 flex items-center gap-3">
+            <CalendarDays className="h-6 w-6" />
+
+            <div>
+                <h2 className="text-lg font-semibold">
+                    Examination Timetable
+                </h2>
+
+                <p className="text-sm text-muted-foreground">
+                    Your published examination schedule
                 </p>
-              </div>
+            </div>
+        </div>
+
+        {data?.timetable?.length > 0 ? (
+
+            <div className="space-y-4">
+
+                {data.timetable.map((exam) => (
+
+                    <div
+                        key={exam.id}
+                        className="rounded-xl border border-border p-4"
+                    >
+
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+
+                            <div>
+                                <h3 className="font-semibold">
+                                    {exam.subject_name || "Subject"}
+                                </h3>
+
+                                <p className="text-sm text-muted-foreground">
+                                    {exam.subject_code || "—"}
+                                </p>
+                            </div>
+
+                            <span className="rounded-full border px-3 py-1 text-xs">
+                                {exam.session}
+                            </span>
+
+                        </div>
+
+                        <div className="mt-4 grid gap-3 text-sm md:grid-cols-4">
+
+                            <div>
+                                <p className="text-muted-foreground">
+                                    Examination
+                                </p>
+                                <p className="font-medium">
+                                    {exam.examination_name}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-muted-foreground">
+                                    Date
+                                </p>
+                                <p className="font-medium">
+                                    {exam.exam_date}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-muted-foreground">
+                                    Time
+                                </p>
+                                <p className="font-medium">
+                                    {exam.start_time} - {exam.end_time}
+                                </p>
+                            </div>
+
+                            <div>
+                                <p className="text-muted-foreground">
+                                    Duration
+                                </p>
+                                <p className="font-medium">
+                                    {exam.duration_minutes} minutes
+                                </p>
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                ))}
+
+            </div>
+
+        ) : (
+
+            <p className="text-sm text-muted-foreground">
+                No published examinations are currently available.
+            </p>
+
+        )}
+
+    </section>
+
+
+    {/* =====================================================
+        HALL TICKETS
+    ====================================================== */}
+
+    <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
+
+        <div className="mb-5 flex items-center gap-3">
+            <BookOpen className="h-6 w-6" />
+
+            <div>
+                <h2 className="text-lg font-semibold">
+                    Hall Tickets
+                </h2>
+
+                <p className="text-sm text-muted-foreground">
+                    Your examination hall, seat and verification QR
+                </p>
+            </div>
+        </div>
+
+
+        {data?.hall_tickets?.length > 0 ? (
+
+            <div className="space-y-6">
+
+                {data.hall_tickets.map((ticket) => (
+
+                    <div
+                        key={ticket.id}
+                        className="rounded-xl border border-border p-5"
+                    >
+
+                        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+
+                            <div className="flex-1">
+
+                                <div className="mb-4">
+                                    <h3 className="text-lg font-semibold">
+                                        {ticket.examination_name}
+                                    </h3>
+
+                                    <p className="mt-1 text-sm text-muted-foreground">
+                                        Status: {ticket.status}
+                                    </p>
+                                </div>
+
+
+                                {ticket.entries?.length > 0 ? (
+
+                                    <div className="space-y-3">
+
+                                        {ticket.entries.map((entry) => (
+
+                                            <div
+                                                key={entry.timetable_id}
+                                                className="rounded-lg border border-border p-4"
+                                            >
+
+                                                <div className="grid gap-4 text-sm md:grid-cols-2 lg:grid-cols-3">
+
+                                                    <div>
+                                                        <p className="text-muted-foreground">
+                                                            Subject
+                                                        </p>
+                                                        <p className="font-medium">
+                                                            {entry.subject_name}
+                                                        </p>
+                                                    </div>
+
+                                                    <div>
+                                                        <p className="text-muted-foreground">
+                                                            Date
+                                                        </p>
+                                                        <p className="font-medium">
+                                                            {entry.exam_date}
+                                                        </p>
+                                                    </div>
+
+                                                    <div>
+                                                        <p className="text-muted-foreground">
+                                                            Session
+                                                        </p>
+                                                        <p className="font-medium">
+                                                            {entry.session}
+                                                        </p>
+                                                    </div>
+
+                                                    <div>
+                                                        <p className="text-muted-foreground">
+                                                            Time
+                                                        </p>
+                                                        <p className="font-medium">
+                                                            {entry.start_time} - {entry.end_time}
+                                                        </p>
+                                                    </div>
+
+                                                    <div>
+                                                        <p className="text-muted-foreground">
+                                                            Hall
+                                                        </p>
+                                                        <p className="font-medium">
+                                                            {entry.hall_name}
+                                                        </p>
+                                                    </div>
+
+                                                    <div>
+                                                        <p className="text-muted-foreground">
+                                                            Seat
+                                                        </p>
+                                                        <p className="font-medium">
+                                                            {entry.seat_number}
+                                                        </p>
+                                                    </div>
+
+                                                </div>
+
+                                                <div className="mt-4 text-sm text-muted-foreground">
+                                                    {entry.building_name}
+                                                    {" · "}
+                                                    Floor {entry.floor_no}
+                                                </div>
+
+                                            </div>
+
+                                        ))}
+
+                                    </div>
+
+                                ) : (
+
+                                    <p className="text-sm text-muted-foreground">
+                                        Seat allocation information is not available yet.
+                                    </p>
+
+                                )}
+
+                            </div>
+
+
+                            {/* QR */}
+
+                            <div className="flex shrink-0 flex-col items-center rounded-xl border border-border p-4">
+
+                                <img
+                                    src={`data:image/png;base64,${ticket.qr_base64}`}
+                                    alt="Hall ticket verification QR code"
+                                    className="h-40 w-40 rounded-lg border border-border bg-white p-2"
+                                />
+
+                                <p className="mt-3 text-center text-xs text-muted-foreground">
+                                    Scan to verify hall ticket
+                                </p>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                ))}
+
+            </div>
+
+        ) : (
+
+            <p className="text-sm text-muted-foreground">
+                Hall tickets have not been issued yet.
+            </p>
+
+        )}
+
+    </section>
+
+</div>
             </div>
           </section>
         </div>
