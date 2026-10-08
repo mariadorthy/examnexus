@@ -1,6 +1,7 @@
         const API_URL =
-  `${import.meta.env.VITE_API_BASE_URL}/api/students`;
+  `${import.meta.env.VITE_API_BASE_URL}/api/student`;
 
+  
 export async function getStudents() {
   const response = await fetch(API_URL);
 
