@@ -401,6 +401,52 @@ def verify_hall_ticket(verification_token):
     student = ticket.student
     examination = ticket.examination
 
+    seat_rows = (
+        SeatAllocation.query
+        .filter_by(
+            examination_id=ticket.examination_id,
+            student_id=ticket.student_id
+        )
+        .order_by(
+            SeatAllocation.timetable_id.asc()
+        )
+        .all()
+    )
+
+    timetable = []
+
+    for row in seat_rows:
+        if not row.timetable or not row.hall:
+            continue
+
+        timetable.append({
+            "subject_name": (
+                row.timetable.subject.subject_name
+                if row.timetable.subject
+                else None
+            ),
+            "subject_code": (
+                row.timetable.subject.subject_code
+                if row.timetable.subject
+                else None
+            ),
+            "exam_date": (
+                row.timetable.exam_date.isoformat()
+            ),
+            "session": row.timetable.session,
+            "start_time": (
+                row.timetable.start_time.strftime("%H:%M")
+            ),
+            "end_time": (
+                row.timetable.end_time.strftime("%H:%M")
+            ),
+            "hall_name": row.hall.name,
+            "building_name": row.hall.building_name,
+            "floor_no": row.hall.floor_no,
+            "seat_number": row.seat_number,
+            "row_label": row.row_label,
+        })
+
     if not student or not examination:
         return {
             "valid": False,
@@ -412,10 +458,22 @@ def verify_hall_ticket(verification_token):
     return {
         "valid": not is_terminal,
         "status": ticket.status,
+
         "student_code": student.student_id,
         "student_name": student.name,
+        "student_course": (
+            student.course.name
+            if student.course
+            else None
+        ),
+        "student_batch": student.batch,
+        "student_semester": student.semester,
+
         "examination": examination.name,
         "exam_type": examination.exam_type,
+
+        "timetable": timetable,
+
         "message": (
             "Ticket has been invalidated"
             if is_terminal
