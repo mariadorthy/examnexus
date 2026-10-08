@@ -7,6 +7,7 @@ import {
   ClipboardList,
   CalendarDays,
   MapPinned,
+  BarChart3,
   LogOut,
   X,
 } from "lucide-react";
@@ -70,6 +71,11 @@ function AdminSidebar({
   label: "Hall Tickets",
   icon: ClipboardList,
   route: "HallTickets",
+},
+{
+  label: "Reports",
+  icon: BarChart3,
+  route: "Reports",
 },
   ];
 
