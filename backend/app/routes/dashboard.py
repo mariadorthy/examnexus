@@ -403,16 +403,18 @@ def get_student_dashboard():
     # =====================================================
     # STUDENT TIMETABLE
     # =====================================================
-
     student_timetable = (
         Timetable.query
+        .join(
+            SeatAllocation,
+            SeatAllocation.timetable_id == Timetable.id
+        )
         .join(
             Examination,
             Timetable.examination_id == Examination.id
         )
         .filter(
-            Examination.course_id == student.course_id,
-            Examination.semester == student.semester,
+            SeatAllocation.student_id == student.id,
             Examination.status == "PUBLISHED",
             Timetable.exam_date >= date.today()
         )

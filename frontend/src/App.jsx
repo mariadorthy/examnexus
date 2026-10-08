@@ -15,6 +15,8 @@ import Allocations from "./pages/admin/allocations/Allocations";
 import HallTickets from "./pages/admin/hall-tickets/HallTickets";
 import Reports from "./pages/admin/reports/Reports";
 import StaffDashboard from "./pages/staff/StaffDashboard";
+import HallTicketVerification
+  from "./pages/public/HallTicketVerification";
 import StudentDashboard from "./pages/student/StudentDashboard";
 import {
   getStoredUser,
@@ -206,6 +208,13 @@ if (adminPage === "Reports") {
 
   }
 
+  if (
+  window.location.pathname.startsWith(
+    "/verify-hall-ticket/"
+  )
+) {
+  return <HallTicketVerification />;
+}
 
   if (user.role === "student") {
 

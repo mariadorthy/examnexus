@@ -10,7 +10,7 @@ Rules:
 """
 
 import uuid
-
+import os
 from app import db
 
 from app.models.examination import Examination
@@ -289,7 +289,17 @@ def get_hall_ticket(student_id, examination_id):
         student, examination, seat_rows
     )
 
-    qr_b64 = make_qr_base64({"t": ticket.verification_token})
+    frontend_url = os.getenv(
+        "FRONTEND_URL",
+        "http://localhost:5173"
+    ).rstrip("/")
+
+    verification_url = (
+        f"{frontend_url}/verify-hall-ticket/"
+        f"{ticket.verification_token}"
+    )
+
+    qr_b64 = make_qr_base64(verification_url)
 
     return {
         "success": True,

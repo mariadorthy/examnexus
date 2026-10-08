@@ -12,20 +12,28 @@ import json
 import qrcode
 
 
-def make_qr_base64(payload_dict, box_size=6, border=2):
+def make_qr_base64(payload, box_size=6, border=2):
     """
-    Return a base64-encoded PNG of a QR code containing the given
-    payload dict as compact JSON.
+    Return a base64-encoded PNG QR code.
+
+    Supports:
+      - dict payloads -> compact JSON
+      - string payloads -> encoded directly, useful for URLs
     """
 
-    payload = json.dumps(payload_dict, separators=(",", ":"))
+    if isinstance(payload, str):
+        qr_payload = payload
+    else:
+        qr_payload = json.dumps(
+            payload,
+            separators=(",", ":")
+        )
 
     img = qrcode.make(
-        payload,
+        qr_payload,
         box_size=box_size,
         border=border
     )
-
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     buffer.seek(0)
