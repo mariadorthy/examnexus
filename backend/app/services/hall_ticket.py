@@ -397,9 +397,14 @@ def verify_hall_ticket(verification_token):
             "valid": False,
             "message": "Ticket not found"
         }
-
     student = ticket.student
     examination = ticket.examination
+
+    if not student or not examination:
+        return {
+            "valid": False,
+            "message": "Ticket references missing records"
+        }
 
     seat_rows = (
         SeatAllocation.query
@@ -497,12 +502,6 @@ def verify_hall_ticket(verification_token):
                 else None
             ),
         })
-
-    if not student or not examination:
-        return {
-            "valid": False,
-            "message": "Ticket references missing records"
-        }
 
     is_terminal = ticket.status in TERMINAL_TICKET_STATUSES
 
