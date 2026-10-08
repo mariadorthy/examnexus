@@ -400,7 +400,7 @@ def verify_hall_ticket(verification_token):
 
     student = ticket.student
     examination = ticket.examination
-    
+
     seat_rows = (
         SeatAllocation.query
         .filter_by(
@@ -509,16 +509,10 @@ def verify_hall_ticket(verification_token):
     return {
         "valid": not is_terminal,
         "status": ticket.status,
-
-        "student_code": student.student_id,
-        "student_name": student.name,
-        "student_course": (
-            student.course.name
-            if student.course
-            else None
-        ),
-        "student_batch": student.batch,
-        "student_semester": student.semester,
+"student_code": student.student_id,
+"student_name": student.name,
+"student_batch": student.batch,
+"student_semester": student.semester,
 
         "examination": examination.name,
         "exam_type": examination.exam_type,
