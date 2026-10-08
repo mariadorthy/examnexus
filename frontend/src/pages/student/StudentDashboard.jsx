@@ -20,6 +20,16 @@ function StudentDashboard({
   const [dashboardUser, setDashboardUser] =
     useState(user);
 
+  const studentName =
+    dashboardUser?.name || "Student";
+
+  const studentInitials = studentName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join("");
+
   const [dashboardData, setDashboardData] =
     useState({
       timetable: [],
@@ -161,23 +171,39 @@ const [sidebarOpen, setSidebarOpen] =
         <div className="mx-auto max-w-7xl">
 
           {/* WELCOME */}
-          <section className="rounded-2xl bg-sidebar p-6 text-white shadow-sm md:p-8">
+      <section className="rounded-2xl bg-sidebar p-6 text-white shadow-sm md:p-8">
+  <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
 
-            <p className="text-sm font-medium text-white/70">
-              Welcome back
-            </p>
+    {/* STUDENT AVATAR */}
+    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white/20 bg-white/10 text-2xl font-bold text-white">
+      {dashboardUser?.profile_image ? (
+        <img
+          src={dashboardUser.profile_image}
+          alt={studentName}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        studentInitials
+      )}
+    </div>
 
-            <h2 className="mt-2 text-3xl font-bold md:text-4xl">
-              {dashboardUser?.name || "Student"}
-            </h2>
+    <div>
+      <p className="text-sm font-medium text-white/70">
+        Welcome back
+      </p>
 
-            <p className="mt-2 text-sm text-white/70">
-              Student ID:{" "}
-              {dashboardUser?.student_id || "—"}
-            </p>
+      <h2 className="mt-2 text-3xl font-bold md:text-4xl">
+        {studentName}
+      </h2>
 
-          </section>
+      <p className="mt-2 text-sm text-white/70">
+        Student ID:{" "}
+        {dashboardUser?.student_id || "—"}
+      </p>
+    </div>
 
+  </div>
+</section>
           {/* STAT CARDS */}
           <section className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
 

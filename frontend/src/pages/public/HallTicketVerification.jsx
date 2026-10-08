@@ -75,8 +75,18 @@ function HallTicketVerification() {
     );
   }
 
-  const valid = result?.valid;
-  const timetable = result?.timetable || [];
+const valid = result?.valid;
+const timetable = result?.timetable || [];
+
+const studentName =
+  result?.student_name || "Student";
+
+const studentInitials = studentName
+  .split(" ")
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((part) => part[0].toUpperCase())
+  .join("");
 
   return (
     <div className="min-h-screen bg-background px-5 py-8 md:px-8 md:py-10">
@@ -194,8 +204,22 @@ function HallTicketVerification() {
 
             </div>
 
-            <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-center">
 
+  {/* STUDENT AVATAR */}
+  <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-primary/10 bg-primary/10 text-3xl font-bold text-primary">
+    {result?.profile_image ? (
+      <img
+        src={result.profile_image}
+        alt={studentName}
+        className="h-full w-full object-cover"
+      />
+    ) : (
+      studentInitials
+    )}
+  </div>
+
+  <div className="grid flex-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
               <div>
                 <p className="text-xs uppercase tracking-wide text-text-muted">
                   Full Name
@@ -235,9 +259,11 @@ function HallTicketVerification() {
                   {result.student_batch || "—"}
                 </p>
               </div>
+  </div>
 
             </div>
           </section>
+   
         )}
 
         {/* EXAMINATION */}

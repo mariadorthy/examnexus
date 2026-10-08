@@ -400,7 +400,7 @@ def verify_hall_ticket(verification_token):
 
     student = ticket.student
     examination = ticket.examination
-
+    
     seat_rows = (
         SeatAllocation.query
         .filter_by(
@@ -413,38 +413,89 @@ def verify_hall_ticket(verification_token):
         .all()
     )
 
+    seat_by_timetable = {
+        row.timetable_id: row
+        for row in seat_rows
+    }
+
+    timetable_rows = (
+        Timetable.query
+        .filter_by(
+            examination_id=ticket.examination_id
+        )
+        .order_by(
+            Timetable.exam_date.asc(),
+            Timetable.start_time.asc()
+        )
+        .all()
+    )
+
     timetable = []
 
-    for row in seat_rows:
-        if not row.timetable or not row.hall:
-            continue
+    for row in timetable_rows:
+
+        seat = seat_by_timetable.get(row.id)
 
         timetable.append({
+            "timetable_id": row.id,
+
             "subject_name": (
-                row.timetable.subject.subject_name
-                if row.timetable.subject
+                row.subject.subject_name
+                if row.subject
                 else None
             ),
+
             "subject_code": (
-                row.timetable.subject.subject_code
-                if row.timetable.subject
+                row.subject.subject_code
+                if row.subject
                 else None
             ),
-            "exam_date": (
-                row.timetable.exam_date.isoformat()
-            ),
-            "session": row.timetable.session,
+
+            "exam_date": row.exam_date.isoformat(),
+
+            "session": row.session,
+
             "start_time": (
-                row.timetable.start_time.strftime("%H:%M")
+                row.start_time.strftime("%H:%M")
+                if row.start_time
+                else None
             ),
+
             "end_time": (
-                row.timetable.end_time.strftime("%H:%M")
+                row.end_time.strftime("%H:%M")
+                if row.end_time
+                else None
             ),
-            "hall_name": row.hall.name,
-            "building_name": row.hall.building_name,
-            "floor_no": row.hall.floor_no,
-            "seat_number": row.seat_number,
-            "row_label": row.row_label,
+
+            "hall_name": (
+                seat.hall.name
+                if seat and seat.hall
+                else None
+            ),
+
+            "building_name": (
+                seat.hall.building_name
+                if seat and seat.hall
+                else None
+            ),
+
+            "floor_no": (
+                seat.hall.floor_no
+                if seat and seat.hall
+                else None
+            ),
+
+            "seat_number": (
+                seat.seat_number
+                if seat
+                else None
+            ),
+
+            "row_label": (
+                seat.row_label
+                if seat
+                else None
+            ),
         })
 
     if not student or not examination:
