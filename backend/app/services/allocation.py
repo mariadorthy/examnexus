@@ -120,11 +120,12 @@ def get_available_halls(
             ignore_examination_id=ignore_examination_id
         )
     ]
-    
+# NEW CODE — REPLACE WITH
 def _plan_hall_allocations(
     examination,
     timetables,
-    excluded_hall_ids=None
+    excluded_hall_ids=None,
+    allocation_options=None
 ):
     """
     Pure (non-persisting) hall allocation planner.
@@ -141,7 +142,35 @@ def _plan_hall_allocations(
     The planner replaces this examination's own allocations,
     so HallAllocation rows for ``examination.id`` are ignored
     during conflict checks (see ignore_examination_id).
+
+    ``allocation_options`` (Feature 18 integration) is an
+    optional, validated, closed-schema dict of booleans. Every
+    option it can carry corresponds to a constraint the
+    allocator already enforces unconditionally; the parameter
+    exists so the options layer has an explicit, documented
+    interface without duplicating constraint logic. It cannot
+    weaken any safety rule.
     """
+
+    # Defensive sanity: reject unknown keys here too, so any
+    # caller bypassing generate_allocation() still fails loudly.
+    if allocation_options:
+        allowed = {
+            "minimize_halls",
+            "accessibility_required",
+            "exclude_maintenance_halls",
+            "exclude_unavailable_halls",
+            "avoid_timetable_conflicts",
+        }
+        unknown = set(allocation_options.keys()) - allowed
+        if unknown:
+            return {
+                "success": False,
+                "message": (
+                    "Unsupported allocation option key(s): "
+                    + ", ".join(sorted(unknown))
+                ),
+            }
 
     students = get_eligible_students(examination.id)
 
@@ -387,11 +416,11 @@ def _plan_hall_allocations(
         "accessibility_students": accessibility_students,
     }
 
-
 def generate_allocation(
     examination_id,
     force=False,
-    excluded_hall_ids=None
+    excluded_hall_ids=None,
+    allocation_options=None
 ):
     """
     Generate Exam → Hall allocation for every timetable entry
@@ -403,7 +432,45 @@ def generate_allocation(
     ``excluded_hall_ids`` (Feature 21) is an optional iterable of
     hall ids that are transiently treated as unavailable for this
     run only. It is never persisted to the Hall table.
+
+    ``allocation_options`` (Feature 18 integration) is an optional
+    dict of typed boolean flags produced by
+    app.services.allocation_options.build_allocation_options().
+    The deterministic allocator already enforces every constraint
+    these flags describe; passing them strengthens the contract
+    but does NOT change the selection algorithm. Passing None is
+    byte-identical to the previous behavior.
     """
+
+    # ---------------------------------------------------------
+    # VALIDATE OPTIONS (no-op when None)
+    # ---------------------------------------------------------
+
+    if allocation_options:
+        allowed = {
+            "minimize_halls",
+            "accessibility_required",
+            "exclude_maintenance_halls",
+            "exclude_unavailable_halls",
+            "avoid_timetable_conflicts",
+        }
+        unknown = set(allocation_options.keys()) - allowed
+        if unknown:
+            return {
+                "success": False,
+                "message": (
+                    "Unsupported allocation option key(s): "
+                    + ", ".join(sorted(unknown))
+                ),
+            }
+        for key, value in allocation_options.items():
+            if not isinstance(value, bool):
+                return {
+                    "success": False,
+                    "message": (
+                        f"Allocation option '{key}' must be boolean."
+                    ),
+                }
 
     # Normalize the exclusion set once, so downstream code only
     # ever deals with a clean set of ints (or None).
@@ -522,8 +589,10 @@ def generate_allocation(
         plan_result = _plan_hall_allocations(
             examination=examination,
             timetables=timetables,
-            excluded_hall_ids=excluded_hall_ids
+            excluded_hall_ids=excluded_hall_ids,
+            allocation_options=allocation_options,
         )
+
     except Exception as error:
         db.session.rollback()
 
@@ -532,7 +601,6 @@ def generate_allocation(
             "message": "Failed to generate hall allocation",
             "error": str(error)
         }
-
     if not plan_result.get("success"):
         # Planner already captured the specific reason.
         db.session.rollback()
@@ -635,7 +703,15 @@ def generate_allocation(
         "timetable_entries": len(timetables),
         "allocation_records": len(allocations),
         "seat_records": seat_result.get("seat_records", 0),
-        "regenerated": bool(force)
+        "regenerated": bool(force),
+        "allocation_options_applied": (
+            {
+                k: bool(v)
+                for k, v in sorted(
+                    (allocation_options or {}).items()
+                )
+            }
+        ),
     }
 
 def update_hall_allocation(

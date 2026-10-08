@@ -1,0 +1,6 @@
+student_id,name,course_id,email,password,batch,semester,dob
+DEMO0001,Aarav Sharma,1,demo0001@examnexus.edu,Demo@123,2026,1,2000-01-01
+DEMO0002,Aditya Kumar,2,demo0002@examnexus.edu,Demo@123,2026,1,2001-02-02
+DEMO0003,Ananya Patel,3,demo0003@examnexus.edu,Demo@123,2026,1,2002-03-03
+DEMO0004,Arjun Reddy,4,demo0004@examnexus.edu,Demo@123,2026,1,2003-04-04
+DEMO0005,Diya Nair,5,demo0005@examnexus.edu,Demo@123,2026,1,2004-05-05

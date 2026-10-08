@@ -303,12 +303,77 @@ def get_hall_ticket(student_id, examination_id):
         "payload": payload
     }
 
+# Ticket statuses that must never verify as valid.
+TERMINAL_TICKET_STATUSES = frozenset({"INVALIDATED"})
+
+
+def invalidate_hall_tickets(examination_id, commit=True):
+    """
+    Mark every existing hall ticket for the examination as
+    INVALIDATED.
+
+    Used when a reallocation changes the underlying seat /
+    hall / invigilator plan and old tickets would otherwise
+    represent a stale seating arrangement.
+
+    Deterministic: only flips status; never deletes rows;
+    preserves verification_token for audit.
+    """
+
+    rows = (
+        HallTicket.query
+        .filter_by(examination_id=examination_id)
+        .all()
+    )
+
+    if not rows:
+        return {
+            "success": True,
+            "examination_id": examination_id,
+            "invalidated": 0,
+        }
+
+    changed = 0
+    for ticket in rows:
+        if ticket.status != "INVALIDATED":
+            ticket.status = "INVALIDATED"
+            changed += 1
+
+    if not commit:
+        return {
+            "success": True,
+            "examination_id": examination_id,
+            "invalidated": changed,
+            "committed": False,
+        }
+
+    try:
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        return {
+            "success": False,
+            "message": "Failed to invalidate hall tickets",
+            "error": str(error),
+        }
+
+    return {
+        "success": True,
+        "examination_id": examination_id,
+        "invalidated": changed,
+        "committed": True,
+    }
+
 
 def verify_hall_ticket(verification_token):
     """
     Public verification endpoint: returns safe identity info only.
     No password, no hash, no JWT, no internal DB ids beyond what is
     strictly needed for the examiner to check.
+
+    Invalidated tickets verify as invalid but still return the
+    safe identity fields so an examiner can see which ticket was
+    presented.
     """
 
     ticket = (
@@ -332,11 +397,18 @@ def verify_hall_ticket(verification_token):
             "message": "Ticket references missing records"
         }
 
+    is_terminal = ticket.status in TERMINAL_TICKET_STATUSES
+
     return {
-        "valid": True,
+        "valid": not is_terminal,
         "status": ticket.status,
         "student_code": student.student_id,
         "student_name": student.name,
         "examination": examination.name,
-        "exam_type": examination.exam_type
+        "exam_type": examination.exam_type,
+        "message": (
+            "Ticket has been invalidated"
+            if is_terminal
+            else "Ticket is valid"
+        ),
     }

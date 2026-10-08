@@ -275,16 +275,22 @@ def simulate_reallocation(examination_id, excluded_hall_ids):
         for hid in sorted(excluded)
         if hid in current["halls_by_id"]
     ]
-
     for name in excluded_hall_names:
-        explanations.append({
-            "hall": name,
-            "reason": (
-                "Excluded by administrator: hall became "
-                "unavailable for this operation."
-            ),
-        })
-
+        explanations.append(
+            {
+                "hall": name,
+                "decision": "REJECTED",
+                "reasons": [
+                    {
+                        "code": "REJECTED_TRANSIENTLY_EXCLUDED",
+                        "message": (
+                            "Hall was excluded by the administrator "
+                            "for this what-if reallocation."
+                        ),
+                    }
+                ],
+            }
+        )
     for hall_id in added_halls:
         hall = Hall.query.get(hall_id)
         if not hall:
@@ -300,13 +306,34 @@ def simulate_reallocation(examination_id, excluded_hall_ids):
                 f"examination capacity {hall.examination_capacity}"
             )
 
-        explanations.append({
-            "hall": hall.name,
-            "reason": (
-                "Selected as replacement: "
-                + ", ".join(reasons) + "."
-            ),
-        })
+        explanations.append(
+            {
+    "hall": hall.name,
+    "decision": "SELECTED",
+    "reasons": [
+        {
+            "code": "HALL_ACTIVE",
+            "message": "Hall is active."
+        },
+        {
+            "code": "HALL_AVAILABLE",
+            "message": "Hall is available."
+        },
+        {
+            "code": "NOT_UNDER_MAINTENANCE",
+            "message": "Hall is not under maintenance."
+        },
+        {
+            "code": "HAS_EXAM_CAPACITY",
+            "message": "Hall has sufficient examination capacity."
+        },
+        {
+            "code": "SELECTED_BY_ALLOCATOR_STRATEGY",
+            "message": "Selected by the deterministic hall allocation strategy."
+        }
+    ]
+}
+        )
 
     # ---------------------------------------------------------
     # PROPOSAL VALIDATION (pure)
@@ -522,6 +549,30 @@ def apply_reallocation(examination_id, excluded_hall_ids):
                 "detail": invigilator_result.get("message")
             }
 
+        # Invalidate any hall tickets issued for the previous
+        # arrangement. Runs inside the same transaction so a
+        # later validation failure rolls this back too.
+        from app.services.hall_ticket import (
+            invalidate_hall_tickets
+        )
+
+        ticket_result = invalidate_hall_tickets(
+            examination_id,
+            commit=False
+        )
+
+        if not ticket_result.get("success"):
+            db.session.rollback()
+
+            return {
+                "success": False,
+                "message": (
+                    "Failed to invalidate existing hall tickets; "
+                    "previous state restored."
+                ),
+                "detail": ticket_result,
+            }
+
         hall_validation = validate_allocation(examination_id)
         invig_validation = validate_invigilator_allocation(
             examination_id
@@ -571,7 +622,10 @@ def apply_reallocation(examination_id, excluded_hall_ids):
                 "invigilator": invig_validation
             },
             "invigilators_regenerated": True,
-            "seats_regenerated": True
+            "seats_regenerated": True,
+            "tickets_invalidated": ticket_result.get(
+                "invalidated", 0
+            ),
         }
 
     except Exception as error:

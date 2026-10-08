@@ -637,3 +637,48 @@ def reallocate_apply(examination_id):
     )
 
     return result, (200 if result.get("success") else 400)
+
+# =========================================================
+# FEATURE 20 — EXPLAINABLE ALLOCATION
+# =========================================================
+
+@allocations_bp.route(
+    "/explain/<int:examination_id>",
+    methods=["GET"]
+)
+@roles_required("admin")
+def explain_allocation_route(examination_id):
+
+    from app.services.explanation import explain_allocation
+
+    result = explain_allocation(examination_id)
+
+    status_code = 200 if result.get("success") else 400
+    return result, status_code
+
+
+@allocations_bp.route(
+    "/explain/<int:examination_id>/hall/<int:hall_id>",
+    methods=["GET"]
+)
+@roles_required("admin")
+def explain_hall_route(examination_id, hall_id):
+
+    from app.services.explanation import explain_hall_decision
+
+    timetable_id = request.args.get("timetable_id", type=int)
+
+    if timetable_id is None:
+        return {
+            "success": False,
+            "message": "timetable_id query parameter is required",
+        }, 400
+
+    result = explain_hall_decision(
+        examination_id=examination_id,
+        hall_id=hall_id,
+        timetable_id=timetable_id,
+    )
+
+    status_code = 200 if result.get("success") else 400
+    return result, status_code

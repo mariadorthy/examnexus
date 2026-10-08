@@ -15,6 +15,10 @@ import SubjectForm from "./SubjectForm";
 import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
+import {
+  validateCsv,
+  importCsv,
+} from "../../../services/api";
 import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 function Subjects({
   user,
@@ -554,6 +558,8 @@ setSubjects((currentSubjects) =>
   entity="subjects"
   isOpen={showCsvImport}
   onClose={() => setShowCsvImport(false)}
+  onValidate={validateCsv}
+  onImport={importCsv}
 />
       {showForm && (
         <SubjectForm

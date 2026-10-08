@@ -251,3 +251,65 @@ export async function applyReallocation(
 
   return result;
 }
+
+export const getExplanation = async (examinationId) => {
+  const token = localStorage.getItem("examnexus_token");
+
+  const headers = {};
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `${API_URL}/explain/${examinationId}`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        "Failed to fetch allocation explanation"
+    );
+  }
+
+  return data;
+};
+
+export const getHallExplanation = async (
+  examinationId,
+  hallId,
+  timetableId
+) => {
+  const token = localStorage.getItem("examnexus_token");
+
+  const headers = {};
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `${API_URL}/explain/${examinationId}/hall/${hallId}?timetable_id=${timetableId}`,
+    {
+      method: "GET",
+      headers,
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message ||
+        "Failed to fetch hall explanation"
+    );
+  }
+
+  return data;
+};

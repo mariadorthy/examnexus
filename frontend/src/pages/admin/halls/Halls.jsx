@@ -18,6 +18,10 @@ import { get, patch } from "../../../services/api";
 import HallForm from "./HallForm";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
+import {
+  validateCsv,
+  importCsv,
+} from "../../../services/api";
 import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 function Halls({
   user,
@@ -734,10 +738,12 @@ const accessibleUsableHalls = usableHalls.filter(
     )}
 
     {/* Hall Add/Edit Modal */}
-    <CsvImport
+<CsvImport
   entity="halls"
   isOpen={showCsvImport}
   onClose={() => setShowCsvImport(false)}
+  onValidate={validateCsv}
+  onImport={importCsv}
 />
     {showForm && (
       <HallForm

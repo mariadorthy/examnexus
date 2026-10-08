@@ -21,6 +21,10 @@ import {
 
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
+import {
+  validateCsv,
+  importCsv,
+} from "../../../services/api";
 import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 
 function Students({
@@ -725,6 +729,8 @@ Bulk Exam Registration
   entity="students"
   isOpen={showCsvImport}
   onClose={() => setShowCsvImport(false)}
+  onValidate={validateCsv}
+  onImport={importCsv}
 />
 
    {showForm && (

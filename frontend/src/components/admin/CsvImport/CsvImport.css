@@ -589,3 +589,39 @@
     min-width: 800px;
   }
 }
+
+.csv-import-validity-banner {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.csv-import-validity-banner.valid {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.csv-import-validity-banner.invalid {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.csv-summary-card.warning span {
+  color: #92400e;
+}
+
+.csv-warning-list {
+  margin: 0;
+  padding-left: 18px;
+  color: #92400e;
+  font-size: 13px;
+  list-style: disc;
+}
+
+.csv-warning-list li + li {
+  margin-top: 2px;
+}

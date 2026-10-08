@@ -1,0 +1,6 @@
+name,email,department_id,designation,password,dob
+Dr. Arun Kumar,staff0001@examnexus.edu,1,Professor,Staff@123,1980-01-10
+Dr. Priya Sharma,staff0002@examnexus.edu,2,Professor,Staff@123,1981-02-10
+Dr. Ravi Menon,staff0003@examnexus.edu,3,Associate Professor,Staff@123,1982-03-10
+Prof. Anjali Rao,staff0004@examnexus.edu,4,Assistant Professor,Staff@123,1983-04-10
+Prof. Karthik Nair,staff0005@examnexus.edu,5,Assistant Professor,Staff@123,1984-05-10

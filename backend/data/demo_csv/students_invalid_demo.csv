@@ -1,0 +1,7 @@
+student_id,name,course_id,email,password,batch,semester,dob
+INVALID001,Invalid Email,1,not-an-email,Demo@123,2026,1,2002-01-15
+INVALID002,Invalid Course,ABC,invalid002@examnexus.edu,Demo@123,2026,1,2002-02-15
+INVALID003,Invalid Date,1,invalid003@examnexus.edu,Demo@123,2026,1,not-a-date
+INVALID004,Invalid Semester,1,invalid004@examnexus.edu,Demo@123,2026,99,2002-04-15
+INVALID005,,1,invalid005@examnexus.edu,Demo@123,2026,1,2002-05-15
+INVALID006,Unknown Course,999999,invalid006@examnexus.edu,Demo@123,2026,1,2002-06-15

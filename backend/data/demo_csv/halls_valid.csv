@@ -1,0 +1,6 @@
+name,building_name,floor_no,capacity,examination_capacity,room_type,amenities,is_available,is_under_maintenance,is_accessible,assigned_course_id,assigned_batch
+Demo Hall 1,Main Block,1,100,90,THEORY,"Projector, Fan, Power",true,false,true,,
+Demo Hall 2,Main Block,2,100,90,THEORY,"Projector, Fan, Power",true,false,true,,
+Demo Hall 3,Main Block,0,100,90,THEORY,"Projector, Fan, Power",true,false,true,,
+Demo Hall 4,Main Block,1,100,90,THEORY,"Projector, Fan, Power",true,false,true,,
+Demo Hall 5,Main Block,2,100,90,THEORY,"Projector, Fan, Power",true,false,true,,

@@ -162,3 +162,17 @@ export async function uploadCsv(endpoint, file) {
 
   return parseResponse(response);
 }
+
+export async function validateCsv(entity, file) {
+  return uploadCsv(
+    `/import/${entity}/validate`,
+    file
+  );
+}
+
+export async function importCsv(entity, file) {
+  return uploadCsv(
+    `/import/${entity}/import`,
+    file
+  );
+}

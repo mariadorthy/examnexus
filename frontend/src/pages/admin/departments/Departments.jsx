@@ -15,6 +15,10 @@ import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import DepartmentForm from "./DepartmentForm";
 import { get, patch } from "../../../services/api";
+import {
+  validateCsv,
+  importCsv,
+} from "../../../services/api";
 import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 const API_URL = "http://127.0.0.1:5000/api/departments";
 
@@ -785,6 +789,8 @@ const [showCsvImport, setShowCsvImport] = useState(false);
   entity="departments"
   isOpen={showCsvImport}
   onClose={() => setShowCsvImport(false)}
+  onValidate={validateCsv}
+  onImport={importCsv}
 />
       {showForm && (
 

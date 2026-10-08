@@ -481,3 +481,73 @@ def test_failed_apply_does_not_mutate_state(
     after = _snapshot(prepared_examination)
 
     assert after == before
+
+
+def test_reallocation_invalidates_existing_hall_tickets(
+    admin_client,
+    prepared_examination,
+):
+    """
+    Issued hall tickets must not survive a successful
+    reallocation. Requires an examination in PUBLISHED
+    state with tickets generated first, then a legal
+    reallocation apply.
+    """
+    from app.models.hall_ticket import HallTicket
+    from app.services.hall_ticket import generate_hall_tickets
+
+    # Drive examination through the lifecycle to PUBLISHED so
+    # hall tickets can be issued.
+    exam = Examination.query.get(prepared_examination)
+
+    for step in (
+        "GENERATED",
+        "VALIDATED",
+        "REVIEW",
+        "APPROVED",
+        "PUBLISHED",
+    ):
+        from app.services.lifecycle import transition_status
+        result = transition_status(prepared_examination, step)
+        assert result["success"] is True, (
+            f"Lifecycle step {step} failed: {result}"
+        )
+
+    gen = generate_hall_tickets(prepared_examination, force=True)
+    assert gen["success"] is True, gen
+
+    ticket_count_before = HallTicket.query.filter_by(
+        examination_id=prepared_examination
+    ).count()
+    assert ticket_count_before > 0
+
+    # PUBLISHED examinations are protected from reallocation.
+    # We must flip back to REVIEW for the apply to be permitted.
+    exam.status = "REVIEW"
+    db.session.commit()
+
+    hall_id = _first_allocated_hall_id(prepared_examination)
+
+    response = admin_client.post(
+        f"/api/allocations/reallocate/apply/{prepared_examination}",
+        json={
+            "confirm": True,
+            "excluded_hall_ids": [hall_id],
+        },
+    )
+    assert response.status_code == 200, response.get_json()
+    body = response.get_json()
+    assert body["success"] is True
+    assert body.get("tickets_invalidated", 0) > 0
+
+    stale = HallTicket.query.filter_by(
+        examination_id=prepared_examination,
+        status="ISSUED",
+    ).count()
+    assert stale == 0
+
+    invalidated = HallTicket.query.filter_by(
+        examination_id=prepared_examination,
+        status="INVALIDATED",
+    ).count()
+    assert invalidated == ticket_count_before

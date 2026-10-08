@@ -1,18 +1,63 @@
+import { Fragment, useEffect, useState } from "react";
+
 import {
   X,
   ClipboardList,
   Users,
   Building2,
   Armchair,
+  CheckCircle2,
+  XCircle,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
+import { getExplanation } from "../../../services/allocationService";
 function AllocationDetails({
   examination,
   allocations,
   onClose,
 }) {
+  const [explanation, setExplanation] = useState(null);
+  const [openKeys, setOpenKeys] = useState({});
+
+  useEffect(() => {
+    let alive = true;
+    if (!examination?.id) {
+      setExplanation(null);
+      return;
+    }
+    getExplanation(examination.id)
+      .then((data) => {
+        if (alive) setExplanation(data);
+      })
+      .catch(() => {
+        if (alive) setExplanation(null);
+      });
+    return () => { alive = false; };
+  }, [examination?.id]);
+
   if (!examination) {
     return null;
+  }
+
+  const explanationsByKey = new Map();
+  for (const row of explanation?.selected || []) {
+    explanationsByKey.set(
+      `${row.timetable_id}-${row.hall_id}`,
+      row
+    );
+  }
+
+  const rejectedByTimetable = new Map();
+  for (const row of explanation?.rejected || []) {
+    const list = rejectedByTimetable.get(row.timetable_id) || [];
+    list.push(row);
+    rejectedByTimetable.set(row.timetable_id, list);
+  }
+
+  function toggleRow(key) {
+    setOpenKeys((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
 const hallGroups = allocations.reduce(
@@ -87,7 +132,11 @@ const hallGroups = allocations.reduce(
 <InfoCard
   icon={Users}
   label="Eligible Students"
-  value={allocations.length > 0 ? "Available" : "—"}
+  value={
+        explanation?.eligible_students_count ??
+        explanation?.eligible_students?.length ??
+        "—"
+        }
 />
 
 <InfoCard
@@ -219,59 +268,96 @@ const hallGroups = allocations.reduce(
 
               <tbody>
 
-                {slotAllocations.map(
-                  (allocation) => (
-                    <tr
-                      key={allocation.id}
-                      className="border-b border-border last:border-0 hover:bg-surface-muted"
-                    >
+{slotAllocations.map((allocation) => {
+  const key = `${allocation.timetable_id}-${allocation.hall_id}`;
+  const expl = explanationsByKey.get(key);
+  const isOpen = !!openKeys[key];
 
-                      <td className="px-5 py-4 text-sm font-semibold text-text">
-                        {allocation.hall || "Unknown Hall"}
-                      </td>
+  return (
+    <Fragment key={allocation.id}>
+      <tr className="border-b border-border last:border-0 hover:bg-surface-muted">
+        {/* ...existing cells unchanged... */}
 
-                      <td className="px-5 py-4 text-sm text-text">
-                        {allocation.building_name || "—"}
-                      </td>
+        <td className="px-5 py-4">
+          <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-success">
+            {allocation.status}
+          </span>
+        </td>
 
-                      <td className="px-5 py-4 text-sm text-text">
-                        {allocation.floor_no ?? "—"}
-                      </td>
+        <td className="px-5 py-4 text-right">
+          {expl && (
+            <button
+              type="button"
+              onClick={() => toggleRow(key)}
+              className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-primary transition hover:bg-accent-light"
+            >
+              Why this hall?
+              {isOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+          )}
+        </td>
+      </tr>
 
-                      <td className="px-5 py-4 text-sm text-text">
-                        {allocation.examination_capacity ?? 0}
-                      </td>
-
-                      <td className="px-5 py-4 text-sm font-semibold text-primary">
-                        {allocation.allocated_capacity ?? 0}
-                      </td>
-
-                      <td className="px-5 py-4">
-
-                        <span className="inline-flex rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-primary">
-                          {allocation.purpose || "NORMAL"}
-                        </span>
-
-                      </td>
-
-                      <td className="px-5 py-4">
-
-                        <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-success">
-                          {allocation.status}
-                        </span>
-
-                      </td>
-
-                    </tr>
-                  )
-                )}
+      {isOpen && expl && (
+        <tr className="border-b border-border bg-surface-muted">
+          <td colSpan={8} className="px-5 py-4">
+            <ul className="space-y-1.5">
+              {expl.reasons.map((r) => (
+                <li
+                  key={r.code}
+                  className="flex items-start gap-2 text-xs text-text"
+                >
+                  <CheckCircle2
+                    size={14}
+                    className="mt-0.5 shrink-0 text-success"
+                  />
+                  <span>{r.message}</span>
+                </li>
+              ))}
+            </ul>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+})}
 
               </tbody>
 
             </table>
 
           </div>
-
+{/* Rejected alternatives for this timetable slot */}
+{firstAllocation && rejectedByTimetable.get(firstAllocation.timetable_id)?.length > 0 && (
+  <div className="border-t border-border bg-surface-muted px-5 py-4">
+    <h4 className="text-xs font-semibold uppercase tracking-wider text-text-muted">
+      Rejected alternatives
+    </h4>
+    <ul className="mt-3 space-y-2">
+      {rejectedByTimetable.get(firstAllocation.timetable_id).map((row) => (
+        <li
+          key={`${row.timetable_id}-${row.hall_id}`}
+          className="rounded-xl border border-border bg-surface px-4 py-3"
+        >
+          <p className="text-sm font-semibold text-text">
+            {row.hall || `Hall #${row.hall_id}`}
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {row.reasons.map((r) => (
+              <li
+                key={r.code}
+                className="flex items-start gap-2 text-xs text-text-muted"
+              >
+                <XCircle size={13} className="mt-0.5 shrink-0 text-danger" />
+                <span>{r.message}</span>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
         </section>
       );
     }

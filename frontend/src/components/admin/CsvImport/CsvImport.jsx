@@ -311,9 +311,27 @@ function CsvImport({
 
               </div>
 
-
               {validationResult && (
                 <div className="csv-import-results">
+
+                  <div
+                    className={
+                      validationResult.valid
+                        ? "csv-import-validity-banner valid"
+                        : "csv-import-validity-banner invalid"
+                    }
+                  >
+               {validationResult.valid
+  ? "VALID — all rows are ready to import."
+  : validationResult.valid_rows > 0
+    ? `PARTIAL — ${
+        validationResult.valid_rows
+      } valid row(s) can be imported; ${
+        (validationResult.invalid_rows || 0) +
+        (validationResult.duplicate_rows || 0)
+      } row(s) will be skipped.`
+    : "INVALID — no rows are available for import."}
+                  </div>
 
                   <div className="csv-import-summary">
 
@@ -345,12 +363,18 @@ function CsvImport({
                       </strong>
                     </div>
 
+                    <div className="csv-summary-card warning">
+                      <span>Warnings</span>
+                      <strong>
+                        {validationResult.summary
+                          ?.warning_count || 0}
+                      </strong>
+                    </div>
+
                   </div>
 
 
-                  <div className="csv-preview-section">
-
-                    <div className="csv-preview-header">
+                  <div className="csv-preview-section">                    <div className="csv-preview-header">
                       <div>
                         <h3>CSV Preview</h3>
 
@@ -412,21 +436,54 @@ function CsvImport({
                                   )}
                                 </div>
                               </td>
-
                               <td>
-                                {row.errors?.length > 0 ? (
-                                  <ul className="csv-error-list">
-                                    {row.errors.map(
-                                      (message, index) => (
-                                        <li key={index}>
-                                          {message}
-                                        </li>
-                                      )
-                                    )}
-                                  </ul>
-                                ) : (
-                                  "—"
-                                )}
+                                {(() => {
+                                  const issues =
+                                    row.issues || [];
+                                  const errs = issues.filter(
+                                    (i) =>
+                                      i.severity === "error"
+                                  );
+                                  const warns = issues.filter(
+                                    (i) =>
+                                      i.severity === "warning"
+                                  );
+
+                                  if (
+                                    errs.length === 0 &&
+                                    warns.length === 0
+                                  ) {
+                                    return "—";
+                                  }
+
+                                  return (
+                                    <>
+                                      {errs.length > 0 && (
+                                        <ul className="csv-error-list">
+                                          {errs.map(
+                                            (i, idx) => (
+                                              <li key={`e-${idx}`}>
+                                                {i.message}
+                                              </li>
+                                            )
+                                          )}
+                                        </ul>
+                                      )}
+
+                                      {warns.length > 0 && (
+                                        <ul className="csv-warning-list">
+                                          {warns.map(
+                                            (i, idx) => (
+                                              <li key={`w-${idx}`}>
+                                                {i.message}
+                                              </li>
+                                            )
+                                          )}
+                                        </ul>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                               </td>
                             </tr>
                           ))}
@@ -449,21 +506,24 @@ function CsvImport({
                     >
                       Choose Another File
                     </button>
-
                     <button
                       type="button"
                       className="csv-import-primary-button"
                       onClick={handleImport}
                       disabled={
-                        importing ||
-                        validationResult.valid_rows <= 0
-                      }
+  importing ||
+  validationResult.valid_rows <= 0
+}
+title={
+  validationResult.valid_rows > 0
+    ? "Import only the rows marked as valid."
+    : "There are no valid rows available for import."
+}
                     >
                       {importing
                         ? "Importing..."
                         : "Import Valid Rows"}
                     </button>
-
                   </div>
 
                 </div>

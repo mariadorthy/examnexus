@@ -1,0 +1,6 @@
+course_code,course_name,course_abbreviation,program_level,study_shift,session,department_id,total_semesters
+BTECH-CSE,Bachelor of Technology Computer Science,B.Tech CSE,UG,MORNING,2026-27,1,8
+BTECH-ECE,Bachelor of Technology Electronics,B.Tech ECE,UG,MORNING,2026-27,2,8
+BTECH-EEE,Bachelor of Technology Electrical,B.Tech EEE,UG,MORNING,2026-27,3,8
+BTECH-MECH,Bachelor of Technology Mechanical,B.Tech MECH,UG,MORNING,2026-27,4,8
+BTECH-CIVIL,Bachelor of Technology Civil,B.Tech CIVIL,UG,MORNING,2026-27,5,8

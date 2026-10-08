@@ -204,8 +204,6 @@ def generate_invigilator_allocation(
         hall = allocation.hall
 
         if not timetable or not hall:
-            db.session.rollback()
-
             return {
                 "success": False,
                 "message": (
@@ -254,8 +252,6 @@ def generate_invigilator_allocation(
             assigned_here += 1
 
         if assigned_here < required:
-            db.session.rollback()
-
             return {
                 "success": False,
                 "message": (
@@ -268,6 +264,7 @@ def generate_invigilator_allocation(
                 "assigned": assigned_here,
                 "shortage": required - assigned_here
             }
+
         per_hall_summary.append(
             {
                 "timetable_id": timetable.id,
@@ -276,11 +273,10 @@ def generate_invigilator_allocation(
                 "assigned": assigned_here
             }
         )
-
+        
     # ---------------------------------------------------------
     # PERSIST
     # ---------------------------------------------------------
-
     try:
         if force and existing_count > 0:
             (
@@ -290,7 +286,9 @@ def generate_invigilator_allocation(
             )
 
         db.session.add_all(new_rows)
-        db.session.commit()
+
+        if commit:
+            db.session.commit()
 
     except Exception as error:
         db.session.rollback()

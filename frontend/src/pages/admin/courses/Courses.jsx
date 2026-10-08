@@ -14,6 +14,10 @@ import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import CourseForm from "./CourseForm";
+import {
+  validateCsv,
+  importCsv,
+} from "../../../services/api";
 import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 
 function Courses({ user, onLogout,  onNavigate,
@@ -824,6 +828,8 @@ const handleCloseForm = () => {
   entity="courses"
   isOpen={showCsvImport}
   onClose={() => setShowCsvImport(false)}
+  onValidate={validateCsv}
+  onImport={importCsv}
 />
       {showForm && (
 

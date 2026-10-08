@@ -17,6 +17,10 @@ import StaffForm from "./StaffForm";
 import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
+import {
+  validateCsv,
+  importCsv,
+} from "../../../services/api";
 import CsvImport from "../../../components/admin/CsvImport/CsvImport";
 function Staff({
   user,
@@ -661,11 +665,15 @@ const handleToggleStatus = async (staff) => {
     </div>
   </div>
 )}
+
 <CsvImport
   entity="staff"
   isOpen={showCsvImport}
   onClose={() => setShowCsvImport(false)}
+  onValidate={validateCsv}
+  onImport={importCsv}
 />
+
 {showForm && (
   <StaffForm
     staff={editingStaff}
