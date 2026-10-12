@@ -19,10 +19,24 @@ import {
 
 function InvigilatorPanel({
   examinations,
+  selectedExamination: selectedExaminationProp,
+  onSelectExamination,
   onMessage,
 }) {
-  const [selectedExamination, setSelectedExamination] =
-    useState("");
+  const [internalSelection, setInternalSelection] =
+    useState(selectedExaminationProp || "");
+
+  const selectedExamination = onSelectExamination
+    ? (selectedExaminationProp || "")
+    : internalSelection;
+
+  const setSelectedExamination = (value) => {
+    if (onSelectExamination) {
+      onSelectExamination(value);
+    } else {
+      setInternalSelection(value);
+    }
+  };
 
   const [assignments, setAssignments] = useState([]);
   const [workload, setWorkload] = useState([]);
@@ -33,7 +47,8 @@ function InvigilatorPanel({
   const [validating, setValidating] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
+const [assignmentSessionFilter, setAssignmentSessionFilter] =
+  useState("");
   useEffect(() => {
     if (selectedExamination) {
       loadData(selectedExamination);
@@ -195,6 +210,11 @@ function InvigilatorPanel({
   const isValid =
     validation &&
     validation.status === "VALID";
+const filteredAssignments = assignmentSessionFilter
+  ? assignments.filter(
+      (row) => row.session === assignmentSessionFilter
+    )
+  : assignments;
 
   return (
     <>
@@ -497,22 +517,54 @@ function InvigilatorPanel({
         </section>
       )}
 
+
       {/* ============================================ */}
       {/* ASSIGNMENT TABLE */}
       {/* ============================================ */}
-
       {selectedExamination && assignments.length > 0 && (
         <section className="rounded-2xl border border-border bg-surface shadow-sm">
 
           <div className="border-b border-border p-5 md:p-6">
-            <h2 className="font-bold text-text">
-              Invigilator Assignments
-            </h2>
-            <p className="mt-1 text-sm text-text-muted">
-              Staff scheduled per examination slot and hall.
-            </p>
-          </div>
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h2 className="font-bold text-text">
+                  Invigilator Assignments
+                </h2>
+                <p className="mt-1 text-sm text-text-muted">
+                  Staff scheduled per examination slot and hall.
+                </p>
+              </div>
 
+              <div className="flex items-end gap-2">
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Session
+                  </label>
+                  <select
+                    value={assignmentSessionFilter}
+                    onChange={(event) =>
+                      setAssignmentSessionFilter(event.target.value)
+                    }
+                    className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm text-text outline-none focus:border-primary"
+                  >
+                    <option value="">All sessions</option>
+                    <option value="FN">FN</option>
+                    <option value="AN">AN</option>
+                  </select>
+                </div>
+
+                {assignmentSessionFilter && (
+                  <button
+                    type="button"
+                    onClick={() => setAssignmentSessionFilter("")}
+                    className="rounded-xl px-3 py-2 text-xs font-semibold text-text-muted hover:bg-surface-muted hover:text-text"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[960px]">
               <thead>
@@ -537,8 +589,8 @@ function InvigilatorPanel({
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {assignments.map((row) => (
+                         <tbody>
+                {filteredAssignments.map((row) => (
                   <tr
                     key={row.id}
                     className="border-b border-border last:border-0 hover:bg-surface-muted"

@@ -572,7 +572,6 @@ def get_student_dashboard():
 
     return {
         "success": True,
-
         "user": {
             "id": student.id,
             "student_id": student.student_id,
@@ -583,9 +582,12 @@ def get_student_dashboard():
             "batch": student.batch,
             "semester": student.semester,
             "class_name": student.class_name,
-            "session": student.session
+            "session": student.session,
+            # Aliased from Student.student_img. Frontend reads
+            # profile_image everywhere; keeping the DB column name
+            # out of the API contract avoids leaking the schema.
+            "profile_image": student.student_img or None,
         },
-
         "timetable": timetable_entries,
 
         "hall_tickets": hall_tickets

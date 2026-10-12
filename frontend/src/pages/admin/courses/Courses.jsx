@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   Building2,
+    BookOpen,
   Plus,
   Search,
   RefreshCw,
@@ -13,6 +14,7 @@ import {
 import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
+import CourseFilters from "./CourseFilters";
 import CourseForm from "./CourseForm";
 import {
   validateCsv,
@@ -35,7 +37,13 @@ function Courses({ user, onLogout,  onNavigate,
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
-
+const [filters, setFilters] = useState({
+  department_id: "",
+  program_level: "",
+  study_shift: "",
+  session: "",
+  is_active: "",
+});
   const [showForm, setShowForm] = useState(false);
 const [showCsvImport, setShowCsvImport] = useState(false);
 const [editingCourse, setEditingCourse] = useState(null);
@@ -101,51 +109,109 @@ const loadCourses = async () => {
   // SEARCH
   // =====================================================
 
-  const filteredCourses = courses.filter(
-    (course) => {
+  const programLevelOptions = (() => {
+  const fromData = [
+    ...new Set(
+      courses.map((c) => c.program_level).filter(Boolean)
+    ),
+  ];
+  return fromData.length ? fromData.sort() : ["UG", "PG"];
+})();
 
-      const searchText =
-        search.trim().toLowerCase();
+const studyShiftOptions = (() => {
+  const fromData = [
+    ...new Set(
+      courses.map((c) => c.study_shift).filter(Boolean)
+    ),
+  ];
+  return fromData.length
+    ? fromData.sort()
+    : ["Morning", "Afternoon"];
+})();
 
+const sessionOptions = (() => {
+  const fromData = [
+    ...new Set(
+      courses.map((c) => c.session).filter(Boolean)
+    ),
+  ];
+  return fromData.length ? fromData.sort() : ["FN", "AN"];
+})();
+  const filteredCourses = courses.filter((course) => {
+    // Search (unchanged)
+    const searchText = search.trim().toLowerCase();
 
-      if (!searchText) {
-        return true;
-      }
-
-
-      return (
-
-        course.course_code
-          ?.toLowerCase()
-          .includes(searchText) ||
-
-        course.course_name
-          ?.toLowerCase()
-          .includes(searchText) ||
-
+    if (searchText) {
+      const matchesSearch =
+        course.course_code?.toLowerCase().includes(searchText) ||
+        course.course_name?.toLowerCase().includes(searchText) ||
         course.course_abbreviation
           ?.toLowerCase()
           .includes(searchText) ||
-
-        course.program_level
-          ?.toLowerCase()
-          .includes(searchText) ||
-
-        getDepartmentName(
-          course.department_id
-        )
+        course.program_level?.toLowerCase().includes(searchText) ||
+        getDepartmentName(course.department_id)
           .toLowerCase()
-          .includes(searchText)
+          .includes(searchText);
 
-      );
-
+      if (!matchesSearch) return false;
     }
-  );
 
+    // Filters
+    if (
+      filters.department_id &&
+      String(course.department_id) !== String(filters.department_id)
+    ) {
+      return false;
+    }
+
+    if (
+      filters.program_level &&
+      course.program_level !== filters.program_level
+    ) {
+      return false;
+    }
+
+    if (
+      filters.study_shift &&
+      course.study_shift !== filters.study_shift
+    ) {
+      return false;
+    }
+
+    if (
+      filters.session &&
+      course.session !== filters.session
+    ) {
+      return false;
+    }
+
+    if (filters.is_active !== "") {
+      const wanted = filters.is_active === "true";
+      if (Boolean(course.is_active) !== wanted) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   // =====================================================
   // CREATE SUCCESS
   // =====================================================
+
+  const handleFilterChange = (key, value) => {
+  setFilters((current) => ({ ...current, [key]: value }));
+};
+
+const handleResetFilters = () => {
+  setFilters({
+    department_id: "",
+    program_level: "",
+    study_shift: "",
+    session: "",
+    is_active: "",
+  });
+};
 
  const handleCreate = () => {
   setEditingCourse(null);
@@ -505,7 +571,6 @@ const handleCloseForm = () => {
                     : ""
                 }
               />
-
               Refresh
 
             </button>
@@ -513,10 +578,22 @@ const handleCloseForm = () => {
           </div>
 
 
+          {/* FILTERS */}
+
+          <CourseFilters
+            filters={filters}
+            onChange={handleFilterChange}
+            onReset={handleResetFilters}
+            departments={departments}
+            programLevelOptions={programLevelOptions}
+            studyShiftOptions={studyShiftOptions}
+            sessionOptions={sessionOptions}
+          />
+
+
           {/* ================================================= */}
           {/* TABLE */}
           {/* ================================================= */}
-
           <div
             className="
               overflow-hidden
@@ -605,10 +682,9 @@ const handleCloseForm = () => {
                             ? "No courses found"
                             : "No courses yet"}
                         </p>
-
                         <p className="mt-1 text-sm text-text-muted">
-                          {search
-                            ? "Try a different search term."
+                          {search || Object.values(filters).some(Boolean)
+                            ? "Try a different search term or clear filters."
                             : "Create your first course to get started."}
                         </p>
 

@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 
+import StaffFilters from "./StaffFilters";
 import StaffForm from "./StaffForm";
 import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
@@ -37,6 +38,13 @@ function Staff({
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({
+  department_id: "",
+  designation: "",
+  gender: "",
+  availability: "",
+  is_active: "",
+});
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [showCsvImport, setShowCsvImport] = useState(false);
@@ -111,6 +119,20 @@ setStaffMembers(data);
     setShowForm(true);
   };
 
+  const handleFilterChange = (key, value) => {
+  setFilters((current) => ({ ...current, [key]: value }));
+};
+
+const handleResetFilters = () => {
+  setFilters({
+    department_id: "",
+    designation: "",
+    gender: "",
+    availability: "",
+    is_active: "",
+  });
+};
+
   const handleEdit = (staff) => {
     setEditingStaff(staff);
     setShowForm(true);
@@ -160,19 +182,68 @@ const handleToggleStatus = async (staff) => {
     loadData();
   };
 
-  const filteredStaff = staffMembers.filter((staff) => {
-    const searchValue = search.toLowerCase();
+  const designationOptions = [
+  ...new Set(
+    staffMembers
+      .map((staff) => staff.designation)
+      .filter(Boolean)
+  ),
+].sort();
 
-    return (
+const genderOptions = [
+  ...new Set(
+    staffMembers
+      .map((staff) => staff.gender)
+      .filter(Boolean)
+  ),
+].sort();
+const filteredStaff = staffMembers.filter((staff) => {
+  // Search (unchanged)
+  const searchValue = search.toLowerCase();
+
+  if (searchValue) {
+    const matchesSearch =
       staff.name?.toLowerCase().includes(searchValue) ||
       staff.email?.toLowerCase().includes(searchValue) ||
       staff.designation?.toLowerCase().includes(searchValue) ||
       getDepartmentName(staff.department_id)
         .toLowerCase()
-        .includes(searchValue)
-    );
-  });
+        .includes(searchValue);
 
+    if (!matchesSearch) return false;
+  }
+
+  // Filters
+  if (
+    filters.department_id &&
+    String(staff.department_id) !== String(filters.department_id)
+  ) {
+    return false;
+  }
+
+  if (
+    filters.designation &&
+    staff.designation !== filters.designation
+  ) {
+    return false;
+  }
+
+  if (filters.gender && staff.gender !== filters.gender) {
+    return false;
+  }
+
+  if (filters.availability !== "") {
+    const wanted = filters.availability === "true";
+    if (Boolean(staff.availability) !== wanted) return false;
+  }
+
+  if (filters.is_active !== "") {
+    const wanted = filters.is_active === "true";
+    if (Boolean(staff.is_active) !== wanted) return false;
+  }
+
+  return true;
+});
   return (
     <div className="min-h-screen bg-background">
 
@@ -317,7 +388,6 @@ const handleToggleStatus = async (staff) => {
                   className="w-full rounded-xl border border-border bg-surface py-3 pl-10 pr-4 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
                 />
               </div>
-
               <button
                 type="button"
                 onClick={loadData}
@@ -328,8 +398,18 @@ const handleToggleStatus = async (staff) => {
               </button>
             </div>
 
-            {/* Table */}
+            {/* FILTERS */}
 
+            <StaffFilters
+              filters={filters}
+              onChange={handleFilterChange}
+              onReset={handleResetFilters}
+              departments={departments}
+              designationOptions={designationOptions}
+              genderOptions={genderOptions}
+            />
+
+            {/* Table */}
             <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[900px]">
@@ -389,8 +469,11 @@ const handleToggleStatus = async (staff) => {
                           </p>
 
                           <p className="mt-1 text-sm text-text-muted">
-                            Add a staff member to get started.
+                            {search || Object.values(filters).some(Boolean)
+                              ? "Try changing your search or clearing filters."
+                              : "Add a staff member to get started."}
                           </p>
+
                         </td>
                       </tr>
                     ) : (

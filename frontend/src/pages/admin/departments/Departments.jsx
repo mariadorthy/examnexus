@@ -14,6 +14,7 @@ import {
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 import DepartmentForm from "./DepartmentForm";
+import DepartmentFilters from "./DepartmentFilters";
 import { get, patch } from "../../../services/api";
 import {
   validateCsv,
@@ -36,6 +37,10 @@ function Departments({
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+
+  const [filters, setFilters] = useState({
+  is_active: "",
+});
 
   const [showForm, setShowForm] = useState(false);
 const [showCsvImport, setShowCsvImport] = useState(false);
@@ -93,29 +98,40 @@ const [showCsvImport, setShowCsvImport] = useState(false);
   // SEARCH
   // =====================================================
 
-  const filteredDepartments = departments.filter(
-    (department) => {
+    const filteredDepartments = departments.filter((department) => {
+    // Search (unchanged)
+    const searchText = search.trim().toLowerCase();
 
-      const searchText = search
-        .trim()
-        .toLowerCase();
-
-      if (!searchText) {
-        return true;
-      }
-
-      return (
+    if (searchText) {
+      const matchesSearch =
         department.department_code
           ?.toLowerCase()
           .includes(searchText) ||
-
         department.department_name
           ?.toLowerCase()
-          .includes(searchText)
-      );
+          .includes(searchText);
 
+      if (!matchesSearch) return false;
     }
-  );
+
+    // Filters
+    if (filters.is_active !== "") {
+      const wanted = filters.is_active === "true";
+      if (Boolean(department.is_active) !== wanted) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+  
+  const handleFilterChange = (key, value) => {
+  setFilters((current) => ({ ...current, [key]: value }));
+};
+
+const handleResetFilters = () => {
+  setFilters({ is_active: "" });
+};
 
   const handleEdit = (department) => {
 
@@ -491,16 +507,23 @@ const [showCsvImport, setShowCsvImport] = useState(false);
               />
 
               Refresh
-
             </button>
 
           </div>
 
 
+          {/* FILTERS */}
+
+          <DepartmentFilters
+            filters={filters}
+            onChange={handleFilterChange}
+            onReset={handleResetFilters}
+          />
+
+
           {/* ================================================= */}
           {/* TABLE */}
           {/* ================================================= */}
-
           <div
             className="
               overflow-hidden
@@ -576,13 +599,11 @@ const [showCsvImport, setShowCsvImport] = useState(false);
                             ? "No departments found"
                             : "No departments yet"}
                         </p>
-
                         <p className="mt-1 text-sm text-text-muted">
-                          {search
-                            ? "Try a different search term."
+                          {search || Object.values(filters).some(Boolean)
+                            ? "Try a different search term or clear filters."
                             : "Create your first department to get started."}
                         </p>
-
                       </td>
 
                     </tr>

@@ -11,6 +11,7 @@ Rules:
 
 import uuid
 import os
+import re
 from app import db
 
 from app.models.examination import Examination
@@ -21,6 +22,36 @@ from app.models.hall_ticket import HallTicket
 
 from app.services.qr import make_qr_base64
 
+def _safe_filename_part(value, fallback="Unknown"):
+    """
+    Turn an arbitrary string into a filesystem-safe token.
+    Keeps A-Z, a-z, 0-9, dash, underscore. Replaces everything
+    else (including spaces and slashes) with underscore. Collapses
+    repeats. Strips leading/trailing underscores.
+    """
+    if value is None:
+        return fallback
+    text = str(value).strip()
+    if not text:
+        return fallback
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", text)
+    cleaned = re.sub(r"_+", "_", cleaned).strip("_")
+    return cleaned or fallback
+
+
+def _hall_ticket_filename(student, examination):
+    """
+    Build a per-student, per-exam hall-ticket filename.
+
+    Format: ExamNexus_HallTicket_<roll>_<name>_<exam>.pdf
+    Fallbacks are used when any component is missing.
+    """
+    roll = _safe_filename_part(student.student_id, "Roll")
+    name = _safe_filename_part(student.name, "Student")
+    exam = _safe_filename_part(
+        (examination.name or "")[:40], "Exam"
+    )
+    return f"ExamNexus_HallTicket_{roll}_{name}_{exam}.pdf"
 
 def _build_ticket_payload(student, examination, seat_rows):
     """
@@ -176,12 +207,12 @@ def generate_hall_tickets(examination_id, force=False):
     by_student = {}
     for row in seat_rows:
         by_student.setdefault(row.student_id, []).append(row)
-
     existing_tickets = {
         ticket.student_id: ticket
         for ticket in (
             HallTicket.query
             .filter_by(examination_id=examination_id)
+            .filter(HallTicket.status == "ISSUED")
             .all()
         )
     }
@@ -196,16 +227,29 @@ def generate_hall_tickets(examination_id, force=False):
             "existing_tickets": len(existing_tickets)
         }
 
+    # Compute the next version for each student. A student who
+    # already has version N gets version N+1 on reissue; a
+    # student with no prior row starts at version 1.
+    max_version_by_student = {}
+    for row in (
+        HallTicket.query
+        .filter_by(examination_id=examination_id)
+        .all()
+    ):
+        current = max_version_by_student.get(row.student_id, 0)
+        if row.version > current:
+            max_version_by_student[row.student_id] = row.version
+
     created = 0
     reused = 0
 
     try:
         if force and existing_tickets:
-            (
-                HallTicket.query
-                .filter_by(examination_id=examination_id)
-                .delete(synchronize_session=False)
-            )
+            # Mark currently ISSUED rows SUPERSEDED, do not
+            # delete them. Preserves the audit trail.
+            for ticket in existing_tickets.values():
+                ticket.status = "SUPERSEDED"
+            db.session.flush()
             existing_tickets = {}
 
         for student_id in sorted(by_student.keys()):
@@ -214,11 +258,13 @@ def generate_hall_tickets(examination_id, force=False):
                 continue
 
             token = uuid.uuid4().hex
+            next_version = max_version_by_student.get(student_id, 0) + 1
 
             ticket = HallTicket(
                 student_id=student_id,
                 examination_id=examination_id,
                 verification_token=token,
+                version=next_version,
                 status="ISSUED"
             )
 
@@ -226,7 +272,7 @@ def generate_hall_tickets(examination_id, force=False):
             created += 1
 
         db.session.commit()
-
+        
     except Exception as error:
         db.session.rollback()
 
@@ -314,8 +360,62 @@ def get_hall_ticket(student_id, examination_id):
     }
 
 # Ticket statuses that must never verify as valid.
-TERMINAL_TICKET_STATUSES = frozenset({"INVALIDATED"})
+TERMINAL_TICKET_STATUSES = frozenset({
+    "INVALIDATED",
+    "SUPERSEDED",
+})
 
+def get_hall_ticket_pdf(student_id, examination_id, requester_role=None, requester_id=None):
+    """
+    Return a downloadable PDF for one hall ticket.
+
+    Authorization:
+      - admin  -> any (examination_id, student_id) pair
+      - student -> only their own record
+    """
+    if requester_role == "student" and requester_id != student_id:
+        return {
+            "success": False,
+            "message": "Not authorized to download this hall ticket"
+        }
+
+    ticket_result = get_hall_ticket(student_id, examination_id)
+    if not ticket_result.get("success"):
+        return ticket_result
+
+    # Lazy import so the module stays importable when reportlab is
+    # absent in environments that don't need PDFs (e.g. read-only checks).
+    from app.services.hall_ticket_pdf import build_hall_ticket_pdf
+
+    try:
+        pdf_bytes = build_hall_ticket_pdf(
+            ticket_result["payload"],
+            ticket_result["ticket"]["qr_base64"],
+        )
+    except Exception as error:
+        return {
+            "success": False,
+            "message": "Failed to render hall ticket PDF",
+            "error": str(error),
+        }
+
+    # Fetch student/exam records (already loaded inside get_hall_ticket,
+    # but we re-fetch here to keep this function self-contained and
+    # avoid expanding get_hall_ticket's public contract).
+    student = Student.query.get(student_id)
+    examination = Examination.query.get(examination_id)
+
+    if student is not None and examination is not None:
+        filename = _hall_ticket_filename(student, examination)
+    else:
+        filename = "ExamNexus_Hall_Ticket.pdf"
+
+    return {
+        "success": True,
+        "filename": filename,
+        "content_type": "application/pdf",
+        "pdf_bytes": pdf_bytes,
+    }
 
 def invalidate_hall_tickets(examination_id, commit=True):
     """
@@ -374,6 +474,69 @@ def invalidate_hall_tickets(examination_id, commit=True):
         "committed": True,
     }
 
+
+
+def supersede_hall_tickets(examination_id, commit=True):
+    """
+    Mark every ISSUED hall ticket for the examination as
+    SUPERSEDED.
+
+    Used by the emergency reallocation workflow after a
+    published examination's arrangement is replaced. Unlike
+    invalidate_hall_tickets (which marks tickets INVALIDATED
+    and is used when a reallocation rolls back or an exam is
+    reverted), supersede keeps the previous ticket rows
+    auditable and reachable by their original tokens so an
+    examiner scanning an old QR code sees "superseded"
+    rather than "not found".
+
+    Deterministic: only flips status; never deletes rows;
+    preserves verification_token.
+    """
+
+    rows = (
+        HallTicket.query
+        .filter_by(examination_id=examination_id)
+        .all()
+    )
+
+    if not rows:
+        return {
+            "success": True,
+            "examination_id": examination_id,
+            "superseded": 0,
+        }
+
+    changed = 0
+    for ticket in rows:
+        if ticket.status == "ISSUED":
+            ticket.status = "SUPERSEDED"
+            changed += 1
+
+    if not commit:
+        return {
+            "success": True,
+            "examination_id": examination_id,
+            "superseded": changed,
+            "committed": False,
+        }
+
+    try:
+        db.session.commit()
+    except Exception as error:
+        db.session.rollback()
+        return {
+            "success": False,
+            "message": "Failed to supersede hall tickets",
+            "error": str(error),
+        }
+
+    return {
+        "success": True,
+        "examination_id": examination_id,
+        "superseded": changed,
+        "committed": True,
+    }
 
 def verify_hall_ticket(verification_token):
     """
@@ -502,25 +665,30 @@ def verify_hall_ticket(verification_token):
                 else None
             ),
         })
-
     is_terminal = ticket.status in TERMINAL_TICKET_STATUSES
+
+    if ticket.status == "SUPERSEDED":
+        message = (
+            "This ticket has been superseded by a newer arrangement. "
+            "Ask the candidate for their most recent ticket."
+        )
+    elif ticket.status == "INVALIDATED":
+        message = "Ticket has been invalidated"
+    else:
+        message = "Ticket is valid"
 
     return {
         "valid": not is_terminal,
         "status": ticket.status,
-"student_code": student.student_id,
-"student_name": student.name,
-"student_batch": student.batch,
-"student_semester": student.semester,
+        "student_code": student.student_id,
+        "student_name": student.name,
+        "student_batch": student.batch,
+        "student_semester": student.semester,
 
         "examination": examination.name,
         "exam_type": examination.exam_type,
 
         "timetable": timetable,
 
-        "message": (
-            "Ticket has been invalidated"
-            if is_terminal
-            else "Ticket is valid"
-        ),
+        "message": message,
     }

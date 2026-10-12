@@ -44,12 +44,13 @@ function Reports({
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
+const [rowSearch, setRowSearch] = useState("");
   useEffect(() => {
     loadExaminations();
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
+    setRowSearch("");
     if (selectedExamination) {
       loadReport(selectedExamination, activeTab);
     } else {
@@ -57,7 +58,7 @@ function Reports({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExamination, activeTab]);
-
+  
   const loadExaminations = async () => {
     try {
       const result = await get("/examinations/");
@@ -218,6 +219,34 @@ function Reports({
 
           </section>
 
+          {/* ROW SEARCH */}
+
+          {data && (
+            <section className="mb-6 rounded-2xl border border-border bg-surface p-4 shadow-sm">
+              <div className="relative max-w-md">
+                <input
+                  type="text"
+                  value={rowSearch}
+                  onChange={(event) =>
+                    setRowSearch(event.target.value)
+                  }
+                  placeholder="Search within this report..."
+                  className="w-full rounded-xl border border-border bg-surface-muted py-2.5 pl-4 pr-10 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
+                />
+                {rowSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setRowSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-text"
+                    aria-label="Clear search"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* ERROR */}
 
           {error && (
@@ -244,7 +273,11 @@ function Reports({
           {/* DATA */}
 
           {!loading && data && (
-            <ReportTable tab={activeTab} data={data} />
+            <ReportTable
+              tab={activeTab}
+              data={data}
+              search={rowSearch}
+            />
           )}
 
           {!loading && !data && !error && (
@@ -272,19 +305,36 @@ function Reports({
 }
 
 
-function ReportTable({ tab, data }) {
-  const rows = data?.rows || [];
+function ReportTable({ tab, data, search = "" }) {
+  const allRows = data?.rows || [];
 
+  const searchText = search.trim().toLowerCase();
+
+  const rows = searchText
+    ? allRows.filter((row) =>
+        Object.values(row)
+          .filter(
+            (value) =>
+              value !== null &&
+              value !== undefined &&
+              typeof value !== "object"
+          )
+          .join(" ")
+          .toLowerCase()
+          .includes(searchText)
+      )
+    : allRows;
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
         <p className="text-sm text-text-muted">
-          No data available for this report.
+          {searchText
+            ? "No rows match your search."
+            : "No data available for this report."}
         </p>
       </div>
     );
   }
-
   if (tab === "allocation") {
     return (
       <Shell title="Allocation Report">

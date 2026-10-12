@@ -5,9 +5,9 @@ from app.auth.decorators import roles_required
 from app.services.hall_ticket import (
     generate_hall_tickets,
     get_hall_ticket,
-    verify_hall_ticket
+    get_hall_ticket_pdf,
+    verify_hall_ticket,
 )
-
 
 hall_tickets_bp = Blueprint("hall_tickets", __name__)
 
@@ -52,3 +52,46 @@ def verify(verification_token):
     result = verify_hall_ticket(verification_token)
 
     return result, (200 if result.get("valid") else 404)
+
+@hall_tickets_bp.route(
+    "/download/<int:examination_id>/<int:student_id>",
+    methods=["GET"]
+)
+@roles_required("student", "admin")
+def download_pdf(examination_id, student_id):
+
+    # roles_required injects identity via flask.g in your auth layer.
+    from flask import g
+
+    requester = getattr(g, "current_user", None) or {}
+    role = requester.get("role")
+    requester_student_id = requester.get("student_id")
+
+    result = get_hall_ticket_pdf(
+        student_id=student_id,
+        examination_id=examination_id,
+        requester_role=role,
+        requester_id=requester_student_id,
+    )
+
+    if not result.get("success"):
+        # Preserve the 404 vs 403 distinction the UI relies on.
+        status = (
+            403
+            if "Not authorized" in (result.get("message") or "")
+            else 404
+        )
+        return result, status
+
+    from flask import Response
+
+    return Response(
+        result["pdf_bytes"],
+        mimetype=result["content_type"],
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{result["filename"]}"'
+            ),
+            "Cache-Control": "no-store",
+        },
+    )

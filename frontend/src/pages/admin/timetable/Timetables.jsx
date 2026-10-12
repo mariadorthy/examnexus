@@ -7,7 +7,7 @@ import {
   CalendarDays,
   Check,
 } from "lucide-react";
-
+import TimetableFilters from "./TimetableFilters";
 import AdminSidebar from "../../../components/AdminSidebar";
 import TimetableView from "./TimetableView";
 import {
@@ -57,7 +57,13 @@ const [excludedDates, setExcludedDates] = useState([]);
 
   const [creating, setCreating] =
     useState(false);
-
+const [search, setSearch] = useState("");
+const [filters, setFilters] = useState({
+  course_id: "",
+  semester: "",
+  exam_type: "",
+  status: "",
+});
 
   /* ================================================= */
   /* LOAD DATA */
@@ -302,6 +308,19 @@ const referenceExamination =
         },
       ];
 
+      const handleFilterChange = (key, value) => {
+  setFilters((current) => ({ ...current, [key]: value }));
+};
+
+const handleResetFilters = () => {
+  setFilters({
+    course_id: "",
+    semester: "",
+    exam_type: "",
+    status: "",
+  });
+};
+
   /* ================================================= */
   /* OPEN CREATE FORM */
   /* ================================================= */
@@ -417,6 +436,96 @@ function handleViewTimetable(examinationId) {
   setViewingExaminationId(examinationId);
 }
 
+const courseOptionsForTimetable = (() => {
+  const seen = new Map();
+  examinations.forEach((e) => {
+    if (e.course_id && !seen.has(e.course_id)) {
+      seen.set(e.course_id, {
+        id: e.course_id,
+        course_code: e.course_code || `Course #${e.course_id}`,
+        course_name: e.course_name || "",
+      });
+    }
+  });
+  return Array.from(seen.values());
+})();
+
+const semesterOptions = [
+  ...new Set(
+    examinations.map((e) => e.semester).filter(Boolean)
+  ),
+].sort((a, b) => a - b);
+
+const examTypeOptions = (() => {
+  const fromData = [
+    ...new Set(
+      examinations.map((e) => e.exam_type).filter(Boolean)
+    ),
+  ];
+  return fromData.length
+    ? fromData.sort()
+    : [
+        "REGULAR",
+        "INTERNAL",
+        "MODEL",
+        "SUPPLEMENTARY",
+        "PRACTICAL",
+      ];
+})();
+
+const filteredTimetables = existingTimetables.filter(
+  ({ examination, entries }) => {
+    // Search
+    const searchText = search.trim().toLowerCase();
+    if (searchText) {
+      const matchesSearch =
+        examination.name?.toLowerCase().includes(searchText) ||
+        examination.course_name
+          ?.toLowerCase()
+          .includes(searchText) ||
+        examination.exam_type
+          ?.toLowerCase()
+          .includes(searchText) ||
+        String(examination.semester).includes(searchText);
+
+      if (!matchesSearch) return false;
+    }
+
+    // Filters
+    if (
+      filters.course_id &&
+      String(examination.course_id) !== String(filters.course_id)
+    ) {
+      return false;
+    }
+
+    if (
+      filters.semester &&
+      String(examination.semester) !== String(filters.semester)
+    ) {
+      return false;
+    }
+
+    if (
+      filters.exam_type &&
+      examination.exam_type !== filters.exam_type
+    ) {
+      return false;
+    }
+
+    if (filters.status) {
+      const rowStatus = entries.every(
+        (entry) => entry.status === "GENERATED"
+      )
+        ? "GENERATED"
+        : "UPDATED";
+
+      if (rowStatus !== filters.status) return false;
+    }
+
+    return true;
+  }
+);
 
   /* ================================================= */
   /* LOADING */
@@ -1030,7 +1139,6 @@ function handleViewTimetable(examinationId) {
           {/* ================================================= */}
           {/* EXISTING TIMETABLES */}
           {/* ================================================= */}
-
           <section>
 
             <div className="mb-4">
@@ -1050,6 +1158,45 @@ function handleViewTimetable(examinationId) {
 
             </div>
 
+            {/* SEARCH + FILTERS */}
+
+            <div className="mb-5 rounded-2xl border border-border bg-surface p-4 shadow-sm">
+
+              <div className="relative max-w-md">
+
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(event) =>
+                    setSearch(event.target.value)
+                  }
+                  placeholder="Search timetables..."
+                  className="w-full rounded-xl border border-border bg-background py-3 pl-4 pr-10 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
+                />
+
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-text-light hover:text-text"
+                    aria-label="Clear search"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+
+              </div>
+
+            </div>
+
+            <TimetableFilters
+              filters={filters}
+              onChange={handleFilterChange}
+              onReset={handleResetFilters}
+              courses={courseOptionsForTimetable}
+              semesterOptions={semesterOptions}
+              examTypeOptions={examTypeOptions}
+            />
 
             {existingTimetables.length === 0 ? (
 
@@ -1065,13 +1212,10 @@ function handleViewTimetable(examinationId) {
                   No timetables created yet.
 
                 </p>
-
                 <p className="mt-1 text-sm text-text-muted">
-
-                  Click "Create Timetable" to
-                  create the first examination
-                  timetable.
-
+                  {existingTimetables.length > 0
+                    ? "Try changing your search or clearing filters."
+                    : 'Click "Create Timetable" to create the first examination timetable.'}
                 </p>
 
               </div>
@@ -1128,8 +1272,7 @@ function handleViewTimetable(examinationId) {
 
 
                   <tbody>
-
-                    {existingTimetables.map(
+                    {filteredTimetables.map(
                       ({
                         examination,
                         entries,

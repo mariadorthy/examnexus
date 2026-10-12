@@ -107,7 +107,6 @@ def _reset_examination_state(examination_id):
             "Feature 21 fixture could not rebuild hall "
             f"allocation: {hall_result}"
         )
-
     # 4. Rebuild invigilators.
     invig_result = generate_invigilator_allocation(
         examination_id, force=True
@@ -118,6 +117,17 @@ def _reset_examination_state(examination_id):
             f"invigilators: {invig_result}"
         )
 
+    # 5. Clear any stale incidents so downstream modules start
+    #    from a clean audit trail. The emergency reallocation
+    #    test module depends on this.
+    try:
+        from app.models.hall_incident import HallIncident
+        HallIncident.query.delete(synchronize_session=False)
+        db.session.commit()
+    except Exception:
+        # Incident table may not exist in a partially-migrated
+        # environment. Do not fail the whole fixture over it.
+        db.session.rollback()
 
 @pytest.fixture
 def prepared_examination(examination_id):
@@ -551,3 +561,48 @@ def test_reallocation_invalidates_existing_hall_tickets(
         status="INVALIDATED",
     ).count()
     assert invalidated == ticket_count_before
+
+def test_simulation_does_not_create_incident_records(
+    prepared_examination
+):
+    """
+    What-if simulation is hypothetical. It must not persist
+    any HallIncident row even when a hall is selected as
+    unavailable.
+    """
+    from app.models.hall_incident import HallIncident
+
+    before = HallIncident.query.count()
+
+    hall_id = _first_allocated_hall_id(prepared_examination)
+    simulate_reallocation(prepared_examination, [hall_id])
+
+    after = HallIncident.query.count()
+    assert after == before
+
+
+def test_simulation_does_not_mutate_hall_flags(
+    prepared_examination
+):
+    """
+    Simulation must not flip Hall.is_available or
+    Hall.is_under_maintenance.
+    """
+    hall_id = _first_allocated_hall_id(prepared_examination)
+    hall = Hall.query.get(hall_id)
+
+    before = (
+        hall.is_available,
+        hall.is_under_maintenance,
+        hall.is_active,
+    )
+
+    simulate_reallocation(prepared_examination, [hall_id])
+
+    db.session.refresh(hall)
+    after = (
+        hall.is_available,
+        hall.is_under_maintenance,
+        hall.is_active,
+    )
+    assert before == after

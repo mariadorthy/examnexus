@@ -71,24 +71,12 @@ def hall_conflicts(
             return True
 
     return False
+
 def get_available_halls(
     timetable,
     excluded_hall_ids=None,
     ignore_examination_id=None
 ):
-    """
-    Return halls that are usable and not occupied during
-    the timetable's date/time.
-
-    ``excluded_hall_ids`` (Feature 21) is an optional transient
-    set of hall ids excluded from the result without modifying
-    any Hall row in the database.
-
-    ``ignore_examination_id`` (Feature 21) is passed through to
-    hall_conflicts() so the examination's own current rows do
-    not block replanning.
-    """
-
     halls = (
         Hall.query
         .filter(
@@ -110,6 +98,21 @@ def get_available_halls(
             if hall.id not in excluded_hall_ids
         ]
 
+    # Remove halls with an active incident that applies to this
+    # examination. GLOBAL incidents block every planning
+    # operation for the hall until resolved. EXAM_SPECIFIC
+    # incidents block only the matching examination.
+    from app.services.hall_incident import (
+        is_hall_currently_blocked
+    )
+
+    exam_id = getattr(timetable, "examination_id", None)
+
+    halls = [
+        hall for hall in halls
+        if not is_hall_currently_blocked(hall.id, exam_id)
+    ]
+
     return [
         hall
         for hall in halls
@@ -120,7 +123,7 @@ def get_available_halls(
             ignore_examination_id=ignore_examination_id
         )
     ]
-# NEW CODE — REPLACE WITH
+
 def _plan_hall_allocations(
     examination,
     timetables,
@@ -161,6 +164,7 @@ def _plan_hall_allocations(
             "exclude_maintenance_halls",
             "exclude_unavailable_halls",
             "avoid_timetable_conflicts",
+            "generate_invigilators",
         }
         unknown = set(allocation_options.keys()) - allowed
         if unknown:
@@ -171,7 +175,6 @@ def _plan_hall_allocations(
                     + ", ".join(sorted(unknown))
                 ),
             }
-
     students = get_eligible_students(examination.id)
 
     if not students:
@@ -408,7 +411,6 @@ def _plan_hall_allocations(
                     + remaining_normal
                 )
             }
-
     return {
         "success": True,
         "allocations": allocations,
@@ -416,8 +418,61 @@ def _plan_hall_allocations(
         "accessibility_students": accessibility_students,
     }
 
-def generate_allocation(
+
+def plan_allocation(
     examination_id,
+    excluded_hall_ids=None,
+    allocation_options=None,
+):
+    """
+    Pure, non-persisting preview used by the Feature 18 ->
+    allocation workflow (Issue 5).
+
+    Delegates entirely to _plan_hall_allocations(); the
+    deterministic algorithm is unchanged. Nothing is written to
+    the database by this function.
+
+    Returns the same shape as _plan_hall_allocations(), but on
+    success the ``allocations`` list contains in-memory
+    HallAllocation model instances that have NOT been added to
+    db.session.
+    """
+
+    examination = Examination.query.get(examination_id)
+
+    if not examination:
+        return {
+            "success": False,
+            "message": "Examination not found",
+        }
+
+    timetables = (
+        Timetable.query
+        .filter_by(examination_id=examination_id)
+        .order_by(
+            Timetable.exam_date,
+            Timetable.start_time,
+            Timetable.id,
+        )
+        .all()
+    )
+
+    if not timetables:
+        return {
+            "success": False,
+            "message": "No timetable entries found for this examination",
+        }
+
+    return _plan_hall_allocations(
+        examination=examination,
+        timetables=timetables,
+        excluded_hall_ids=excluded_hall_ids,
+        allocation_options=allocation_options,
+    )
+
+
+def generate_allocation(
+        examination_id,
     force=False,
     excluded_hall_ids=None,
     allocation_options=None
@@ -453,6 +508,7 @@ def generate_allocation(
             "exclude_maintenance_halls",
             "exclude_unavailable_halls",
             "avoid_timetable_conflicts",
+            "generate_invigilators",
         }
         unknown = set(allocation_options.keys()) - allowed
         if unknown:

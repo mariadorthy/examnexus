@@ -7,7 +7,12 @@ from app.services.allocation import (
     generate_allocation,
     update_hall_allocation
 )
-from app.services.reallocation import simulate_reallocation
+
+from app.services.reallocation import (
+    simulate_reallocation,
+    simulate_emergency_reallocation,
+    apply_emergency_reallocation,
+)
 
 from app.services.bulk_allocation import generate_bulk_allocation
 from app.services.validation import validate_allocation
@@ -489,7 +494,6 @@ def bulk_generate_seats():
             "success": False,
             "message": "At least one examination must be selected."
         }, 400
-
     force = bool(data.get("force", False))
 
     result = generate_bulk_seat_allocation(
@@ -497,8 +501,11 @@ def bulk_generate_seats():
         force=force
     )
 
-    return result, (200 if result["success"] else 400)
-
+    # Bulk endpoints return per-examination results even when
+    # some rows fail. That is not a malformed request, so the
+    # HTTP status stays 200; callers inspect result["results"]
+    # and result["success"] to see per-row outcomes.
+    return result, 200
 
 @allocations_bp.route(
     "/invigilators/bulk-generate",
@@ -528,7 +535,6 @@ def bulk_generate_invigilators():
             "success": False,
             "message": "At least one examination must be selected."
         }, 400
-
     force = bool(data.get("force", False))
 
     result = generate_bulk_invigilator_allocation(
@@ -536,9 +542,11 @@ def bulk_generate_invigilators():
         force=force
     )
 
-    return result, (200 if result["success"] else 400)
-
-
+    # See note in bulk_generate_seats: per-row failures are not
+    # request errors. Return 200 and let the caller inspect
+    # result["results"].
+    return result, 200
+    
 @allocations_bp.route(
     "/validate/bulk",
     methods=["POST"]
@@ -634,6 +642,78 @@ def reallocate_apply(examination_id):
     result = apply_reallocation(
         examination_id,
         excluded_hall_ids=excluded
+    )
+
+    return result, (200 if result.get("success") else 400)
+
+# =========================================================
+# EMERGENCY REALLOCATION (PUBLISHED EXAMINATIONS)
+# =========================================================
+
+@allocations_bp.route(
+    "/reallocate/emergency/what-if/<int:examination_id>",
+    methods=["POST"]
+)
+@roles_required("admin")
+def reallocate_emergency_what_if(examination_id):
+
+    data = request.get_json(silent=True) or {}
+
+    incident_id = data.get("incident_id")
+    excluded = data.get("excluded_hall_ids")
+
+    if not isinstance(excluded, list) or not excluded:
+        return {
+            "success": False,
+            "message": (
+                "excluded_hall_ids must be a non-empty list."
+            ),
+        }, 400
+
+    result = simulate_emergency_reallocation(
+        examination_id,
+        excluded_hall_ids=excluded,
+        incident_id=incident_id,
+    )
+
+    return result, (200 if result.get("success") else 400)
+
+
+@allocations_bp.route(
+    "/reallocate/emergency/apply/<int:examination_id>",
+    methods=["POST"]
+)
+@roles_required("admin")
+def reallocate_emergency_apply(examination_id):
+
+    data = request.get_json(silent=True) or {}
+
+    if not data.get("confirm"):
+        return {
+            "success": False,
+            "message": (
+                "Emergency reallocation requires confirm=true."
+            ),
+        }, 400
+
+    incident_id = data.get("incident_id")
+    excluded = data.get("excluded_hall_ids")
+
+    if not isinstance(excluded, list) or not excluded:
+        return {
+            "success": False,
+            "message": (
+                "excluded_hall_ids must be a non-empty list."
+            ),
+        }, 400
+
+    result = apply_emergency_reallocation(
+        examination_id,
+        excluded_hall_ids=excluded,
+        incident_id=incident_id,
+        acknowledge_in_progress=bool(
+            data.get("acknowledge_in_progress", False)
+        ),
     )
 
     return result, (200 if result.get("success") else 400)

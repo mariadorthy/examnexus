@@ -6,7 +6,7 @@ import {
   Users,
 } from "lucide-react";
 
-
+import RegistrationFilters from "./RegistrationFilters";
 import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
@@ -31,6 +31,12 @@ function ExamRegistrations({
 
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({
+  examination_id: "",
+  status: "",
+  fee_status: "",
+  eligibility: "",
+});
   const [feeLoading, setFeeLoading] = useState(null);
   useEffect(() => {
     loadData();
@@ -196,36 +202,103 @@ const getEligibility = (registration) => {
 
   return "ELIGIBLE";
 };
+const examinationOptionsForFilter = (() => {
+  const seen = new Map();
+  registrations.forEach((r) => {
+    if (
+      r.examination_id &&
+      !seen.has(r.examination_id)
+    ) {
+      seen.set(r.examination_id, {
+        id: r.examination_id,
+        label: `Examination #${r.examination_id}`,
+      });
+    }
+  });
+  return Array.from(seen.values()).sort(
+    (a, b) => a.id - b.id
+  );
+})();
 
-  const filteredRegistrations =
-    registrations.filter((registration) => {
-      const student = getStudent(
-        registration.student_id
-      );
+const statusOptions = (() => {
+  const fromData = [
+    ...new Set(
+      registrations.map((r) => r.status).filter(Boolean)
+    ),
+  ];
+  return fromData.length
+    ? fromData.sort()
+    : ["REGISTERED", "CANCELLED", "COMPLETED"];
+})();
 
-      const examination =
-        getExamination(
-          registration.examination_id
-        );
+const feeStatusOptions = (() => {
+  const fromData = [
+    ...new Set(
+      registrations.map((r) => r.fee_status).filter(Boolean)
+    ),
+  ];
+  return fromData.length ? fromData.sort() : ["PAID", "PENDING"];
+})();
 
-      const searchableText = `
-        ${student?.student_id || ""}
-        ${student?.name || ""}
-        ${student?.email || ""}
-        ${examination?.exam_date || ""}
-        ${examination?.session || ""}
-        ${examination?.exam_type || ""}
-        ${registration.status}
-${registration.fee_status}
-${getEligibility(registration)}
-${registration.id}
-      `.toLowerCase();
+const eligibilityOptions = ["ELIGIBLE", "NOT READY"];
+const filteredRegistrations = registrations.filter(
+  (registration) => {
+    const student = getStudent(registration.student_id);
+    const examination = getExamination(
+      registration.examination_id
+    );
 
-      return searchableText.includes(
-        search.toLowerCase()
-      );
-    });
+    // Search (unchanged)
+    const searchableText = `
+      ${student?.student_id || ""}
+      ${student?.name || ""}
+      ${student?.email || ""}
+      ${examination?.exam_date || ""}
+      ${examination?.session || ""}
+      ${examination?.exam_type || ""}
+      ${registration.status}
+      ${registration.fee_status}
+      ${getEligibility(registration)}
+      ${registration.id}
+    `.toLowerCase();
 
+    if (!searchableText.includes(search.toLowerCase())) {
+      return false;
+    }
+
+    // Filters
+    if (
+      filters.examination_id &&
+      String(registration.examination_id) !==
+        String(filters.examination_id)
+    ) {
+      return false;
+    }
+
+    if (
+      filters.status &&
+      registration.status !== filters.status
+    ) {
+      return false;
+    }
+
+    if (
+      filters.fee_status &&
+      registration.fee_status !== filters.fee_status
+    ) {
+      return false;
+    }
+
+    if (
+      filters.eligibility &&
+      getEligibility(registration) !== filters.eligibility
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+);
   const registeredCount =
     registrations.filter(
       (item) => item.status === "REGISTERED"
@@ -236,6 +309,19 @@ ${registration.id}
       (item) => item.examination_id
     )
   ).size;
+
+  const handleFilterChange = (key, value) => {
+  setFilters((current) => ({ ...current, [key]: value }));
+};
+
+const handleResetFilters = () => {
+  setFilters({
+    examination_id: "",
+    status: "",
+    fee_status: "",
+    eligibility: "",
+  });
+};
 
   const handleFeeStatusChange = async (
   registration,
@@ -442,15 +528,25 @@ ${registration.id}
             placeholder="Search by student, examination or status..."
             className="w-full rounded-xl border border-border bg-background py-3 pl-11 pr-4 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
           />
-
         </div>
 
       </div>
 
+      {/* FILTERS */}
+
+      <RegistrationFilters
+        filters={filters}
+        onChange={handleFilterChange}
+        onReset={handleResetFilters}
+        examinationOptions={examinationOptionsForFilter}
+        statusOptions={statusOptions}
+        feeStatusOptions={feeStatusOptions}
+        eligibilityOptions={eligibilityOptions}
+      />
+
       {/* ================================================= */}
       {/* TABLE */}
       {/* ================================================= */}
-
       <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
 
         <div className="overflow-x-auto">
@@ -523,7 +619,9 @@ ${registration.id}
                     </p>
 
                     <p className="mt-1 text-sm text-text-muted">
-                      Registered students will appear here.
+                      {search || Object.values(filters).some(Boolean)
+                        ? "Try changing your search or clearing filters."
+                        : "Registered students will appear here."}
                     </p>
                   </td>
                 </tr>

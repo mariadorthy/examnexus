@@ -348,3 +348,176 @@ def test_no_mutation_occurs_from_read_only_query(app, client, admin_token):
         }
 
     assert before == after
+
+# ============================================================
+# Feature 19 — executor-level tests
+#
+# The existing suite exercises the parser (40 tests). These
+# tests exercise execute_query() directly, which is the only
+# place natural-language intents touch the database.
+# ============================================================
+
+from app.services.natural_language_query import execute_query
+
+
+def test_execute_query_hall_capacity_returns_real_record(app_context):
+    """HALL_CAPACITY returns one matching hall from the DB."""
+    from app.models.hall import Hall
+
+    hall = Hall.query.filter_by(is_active=True).first()
+    assert hall is not None, "no active hall in seed data"
+
+    result = execute_query("HALL_CAPACITY", {"hall": hall.name})
+
+    assert result["success"] is True
+    assert isinstance(result["data"], list)
+    assert len(result["data"]) == 1
+    assert result["data"][0]["id"] == hall.id
+    assert result["data"][0]["name"] == hall.name
+
+
+def test_execute_query_unknown_hall_returns_error(app_context):
+    """HALL_CAPACITY with an unknown hall name returns a clean error."""
+    result = execute_query(
+        "HALL_CAPACITY", {"hall": "NO-SUCH-HALL-XYZ"}
+    )
+
+    assert result["success"] is False
+    assert result["data"] is None
+    assert "not found" in result["message"].lower()
+
+
+def test_execute_query_students_in_hall(app_context):
+    """STUDENTS_IN_HALL returns a non-negative count for a real hall."""
+    from app.models.hall import Hall
+
+    hall = Hall.query.filter_by(is_active=True).first()
+    assert hall is not None
+
+    result = execute_query("STUDENTS_IN_HALL", {"hall": hall.name})
+
+    assert result["success"] is True
+    assert result["data"]["hall_name"] == hall.name
+    assert isinstance(result["data"]["students_allocated"], int)
+    assert result["data"]["students_allocated"] >= 0
+
+
+def test_execute_query_eligible_student_count(
+    app_context, examination_id
+):
+    """ELIGIBLE_STUDENT_COUNT returns a real count for a real exam."""
+    result = execute_query(
+        "ELIGIBLE_STUDENT_COUNT",
+        {"examination_id": examination_id},
+    )
+
+    assert result["success"] is True
+    assert result["data"]["examination_id"] == examination_id
+    assert isinstance(result["data"]["eligible_student_count"], int)
+    assert result["data"]["eligible_student_count"] >= 0
+
+
+def test_execute_query_registered_student_count(
+    app_context, examination_id
+):
+    """REGISTERED_STUDENT_COUNT returns a real count for a real exam."""
+    result = execute_query(
+        "REGISTERED_STUDENT_COUNT",
+        {"examination_id": examination_id},
+    )
+
+    assert result["success"] is True
+    assert result["data"]["examination_id"] == examination_id
+    assert isinstance(
+        result["data"]["registered_student_count"], int
+    )
+    assert result["data"]["registered_student_count"] >= 0
+
+
+def test_execute_query_halls_by_status_maintenance(app_context):
+    """HALLS_BY_STATUS(maintenance) excludes available halls."""
+    result = execute_query(
+        "HALLS_BY_STATUS", {"status": "maintenance"}
+    )
+
+    assert result["success"] is True
+    assert result["data"]["status_filter"] == "maintenance"
+    for hall in result["data"]["halls"]:
+        assert hall["is_under_maintenance"] is True
+
+
+def test_execute_query_halls_by_status_rejects_unknown_filter(app_context):
+    """An unknown status filter is rejected, not silently ignored."""
+    result = execute_query(
+        "HALLS_BY_STATUS", {"status": "burning"}
+    )
+
+    assert result["success"] is False
+    assert result["data"] is None
+    assert "unsupported" in result["message"].lower()
+
+
+def test_execute_query_unallocated_students_requires_examination(app_context):
+    """Missing examination_id triggers the internal guard."""
+    result = execute_query("UNALLOCATED_STUDENT_COUNT", {})
+
+    assert result["success"] is False
+    assert "examination" in result["message"].lower()
+
+
+def test_execute_query_unknown_intent_is_rejected(app_context):
+    """An intent not in _HANDLERS is rejected cleanly."""
+    result = execute_query("DROP_TABLE_STUDENTS", {})
+
+    assert result["success"] is False
+    assert result["data"] is None
+    assert "unsupported intent" in result["message"].lower()
+
+
+def test_execute_query_never_mutates_tables(
+    app_context, examination_id
+):
+    """
+    Run several supported intents and prove no table count changed.
+
+    This is the strongest read-only guarantee we can make without
+    mocking: after each call, every relevant table has the same
+    row count it had before.
+    """
+    from app.models.examination import Examination
+    from app.models.hall import Hall
+    from app.models.student import Student
+    from app.models.timetable import Timetable
+    from app.models.seat_allocation import SeatAllocation
+    from app.models.exam_registration import ExamRegistration
+
+    def snapshot():
+        return {
+            "examinations": Examination.query.count(),
+            "halls": Hall.query.count(),
+            "students": Student.query.count(),
+            "timetable": Timetable.query.count(),
+            "seats": SeatAllocation.query.count(),
+            "registrations": ExamRegistration.query.count(),
+        }
+
+    before = snapshot()
+
+    execute_query("LIST_EXAMINATIONS", {})
+    execute_query("HALLS_BY_STATUS", {"status": "available"})
+    execute_query(
+        "ELIGIBLE_STUDENT_COUNT",
+        {"examination_id": examination_id},
+    )
+    execute_query(
+        "REGISTERED_STUDENT_COUNT",
+        {"examination_id": examination_id},
+    )
+    execute_query("HALL_ALLOCATION_SUMMARY", {})
+    execute_query(
+        "EXAMINATION_TIMETABLE",
+        {"examination_id": examination_id},
+    )
+
+    after = snapshot()
+    assert before == after

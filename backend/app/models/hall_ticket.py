@@ -12,7 +12,8 @@ class HallTicket(db.Model):
         UniqueConstraint(
             "student_id",
             "examination_id",
-            name="uq_hall_ticket_student_examination"
+            "version",
+            name="uq_hall_ticket_student_exam_version"
         ),
         UniqueConstraint(
             "verification_token",
@@ -42,6 +43,16 @@ class HallTicket(db.Model):
         nullable=False
     )
 
+    # Version starts at 1 for the first issuance of a ticket
+    # for (student, examination). Emergency reallocation after
+    # publication creates version N+1 and marks N as SUPERSEDED.
+    version = db.Column(
+        db.Integer,
+        nullable=False,
+        default=1,
+        server_default="1"
+    )
+
     status = db.Column(
         db.String(30),
         nullable=False,
@@ -53,7 +64,7 @@ class HallTicket(db.Model):
         default=datetime.utcnow,
         nullable=False
     )
-
+    
     created_at = db.Column(
         db.DateTime,
         default=datetime.utcnow,

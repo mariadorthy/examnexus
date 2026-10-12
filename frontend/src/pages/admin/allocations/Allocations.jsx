@@ -9,7 +9,6 @@ import {
   Armchair,
   Eye,
   Sparkles,
-  Lock,
   Pencil,
 } from "lucide-react";
 
@@ -19,6 +18,7 @@ import SeatAllocationPanel from "./SeatAllocationPanel";
 import InvigilatorPanel from "./InvigilatorPanel";
 import ApprovalPanel from "./ApprovalPanel";
 import WhatIfReallocation from "./WhatIfReallocation";
+import BulkExaminationSelector from "./BulkExaminationSelector";
 
 import {
   get,
@@ -43,8 +43,8 @@ function Allocations({
   const [sidebarOpen, setSidebarOpen] =
     useState(false);
 
-const [activeAllocationTab, setActiveAllocationTab] =
-  useState("hall");
+  const [activeAllocationTab, setActiveAllocationTab] =
+    useState("hall");
 
   const [examinations, setExaminations] = useState([]);
   const [selectedExamination, setSelectedExamination] = useState("");
@@ -59,19 +59,19 @@ const [activeAllocationTab, setActiveAllocationTab] =
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-    const [showDetails, setShowDetails] =
+  const [showDetails, setShowDetails] =
     useState(false);
-    
-        const [editingAllocation, setEditingAllocation] =
+
+  const [editingAllocation, setEditingAllocation] =
     useState(null);
 
-    const [selectedBulkExaminations, setSelectedBulkExaminations] =
+  const [selectedBulkExaminations, setSelectedBulkExaminations] =
     useState([]);
 
   const [bulkGenerating, setBulkGenerating] =
     useState(false);
 
-    const [bulkResult, setBulkResult] =
+  const [bulkResult, setBulkResult] =
     useState(null);
 
   const [bulkSeatGenerating, setBulkSeatGenerating] =
@@ -83,6 +83,11 @@ const [activeAllocationTab, setActiveAllocationTab] =
     useState(false);
   const [bulkInvigResult, setBulkInvigResult] =
     useState(null);
+
+  const [hallFilters, setHallFilters] = useState({
+    session: "",
+    purpose: "",
+  });
 
   const [bulkValidating, setBulkValidating] =
     useState(false);
@@ -153,92 +158,100 @@ const [activeAllocationTab, setActiveAllocationTab] =
     }
   };
 
-const handleGenerateAllocation = async () => {
-  if (!selectedExamination) {
-    setError("Please select an examination first.");
-    return;
-  }
+  const handleGenerateAllocation = async () => {
+    if (!selectedExamination) {
+      setError("Please select an examination first.");
+      return;
+    }
 
-  const confirmed = window.confirm(
-    `Generate hall allocation for Examination #${selectedExamination}?`
-  );
+    const confirmed = window.confirm(
+      `Generate hall allocation for Examination #${selectedExamination}?`
+    );
 
-  if (!confirmed) {
-    return;
-  }
-
-  try {
-    setGenerating(true);
-    setError("");
-    setSuccess("");
-
-    let data;
+    if (!confirmed) {
+      return;
+    }
 
     try {
-      // First attempt: normal generation.
-      data = await post(
-        `/allocations/generate/${selectedExamination}`,
-        {}
-      );
-    } catch (err) {
-      // Existing allocation detected.
-      if (
-        err.message?.includes(
-          "Use force=true to regenerate"
-        )
-      ) {
-        const regenerate = window.confirm(
-          `An allocation already exists for Examination #${selectedExamination}.\n\n` +
-          `Do you want to regenerate it?\n\n` +
-          `The existing hall, seat and invigilator allocation state will be replaced.`
-        );
+      setGenerating(true);
+      setError("");
+      setSuccess("");
 
-        if (!regenerate) {
-          return;
-        }
+      let data;
 
+      try {
+        // First attempt: normal generation.
         data = await post(
           `/allocations/generate/${selectedExamination}`,
-          {
-            force: true,
-          }
+          {}
         );
-      } else {
-        throw err;
+      } catch (err) {
+        // Existing allocation detected.
+        if (
+          err.message?.includes(
+            "Use force=true to regenerate"
+          )
+        ) {
+          const regenerate = window.confirm(
+            `An allocation already exists for Examination #${selectedExamination}.\n\n` +
+            `Do you want to regenerate it?\n\n` +
+            `The existing hall, seat and invigilator allocation state will be replaced.`
+          );
+
+          if (!regenerate) {
+            return;
+          }
+
+          data = await post(
+            `/allocations/generate/${selectedExamination}`,
+            {
+              force: true,
+            }
+          );
+        } else {
+          throw err;
+        }
       }
-    }
 
-    if (!data.success) {
-      throw new Error(
-        data.message ||
+      if (!data.success) {
+        throw new Error(
+          data.message ||
           "Failed to generate allocation."
-      );
-    }
+        );
+      }
 
-    setSuccess(
-      data.message ||
+      setSuccess(
+        data.message ||
         "Allocation generated successfully."
-    );
+      );
 
-    await loadAllocationData(
-      selectedExamination
-    );
-  } catch (err) {
-    console.error(
-      "Generate allocation error:",
-      err
-    );
+      await loadAllocationData(
+        selectedExamination
+      );
+    } catch (err) {
+      console.error(
+        "Generate allocation error:",
+        err
+      );
 
-    setError(
-      err.message ||
+      setError(
+        err.message ||
         "Unable to generate allocation."
-    );
-  } finally {
-    setGenerating(false);
-  }
-};
+      );
+    } finally {
+      setGenerating(false);
+    }
+  };
 
-    const handleGenerateBulkAllocation = async () => {
+  const handleHallFilterChange = (key, value) => {
+    setHallFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleResetHallFilters = () => {
+    setHallFilters({ session: "", purpose: "" });
+  };
+
+  const handleGenerateBulkAllocation = async () => {
     if (selectedBulkExaminations.length === 0) {
       setError(
         "Please select at least one examination."
@@ -246,16 +259,16 @@ const handleGenerateAllocation = async () => {
       return;
     }
 
-  const selectedExamLabels =
-  selectedBulkExaminations
-    .map((id) => `Examination #${id}`)
-    .join(", ");
+    const selectedExamLabels =
+      selectedBulkExaminations
+        .map((id) => `Examination #${id}`)
+        .join(", ");
 
-const confirmed = window.confirm(
-  `${selectedExamLabels} ${selectedBulkExaminations.length === 1 ? "is" : "are"} selected.\n\n` +
-  `Existing hall, seat and invigilator allocations for these examinations will be replaced if they already exist.\n\n` +
-  `Do you want to continue?`
-);
+    const confirmed = window.confirm(
+      `${selectedExamLabels} ${selectedBulkExaminations.length === 1 ? "is" : "are"} selected.\n\n` +
+      `Existing hall, seat and invigilator allocations for these examinations will be replaced if they already exist.\n\n` +
+      `Do you want to continue?`
+    );
 
     if (!confirmed) {
       return;
@@ -268,12 +281,12 @@ const confirmed = window.confirm(
       setBulkResult(null);
 
       const data = await post(
-  "/allocations/bulk-generate",
-  {
-    examination_ids: selectedBulkExaminations,
-    force: true,
-  }
-);
+        "/allocations/bulk-generate",
+        {
+          examination_ids: selectedBulkExaminations,
+          force: true,
+        }
+      );
 
       if (!data.success) {
         throw new Error(
@@ -311,7 +324,7 @@ const confirmed = window.confirm(
     }
   };
 
-    const handleBulkExaminationChange = (
+  const handleBulkExaminationChange = (
     examinationId
   ) => {
     setSelectedBulkExaminations(
@@ -332,6 +345,72 @@ const confirmed = window.confirm(
     );
   };
 
+  // Shared helper: after a bulk run, detect rows that failed because an
+  // allocation already existed, ask once, retry only those rows with
+  // force=true, and merge the retried rows back into the original result.
+  const retryBulkForceIfNeeded = async ({
+    result,
+    label,
+    regenerate,
+  }) => {
+    const existingRows = (result?.results || []).filter(
+      (row) =>
+        row.status === "FAILED" &&
+        typeof row.message === "string" &&
+        row.message.includes(
+          "Use force=true to regenerate"
+        )
+    );
+
+    if (existingRows.length === 0) {
+      return { result, forceApplied: false };
+    }
+
+    const affectedIds = existingRows.map(
+      (row) => String(row.examination_id)
+    );
+
+    const idList = affectedIds
+      .map((id) => `Examination #${id}`)
+      .join(", ");
+
+    const confirmed = window.confirm(
+      `${label} already exists for ${idList}.\n\n` +
+      `Do you want to regenerate ${affectedIds.length === 1 ? "it" : "them"}?\n\n` +
+      `Existing records will be replaced.`
+    );
+
+    if (!confirmed) {
+      return { result, forceApplied: false };
+    }
+
+    const forced = await regenerate(affectedIds, true);
+    const forcedById = new Map(
+      (forced?.results || []).map((row) => [
+        String(row.examination_id),
+        row,
+      ])
+    );
+
+    const mergedResults = (result.results || []).map(
+      (row) =>
+        forcedById.get(String(row.examination_id)) || row
+    );
+
+    const mergedSuccess = mergedResults.every(
+      (row) => row.status !== "FAILED"
+    );
+
+    return {
+      result: {
+        ...result,
+        results: mergedResults,
+        success: mergedSuccess,
+      },
+      forceApplied: true,
+    };
+  };
+
   const handleBulkSeatGeneration = async () => {
     if (selectedBulkExaminations.length === 0) {
       setError("Please select at least one examination.");
@@ -349,10 +428,32 @@ const confirmed = window.confirm(
       setSuccess("");
       setBulkSeatResult(null);
 
-      const result = await generateBulkSeatAllocation(
+      const firstPass = await generateBulkSeatAllocation(
         selectedBulkExaminations,
         false
       );
+
+      let result = firstPass;
+
+      try {
+        const retry = await retryBulkForceIfNeeded({
+          result: firstPass,
+          label: "Seat allocation",
+          regenerate: generateBulkSeatAllocation,
+        });
+        result = retry.result;
+      } catch (retryErr) {
+        console.error(
+          "Bulk seat force-regenerate error:",
+          retryErr
+        );
+        setError(
+          retryErr.message ||
+          "Seat regeneration failed."
+        );
+        setBulkSeatResult(firstPass);
+        return;
+      }
 
       setBulkSeatResult(result);
 
@@ -369,7 +470,7 @@ const confirmed = window.confirm(
       console.error(err);
       setError(
         err.message ||
-          "Bulk seat allocation failed."
+        "Bulk seat allocation failed."
       );
     } finally {
       setBulkSeatGenerating(false);
@@ -393,10 +494,32 @@ const confirmed = window.confirm(
       setSuccess("");
       setBulkInvigResult(null);
 
-      const result = await generateBulkInvigilators(
+      const firstPass = await generateBulkInvigilators(
         selectedBulkExaminations,
         false
       );
+
+      let result = firstPass;
+
+      try {
+        const retry = await retryBulkForceIfNeeded({
+          result: firstPass,
+          label: "Invigilator allocation",
+          regenerate: generateBulkInvigilators,
+        });
+        result = retry.result;
+      } catch (retryErr) {
+        console.error(
+          "Bulk invigilator force-regenerate error:",
+          retryErr
+        );
+        setError(
+          retryErr.message ||
+          "Invigilator regeneration failed."
+        );
+        setBulkInvigResult(firstPass);
+        return;
+      }
 
       setBulkInvigResult(result);
 
@@ -413,7 +536,7 @@ const confirmed = window.confirm(
       console.error(err);
       setError(
         err.message ||
-          "Bulk invigilator allocation failed."
+        "Bulk invigilator allocation failed."
       );
     } finally {
       setBulkInvigGenerating(false);
@@ -445,7 +568,7 @@ const confirmed = window.confirm(
       console.error(err);
       setError(
         err.message ||
-          "Bulk validation failed."
+        "Bulk validation failed."
       );
     } finally {
       setBulkValidating(false);
@@ -469,8 +592,8 @@ const confirmed = window.confirm(
     );
   };
 
-   const handleRefresh = async () => {
-      if (!selectedExamination) {
+  const handleRefresh = async () => {
+    if (!selectedExamination) {
       await loadExaminations();
       return;
     }
@@ -499,6 +622,24 @@ const confirmed = window.confirm(
     summary?.status || "NOT GENERATED";
 
   const isValid = allocationStatus === "VALID";
+
+  const filteredAllocationRows = (() => {
+    let rows = allocations;
+
+    if (hallFilters.session) {
+      rows = rows.filter(
+        (row) => row.session === hallFilters.session
+      );
+    }
+
+    if (hallFilters.purpose) {
+      rows = rows.filter(
+        (row) => (row.purpose || "NORMAL") === hallFilters.purpose
+      );
+    }
+
+    return rows;
+  })();
 
   return (
     <div className="min-h-screen bg-background">
@@ -543,9 +684,9 @@ const confirmed = window.confirm(
                 </h1>
 
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-text-muted">
-  Manage examination hall, invigilator and
-  student seat allocations from one place.
-</p>
+                  Manage examination hall, invigilator and
+                  student seat allocations from one place.
+                </p>
               </div>
 
               <button
@@ -570,185 +711,186 @@ const confirmed = window.confirm(
 
           </section>
 
-{/* ================================================= */}
-{/* ALLOCATION MODULES */}
-{/* ================================================= */}
+          {/* ================================================= */}
+          {/* ALLOCATION MODULES */}
+          {/* ================================================= */}
 
-<section className="mb-6 rounded-2xl border border-border bg-surface p-2 shadow-sm">
+          <section className="mb-6 rounded-2xl border border-border bg-surface p-2 shadow-sm">
 
-    <div className="grid gap-2 md:grid-cols-4">
+            <div className="grid gap-2 md:grid-cols-4">
 
-    {/* Hall Allocation */}
+              {/* Hall Allocation */}
 
-    <button
-      type="button"
-      onClick={() =>
-        setActiveAllocationTab("hall")
-      }
-      className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${
-        activeAllocationTab === "hall"
-          ? "bg-sidebar text-white shadow-md"
-          : "text-text hover:bg-surface-muted"
-      }`}
-    >
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveAllocationTab("hall")
+                }
+                className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${activeAllocationTab === "hall"
+                  ? "bg-sidebar text-white shadow-md"
+                  : "text-text hover:bg-surface-muted"
+                  }`}
+              >
 
-      <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-          activeAllocationTab === "hall"
-            ? "bg-white/10"
-            : "bg-accent-light text-primary"
-        }`}
-      >
-        <Building2 size={20} />
-      </div>
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${activeAllocationTab === "hall"
+                    ? "bg-white/10"
+                    : "bg-accent-light text-primary"
+                    }`}
+                >
+                  <Building2 size={20} />
+                </div>
 
-      <div className="min-w-0">
+                <div className="min-w-0">
 
-        <p className="text-sm font-bold">
-          Hall Allocation
-        </p>
+                  <p className="text-sm font-bold">
+                    Hall Allocation
+                  </p>
 
-        <p
-          className={`mt-0.5 text-xs ${
-            activeAllocationTab === "hall"
-              ? "text-white/70"
-              : "text-text-muted"
-          }`}
-        >
-          Examination → Hall
-        </p>
+                  <p
+                    className={`mt-0.5 text-xs ${activeAllocationTab === "hall"
+                      ? "text-white/70"
+                      : "text-text-muted"
+                      }`}
+                  >
+                    Examination → Hall
+                  </p>
 
-      </div>
+                </div>
 
-    </button>
+              </button>
 
+              {/* Invigilator Allocation */}
 
-    {/* Invigilator Allocation */}
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveAllocationTab("invigilator")
+                }
+                className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${activeAllocationTab === "invigilator"
+                  ? "bg-sidebar text-white shadow-md"
+                  : "text-text hover:bg-surface-muted"
+                  }`}
+              >
 
-    <button
-  type="button"
-  onClick={() =>
-    setActiveAllocationTab("invigilator")
-  }
-  className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${
-    activeAllocationTab === "invigilator"
-      ? "bg-sidebar text-white shadow-md"
-      : "text-text opacity-60 hover:bg-surface-muted"
-  }`}
->
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${activeAllocationTab === "invigilator"
+                    ? "bg-white/10"
+                    : "bg-accent-light text-primary"
+                    }`}
+                >
+                  <Users size={20} />
+                </div>
 
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
-        <Users size={20} />
-      </div>
+                <div className="min-w-0 flex-1">
 
-      <div className="min-w-0 flex-1">
+                  <p
+                    className={`text-sm font-bold ${activeAllocationTab === "invigilator"
+                      ? "text-white"
+                      : "text-text"
+                      }`}
+                  >
+                    Invigilator Allocation
+                  </p>
 
-        <div className="flex items-center gap-2">
+                  <p
+                    className={`mt-0.5 text-xs ${activeAllocationTab === "invigilator"
+                      ? "text-white/70"
+                      : "text-text-muted"
+                      }`}
+                  >
+                    Hall → Staff
+                  </p>
 
-          <p className="text-sm font-bold text-text">
-            Invigilator Allocation
-          </p>
+                </div>
 
-          <Lock size={13} className="text-text-muted" />
+              </button>
 
-        </div>
+              {/* Student / Seat Allocation */}
 
-        <p className="mt-0.5 text-xs text-text-muted">
-          Hall → Staff
-        </p>
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveAllocationTab("seat")
+                }
+                className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${activeAllocationTab === "seat"
+                  ? "bg-sidebar text-white shadow-md"
+                  : "text-text hover:bg-surface-muted"
+                  }`}
+              >
 
-      </div>
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${activeAllocationTab === "seat"
+                    ? "bg-white/10"
+                    : "bg-accent-light text-primary"
+                    }`}
+                >
+                  <Armchair size={20} />
+                </div>
 
-      <span className="hidden rounded-full bg-surface-muted px-2.5 py-1 text-[10px] font-semibold text-text-muted sm:inline-flex">
-        Coming Next
-      </span>
+                <div className="min-w-0 flex-1">
 
-    </button>
+                  <p
+                    className={`text-sm font-bold ${activeAllocationTab === "seat"
+                      ? "text-white"
+                      : "text-text"
+                      }`}
+                  >
+                    Student / Seat Allocation
+                  </p>
 
+                  <p
+                    className={`mt-0.5 text-xs ${activeAllocationTab === "seat"
+                      ? "text-white/70"
+                      : "text-text-muted"
+                      }`}
+                  >
+                    Student → Hall → Seat
+                  </p>
 
-    {/* Student / Seat Allocation */}
+                </div>
 
-    <button
-  type="button"
-  onClick={() =>
-    setActiveAllocationTab("seat")
-  }
-  className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${
-    activeAllocationTab === "seat"
-      ? "bg-sidebar text-white shadow-md"
-      : "text-text opacity-60 hover:bg-surface-muted"
-  }`}
->
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-muted text-text-muted">
-        <Armchair size={20} />
-      </div>
+              </button>
 
-      <div className="min-w-0 flex-1">
+              {/* Review / Approval */}
 
-        <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setActiveAllocationTab("approval")
+                }
+                className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${activeAllocationTab === "approval"
+                  ? "bg-sidebar text-white shadow-md"
+                  : "text-text hover:bg-surface-muted"
+                  }`}
+              >
+                <div
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${activeAllocationTab === "approval"
+                    ? "bg-white/10"
+                    : "bg-accent-light text-primary"
+                    }`}
+                >
+                  <CheckCircle2 size={20} />
+                </div>
 
-          <p className="text-sm font-bold text-text">
-            Student / Seat Allocation
-          </p>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold">
+                    Review & Approve
+                  </p>
+                  <p
+                    className={`mt-0.5 text-xs ${activeAllocationTab === "approval"
+                      ? "text-white/70"
+                      : "text-text-muted"
+                      }`}
+                  >
+                    Validate → Approve → Publish
+                  </p>
+                </div>
+              </button>
 
-          <Lock size={13} className="text-text-muted" />
+            </div>
 
-        </div>
-
-        <p className="mt-0.5 text-xs text-text-muted">
-          Student → Hall → Seat
-        </p>
-
-      </div>
-
-            <span className="hidden rounded-full bg-surface-muted px-2.5 py-1 text-[10px] font-semibold text-text-muted sm:inline-flex">
-        Coming Later
-      </span>
-
-    </button>
-
-    {/* Review / Approval */}
-
-    <button
-      type="button"
-      onClick={() =>
-        setActiveAllocationTab("approval")
-      }
-      className={`flex items-center gap-3 rounded-xl px-4 py-4 text-left transition ${
-        activeAllocationTab === "approval"
-          ? "bg-sidebar text-white shadow-md"
-          : "text-text hover:bg-surface-muted"
-      }`}
-    >
-      <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-          activeAllocationTab === "approval"
-            ? "bg-white/10"
-            : "bg-accent-light text-primary"
-        }`}
-      >
-        <CheckCircle2 size={20} />
-      </div>
-
-      <div className="min-w-0">
-        <p className="text-sm font-bold">
-          Review & Approve
-        </p>
-        <p
-          className={`mt-0.5 text-xs ${
-            activeAllocationTab === "approval"
-              ? "text-white/70"
-              : "text-text-muted"
-          }`}
-        >
-          Validate → Approve → Publish
-        </p>
-      </div>
-    </button>
-
-  </div>
-
-</section>
+          </section>
 
           {/* ================================================= */}
           {/* ERROR */}
@@ -784,309 +926,182 @@ const confirmed = window.confirm(
             </div>
           )}
 
-{activeAllocationTab === "hall" && (
-  <>
-    {/* ================================================= */}
-    {/* EXAMINATION SELECTOR */}
-    {/* ================================================= */}
+          {activeAllocationTab === "hall" && (
+            <>
+              {/* ================================================= */}
+              {/* EXAMINATION SELECTOR */}
+              {/* ================================================= */}
 
-    <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+              <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
 
-            <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+                <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
 
-              <div>
-                <label
-                  htmlFor="examination"
-                  className="mb-2 block text-sm font-semibold text-sidebar"
-                >
-                  Select Examination
-                </label>
+                  <div>
+                    <label
+                      htmlFor="examination"
+                      className="mb-2 block text-sm font-semibold text-sidebar"
+                    >
+                      Select Examination
+                    </label>
 
-                <select
-                  id="examination"
-                  value={selectedExamination}
-                  onChange={(event) =>
-                    setSelectedExamination(
-                      event.target.value
-                    )
-                  }
-                  disabled={loading}
-                  className="w-full rounded-xl border border-border bg-surface px-4 py-3.5 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-                >
-                  <option value="">
-                    {loading
-                      ? "Loading examinations..."
-                      : "Select an examination"}
-                  </option>
-
-                  {examinations.map(
-                    (examination) => (
-                      <option
-                        key={examination.id}
-                        value={examination.id}
-                      >
-                        {`Examination #${examination.id}`}{" "}
-— {examination.name}
+                    <select
+                      id="examination"
+                      value={selectedExamination}
+                      onChange={(event) =>
+                        setSelectedExamination(
+                          event.target.value
+                        )
+                      }
+                      disabled={loading}
+                      className="w-full rounded-xl border border-border bg-surface px-4 py-3.5 text-sm text-text outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
+                    >
+                      <option value="">
+                        {loading
+                          ? "Loading examinations..."
+                          : "Select an examination"}
                       </option>
-                    )
-                  )}
-                </select>
-              </div>
 
-              <button
-                type="button"
-                onClick={handleGenerateAllocation}
-                disabled={
-                  !selectedExamination ||
-                  generating ||
-                  loadingAllocations
-                }
-                className="flex items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {generating ? (
-                  <>
-                    <RefreshCw
-                      size={18}
-                      className="animate-spin"
-                    />
+                      {examinations.map(
+                        (examination) => (
+                          <option
+                            key={examination.id}
+                            value={examination.id}
+                          >
+                            {`Examination #${examination.id}`}{" "}
+                            — {examination.name}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </div>
 
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={18} />
-
-                    Generate Allocation
-                  </>
-                )}
-              </button>
-
-            </div>
-
-            {/* Selected examination information */}
-
-            {selectedExam && (
-              <div className="mt-5 grid gap-3 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-4">
-
-                <InfoItem
-                  label="Exam ID"
-                  value={`#${selectedExam.id}`}
-                />
-
-              <InfoItem
-  label="Examination"
-  value={selectedExam.name}
-/>
-
-<InfoItem
-  label="Course"
-  value={selectedExam.course_name || "—"}
-/>
-
-<InfoItem
-  label="Semester"
-  value={selectedExam.semester}
-/>
-
-              </div>
-            )}
-
-          </section>
-
-          {/* ================================================= */}
-          {/* NATURAL-LANGUAGE REQUIREMENT UNDERSTANDING */}
-          {/* ================================================= */}
-
-          <section className="mb-6">
-            <RequirementUnderstanding />
-          </section>
-
-          {/* ================================================= */}
-          {/* BULK HALL ALLOCATION */}
-          {/* ================================================= */}
-
-          <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
-            <div className="flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-center md:justify-between">
-
-              <div>
-                <p className="text-sm font-semibold uppercase tracking-wider text-accent">
-                  Bulk Allocation
-                </p>
-
-                <h2 className="mt-1 text-lg font-bold text-text">
-                  Allocate Multiple Examinations
-                </h2>
-
-                <p className="mt-1 max-w-2xl text-sm leading-6 text-text-muted">
-                  Select multiple examinations to generate
-                  hall allocations together. Halls can be
-                  reused when examination timetable slots
-                  do not overlap.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={
-                  handleSelectAllBulkExaminations
-                }
-                disabled={
-                  loading ||
-                  examinations.length === 0 ||
-                  bulkGenerating
-                }
-                className="w-fit rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {selectedBulkExaminations.length ===
-                examinations.length
-                  ? "Clear All"
-                  : "Select All"}
-              </button>
-
-            </div>
-
-            {loading ? (
-              <div className="flex items-center justify-center py-10">
-
-                <RefreshCw
-                  size={24}
-                  className="animate-spin text-accent"
-                />
-
-                <span className="ml-3 text-sm text-text-muted">
-                  Loading examinations...
-                </span>
-
-              </div>
-            ) : examinations.length === 0 ? (
-              <div className="py-10 text-center">
-
-                <ClipboardList
-                  size={28}
-                  className="mx-auto text-text-muted"
-                />
-
-                <p className="mt-3 text-sm font-semibold text-text">
-                  No examinations available
-                </p>
-
-                <p className="mt-1 text-sm text-text-muted">
-                  Create an examination before generating
-                  bulk hall allocation.
-                </p>
-
-              </div>
-            ) : (
-              <>
-
-                <div className="mt-5 grid gap-3 md:grid-cols-2">
-
-                  {examinations.map(
-                    (examination) => {
-                      const examinationId =
-                        String(
-                          examination.id
-                        );
-
-                      const isSelected =
-                        selectedBulkExaminations.includes(
-                          examinationId
-                        );
-
-                      return (
-                        <label
-                          key={examination.id}
-                          className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition ${
-                            isSelected
-                              ? "border-primary bg-accent-light"
-                              : "border-border hover:border-accent hover:bg-surface-muted"
-                          }`}
-                        >
-
-                          <input
-                            type="checkbox"
-                            checked={isSelected}
-                            onChange={() =>
-                              handleBulkExaminationChange(
-                                examinationId
-                              )
-                            }
-                            disabled={
-                              bulkGenerating
-                            }
-                            className="mt-1 h-4 w-4 accent-primary"
-                          />
-
-                          <div className="min-w-0">
-
-                            <p className="text-sm font-semibold text-text">
-                              {`Examination #${examination.id}`}
-                            </p>
-
-                            <p className="mt-1 truncate text-sm text-text-muted">
-                              {examination.name}
-                            </p>
-
-                            <div className="mt-2 flex flex-wrap gap-2">
-
-                              <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-text-muted">
-                                {examination.course_name ||
-                                  "Course —"}
-                              </span>
-
-                              <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-text-muted">
-                                Semester{" "}
-                                {examination.semester ??
-                                  "—"}
-                              </span>
-
-                              <span className="rounded-full bg-surface-muted px-2.5 py-1 text-xs font-medium text-text-muted">
-                                {examination.status ||
-                                  "—"}
-                              </span>
-
-                            </div>
-
-                          </div>
-
-                        </label>
-                      );
+                  <button
+                    type="button"
+                    onClick={handleGenerateAllocation}
+                    disabled={
+                      !selectedExamination ||
+                      generating ||
+                      loadingAllocations
                     }
-                  )}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {generating ? (
+                      <>
+                        <RefreshCw
+                          size={18}
+                          className="animate-spin"
+                        />
+
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles size={18} />
+
+                        Generate Allocation
+                      </>
+                    )}
+                  </button>
 
                 </div>
 
-                <div className="mt-5 flex flex-col gap-4 rounded-xl bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+                {/* Selected examination information */}
+
+                {selectedExam && (
+                  <div className="mt-5 grid gap-3 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-4">
+
+                    <InfoItem
+                      label="Exam ID"
+                      value={`#${selectedExam.id}`}
+                    />
+
+                    <InfoItem
+                      label="Examination"
+                      value={selectedExam.name}
+                    />
+
+                    <InfoItem
+                      label="Course"
+                      value={selectedExam.course_name || "—"}
+                    />
+
+                    <InfoItem
+                      label="Semester"
+                      value={selectedExam.semester}
+                    />
+
+                  </div>
+                )}
+
+              </section>
+
+              {/* ================================================= */}
+              {/* NATURAL-LANGUAGE REQUIREMENT UNDERSTANDING */}
+              {/* ================================================= */}
+
+              <section className="mb-6">
+                <RequirementUnderstanding
+                  examinationId={selectedExamination}
+                  examination={selectedExam}
+                  bulkExaminationIds={selectedBulkExaminations}
+                  onApplied={() => {
+                    if (selectedExamination) {
+                      loadAllocationData(selectedExamination);
+                    }
+                  }}
+                  onMessage={(message, type) => {
+                    if (type === "error") {
+                      setError(message);
+                      setSuccess("");
+                    } else {
+                      setSuccess(message);
+                      setError("");
+                    }
+                  }}
+                />
+              </section>
+
+              {/* ================================================= */}
+              {/* BULK ALLOCATION — shared examination selector */}
+              {/* ================================================= */}
+
+              <BulkExaminationSelector
+                examinations={examinations}
+                selectedBulkExaminations={selectedBulkExaminations}
+                onToggle={handleBulkExaminationChange}
+                onSelectAll={handleSelectAllBulkExaminations}
+                loading={loading}
+                disabled={bulkGenerating}
+              />
+
+              {/* ================================================= */}
+              {/* BULK HALL ALLOCATION — hall-specific action only */}
+              {/* ================================================= */}
+
+              <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
 
                   <div>
-                    <p className="text-sm font-semibold text-text">
-                      {selectedBulkExaminations.length}{" "}
-                      examination
-                      {selectedBulkExaminations.length !==
-                      1
-                        ? "s"
-                        : ""}{" "}
-                      selected
-                    </p>
+                    <h2 className="text-lg font-bold text-text">
+                      Generate Hall Allocation
+                    </h2>
 
-                    <p className="mt-1 text-xs text-text-muted">
-                      Only examinations with valid timetable
-                      entries and eligible students can be
-                      allocated.
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-text-muted">
+                      Generate hall allocation for the selected
+                      examinations. Halls can be reused when
+                      examination timetable slots do not overlap.
                     </p>
                   </div>
 
                   <button
                     type="button"
-                    onClick={
-                      handleGenerateBulkAllocation
-                    }
+                    onClick={handleGenerateBulkAllocation}
                     disabled={
-                      selectedBulkExaminations.length ===
-                        0 ||
+                      selectedBulkExaminations.length === 0 ||
                       bulkGenerating
                     }
-                    className="flex items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex w-fit items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {bulkGenerating ? (
                       <>
@@ -1094,13 +1109,11 @@ const confirmed = window.confirm(
                           size={18}
                           className="animate-spin"
                         />
-
                         Generating Bulk Allocation...
                       </>
                     ) : (
                       <>
                         <Sparkles size={18} />
-
                         Generate Bulk Allocation
                       </>
                     )}
@@ -1108,446 +1121,369 @@ const confirmed = window.confirm(
 
                 </div>
 
-              </>
-            )}
+                {/* Bulk Result */}
 
-            {/* Bulk Result */}
+                {bulkResult && (
+                  <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4">
 
-            {bulkResult && (
-              <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4">
+                    <div className="flex items-start gap-3">
 
-                <div className="flex items-start gap-3">
+                      <CheckCircle2
+                        size={20}
+                        className="mt-0.5 shrink-0 text-success"
+                      />
 
-                  <CheckCircle2
-                    size={20}
-                    className="mt-0.5 shrink-0 text-success"
-                  />
+                      <div className="min-w-0">
 
-                  <div className="min-w-0">
-
-                    <p className="text-sm font-bold text-green-800">
-                      Bulk Allocation Completed
-                    </p>
-
-                    <p className="mt-1 text-sm text-green-700">
-                      {bulkResult.message}
-                    </p>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-3">
-
-                      <div className="rounded-lg bg-white/70 px-3 py-2">
-                        <p className="text-xs text-text-muted">
-                          Examinations
+                        <p className="text-sm font-bold text-green-800">
+                          Bulk Allocation Completed
                         </p>
-                        <p className="mt-1 text-lg font-bold text-text">
-                          {bulkResult.examinations_processed ??
-                            0}
-                        </p>
-                      </div>
 
-                      <div className="rounded-lg bg-white/70 px-3 py-2">
-                        <p className="text-xs text-text-muted">
-                          Halls Used
+                        <p className="mt-1 text-sm text-green-700">
+                          {bulkResult.message}
                         </p>
-                        <p className="mt-1 text-lg font-bold text-text">
-                          {bulkResult.halls_used ??
-                            0}
-                        </p>
-                      </div>
 
-                      <div className="rounded-lg bg-white/70 px-3 py-2">
-                        <p className="text-xs text-text-muted">
-                          Allocation Records
-                        </p>
-                        <p className="mt-1 text-lg font-bold text-text">
-                          {bulkResult.allocation_records ??
-                            0}
-                        </p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+
+                          <div className="rounded-lg bg-white/70 px-3 py-2">
+                            <p className="text-xs text-text-muted">
+                              Examinations
+                            </p>
+                            <p className="mt-1 text-lg font-bold text-text">
+                              {bulkResult.examinations_processed ?? 0}
+                            </p>
+                          </div>
+
+                          <div className="rounded-lg bg-white/70 px-3 py-2">
+                            <p className="text-xs text-text-muted">
+                              Halls Used
+                            </p>
+                            <p className="mt-1 text-lg font-bold text-text">
+                              {bulkResult.halls_used ?? 0}
+                            </p>
+                          </div>
+
+                          <div className="rounded-lg bg-white/70 px-3 py-2">
+                            <p className="text-xs text-text-muted">
+                              Allocation Records
+                            </p>
+                            <p className="mt-1 text-lg font-bold text-text">
+                              {bulkResult.allocation_records ?? 0}
+                            </p>
+                          </div>
+
+                        </div>
+
                       </div>
 
                     </div>
 
                   </div>
-
-                </div>
-
-              </div>
-            )}
-
-          </section>
-
-                   {/* ================================================= */}
-          {/* BULK SEAT / INVIGILATOR / VALIDATE */}
-          {/* ================================================= */}
-
-          <section className="mb-6 grid gap-5 lg:grid-cols-3">
-
-            {/* BULK SEAT */}
-
-            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
-
-              <h3 className="text-sm font-bold text-text">
-                Bulk Seat Allocation
-              </h3>
-
-              <p className="mt-1 text-xs text-text-muted">
-                Generate seat allocation for the selected
-                examinations using the existing seat engine.
-              </p>
-
-              <button
-                type="button"
-                onClick={handleBulkSeatGeneration}
-                disabled={
-                  selectedBulkExaminations.length === 0 ||
-                  bulkSeatGenerating
-                }
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-sidebar px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {bulkSeatGenerating ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={16} />
-                    Generate Seats
-                  </>
                 )}
-              </button>
 
-              {bulkSeatResult && (
-                <BulkResultList result={bulkSeatResult} />
-              )}
+              </section>
 
-            </div>
+              {/* ================================================= */}
+              {/* SUMMARY */}
+              {/* ================================================= */}
+              {selectedExamination && (
+                <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 
-            {/* BULK INVIGILATOR */}
+                  <SummaryCard
+                    title="Eligible Students"
+                    value={
+                      loadingAllocations
+                        ? "..."
+                        : summary?.eligible_students ?? 0
+                    }
+                    description="Students requiring examination capacity"
+                    icon={Users}
+                  />
 
-            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+                  <SummaryCard
+                    title="Halls Used"
+                    value={
+                      loadingAllocations
+                        ? "..."
+                        : summary?.halls_used ?? 0
+                    }
+                    description="Examination halls reserved"
+                    icon={Building2}
+                  />
 
-              <h3 className="text-sm font-bold text-text">
-                Bulk Invigilator Allocation
-              </h3>
+                  <SummaryCard
+                    title="Allocated Capacity"
+                    value={
+                      loadingAllocations
+                        ? "..."
+                        : summary?.allocated_capacity ?? 0
+                    }
+                    description="Total hall capacity reserved"
+                    icon={Armchair}
+                  />
 
-              <p className="mt-1 text-xs text-text-muted">
-                Deterministic invigilator allocation across
-                selected examinations.
-              </p>
+                  <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
 
-              <button
-                type="button"
-                onClick={handleBulkInvigilatorGeneration}
-                disabled={
-                  selectedBulkExaminations.length === 0 ||
-                  bulkInvigGenerating
-                }
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-sidebar px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {bulkInvigGenerating ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Users size={16} />
-                    Generate Invigilators
-                  </>
-                )}
-              </button>
+                    <div className="flex items-start justify-between">
 
-              {bulkInvigResult && (
-                <BulkResultList result={bulkInvigResult} />
-              )}
+                      <div>
+                        <p className="text-sm font-medium text-text-muted">
+                          Allocation Status
+                        </p>
 
-            </div>
+                        <p
+                          className={`mt-2 text-2xl font-bold ${isValid
+                            ? "text-success"
+                            : "text-warning"
+                            }`}
+                        >
+                          {allocationStatus}
+                        </p>
+                      </div>
 
-            {/* BULK VALIDATE */}
+                      <div
+                        className={`flex h-11 w-11 items-center justify-center rounded-xl ${isValid
+                          ? "bg-green-50 text-success"
+                          : "bg-yellow-50 text-warning"
+                          }`}
+                      >
+                        {isValid ? (
+                          <CheckCircle2 size={21} />
+                        ) : (
+                          <AlertCircle size={21} />
+                        )}
+                      </div>
 
-            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+                    </div>
 
-              <h3 className="text-sm font-bold text-text">
-                Bulk Validation
-              </h3>
-
-              <p className="mt-1 text-xs text-text-muted">
-                Read-only validation of selected examinations.
-              </p>
-
-              <button
-                type="button"
-                onClick={handleBulkValidation}
-                disabled={
-                  selectedBulkExaminations.length === 0 ||
-                  bulkValidating
-                }
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {bulkValidating ? (
-                  <>
-                    <RefreshCw size={16} className="animate-spin" />
-                    Validating...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle2 size={16} />
-                    Validate Selected
-                  </>
-                )}
-              </button>
-
-              {bulkValidationResult && (
-                <BulkValidationList
-                  result={bulkValidationResult}
-                />
-              )}
-
-            </div>
-
-          </section>
-
-          {/* ================================================= */}
-          {/* SUMMARY */}
-          {/* ================================================= */}
-          {selectedExamination && (
-            <section className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-             <SummaryCard
-  title="Eligible Students"
-  value={
-    loadingAllocations
-      ? "..."
-      : summary?.eligible_students ?? 0
-  }
-  description="Students requiring examination capacity"
-  icon={Users}
-/>
-
-<SummaryCard
-  title="Halls Used"
-  value={
-    loadingAllocations
-      ? "..."
-      : summary?.halls_used ?? 0
-  }
-  description="Examination halls reserved"
-  icon={Building2}
-/>
-
-<SummaryCard
-  title="Allocated Capacity"
-  value={
-    loadingAllocations
-      ? "..."
-      : summary?.allocated_capacity ?? 0
-  }
-  description="Total hall capacity reserved"
-  icon={Armchair}
-/>
-
-              <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-
-                <div className="flex items-start justify-between">
-
-                  <div>
-                    <p className="text-sm font-medium text-text-muted">
-                      Allocation Status
+                    <p className="mt-4 text-xs text-text-muted">
+                      Allocation validation result
                     </p>
 
-                    <p
-                      className={`mt-2 text-2xl font-bold ${isValid
-                          ? "text-success"
-                          : "text-warning"
-                        }`}
+                  </div>
+
+                </section>
+              )}
+
+              {/* ================================================= */}
+              {/* ALLOCATION TABLE */}
+              {/* ================================================= */}
+
+              {selectedExamination && (
+                <section className="rounded-2xl border border-border bg-surface shadow-sm">
+
+                  <div className="flex flex-col gap-4 border-b border-border p-5 md:flex-row md:items-center md:justify-between md:p-6">
+
+                    <div>
+                      <h2 className="font-bold text-text">
+                        Hall Allocation Records
+                      </h2>
+
+                      <p className="mt-1 text-sm text-text-muted">
+                        Examination halls reserved for each timetable slot.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowDetails(true)
+                      }
+                      disabled={!allocations.length}
+                      className="flex w-fit items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {allocationStatus}
-                    </p>
-                  </div>
+                      <Eye size={17} />
 
-                  <div
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl ${isValid
-                        ? "bg-green-50 text-success"
-                        : "bg-yellow-50 text-warning"
-                      }`}
-                  >
-                    {isValid ? (
-                      <CheckCircle2 size={21} />
-                    ) : (
-                      <AlertCircle size={21} />
-                    )}
-                  </div>
-
-                </div>
-
-                <p className="mt-4 text-xs text-text-muted">
-                  Allocation validation result
-                </p>
-
-              </div>
-
-            </section>
-          )}
-
-          {/* ================================================= */}
-          {/* ALLOCATION TABLE */}
-          {/* ================================================= */}
-
-          {selectedExamination && (
-            <section className="rounded-2xl border border-border bg-surface shadow-sm">
-
-              <div className="flex flex-col gap-4 border-b border-border p-5 md:flex-row md:items-center md:justify-between md:p-6">
-
-                <div>
-                  <h2 className="font-bold text-text">
-  Hall Allocation Records
-</h2>
-
-<p className="mt-1 text-sm text-text-muted">
-  Examination halls reserved for each timetable slot.
-</p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    setShowDetails(true)
-                  }
-                  disabled={!allocations.length}
-                  className="flex w-fit items-center gap-2 rounded-xl border border-border px-4 py-2.5 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <Eye size={17} />
-
-                  View Details
-                </button>
-
-              </div>
-
-              {loadingAllocations ? (
-                <div className="flex items-center justify-center px-5 py-16">
-
-                  <div className="text-center">
-
-                    <RefreshCw
-                      size={28}
-                      className="mx-auto animate-spin text-accent"
-                    />
-
-                    <p className="mt-3 text-sm text-text-muted">
-                      Loading allocation records...
-                    </p>
+                      View Details
+                    </button>
 
                   </div>
 
-                </div>
-              ) : allocations.length === 0 ? (
-                <EmptyState />
-              ) : (
-                <div className="overflow-x-auto">
+                  {/* HALL ALLOCATION FILTERS */}
 
-<table className="w-full min-w-[960px]">
+                  <div className="border-b border-border px-5 py-4 md:px-6">
+                    <div className="flex flex-wrap items-end gap-3">
 
-  <thead>
-    <tr className="border-b border-border bg-surface-muted">
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-text-muted">
+                          Session
+                        </label>
+                        <select
+                          value={hallFilters.session}
+                          onChange={(event) =>
+                            handleHallFilterChange(
+                              "session",
+                              event.target.value
+                            )
+                          }
+                          className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm text-text outline-none focus:border-primary"
+                        >
+                          <option value="">All sessions</option>
+                          <option value="FN">FN</option>
+                          <option value="AN">AN</option>
+                        </select>
+                      </div>
 
-      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Date
-      </th>
+                      <div>
+                        <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-text-muted">
+                          Purpose
+                        </label>
+                        <select
+                          value={hallFilters.purpose}
+                          onChange={(event) =>
+                            handleHallFilterChange(
+                              "purpose",
+                              event.target.value
+                            )
+                          }
+                          className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm text-text outline-none focus:border-primary"
+                        >
+                          <option value="">All purposes</option>
+                          <option value="NORMAL">NORMAL</option>
+                          <option value="ACCESSIBILITY">
+                            ACCESSIBILITY
+                          </option>
+                          <option value="MIXED">MIXED</option>
+                        </select>
+                      </div>
 
-      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Session
-      </th>
+                      {(hallFilters.session ||
+                        hallFilters.purpose) && (
+                          <button
+                            type="button"
+                            onClick={handleResetHallFilters}
+                            className="rounded-xl px-3 py-2 text-xs font-semibold text-text-muted hover:bg-surface-muted hover:text-text"
+                          >
+                            Reset
+                          </button>
+                        )}
 
-      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Hall
-      </th>
+                    </div>
+                  </div>
+                  {loadingAllocations ? (
+                    <div className="flex items-center justify-center px-5 py-16">
 
-      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Building
-      </th>
+                      <div className="text-center">
 
-      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Floor
-      </th>
+                        <RefreshCw
+                          size={28}
+                          className="mx-auto animate-spin text-accent"
+                        />
 
-      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Capacity
-      </th>
+                        <p className="mt-3 text-sm text-text-muted">
+                          Loading allocation records...
+                        </p>
 
-      <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Purpose
-      </th>
+                      </div>
 
-            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Status
-      </th>
+                    </div>
+                  ) : allocations.length === 0 ? (
+                    <EmptyState />
+                  ) : (
+                    <div className="overflow-x-auto">
 
-      <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-text-muted">
-        Actions
-      </th>
+                      <table className="w-full min-w-[960px]">
 
-    </tr>
-  </thead>
+                        <thead>
+                          <tr className="border-b border-border bg-surface-muted">
 
-  <tbody>
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                              Date
+                            </th>
 
-    {allocations
-      .slice(0, 10)
-      .map((allocation) => (
-        <tr
-          key={allocation.id}
-          className="border-b border-border last:border-0 hover:bg-surface-muted"
-        >
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                              Session
+                            </th>
 
-          <td className="px-5 py-4 text-sm text-text">
-            {allocation.exam_date || "—"}
-          </td>
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                              Hall
+                            </th>
 
-          <td className="px-5 py-4 text-sm font-semibold text-sidebar">
-            {allocation.session || "—"}
-          </td>
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                              Building
+                            </th>
 
-          <td className="px-5 py-4 text-sm font-semibold text-text">
-            {allocation.hall || "—"}
-          </td>
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                              Floor
+                            </th>
 
-          <td className="px-5 py-4 text-sm text-text">
-            {allocation.building_name || "—"}
-          </td>
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                              Capacity
+                            </th>
 
-          <td className="px-5 py-4 text-sm text-text">
-            {allocation.floor_no ?? "—"}
-          </td>
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                              Purpose
+                            </th>
 
-          <td className="px-5 py-4 text-sm font-semibold text-primary">
-            {allocation.allocated_capacity ?? 0}
-          </td>
+                            <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                              Status
+                            </th>
 
-          <td className="px-5 py-4">
-            <span className="inline-flex rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-primary">
-              {allocation.purpose || "NORMAL"}
-            </span>
-          </td>
+                            <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-text-muted">
+                              Actions
+                            </th>
 
-                   <td className="px-5 py-4">
+                          </tr>
+                        </thead>
 
-            <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-success">
-              {allocation.status}
-            </span>
+                        <tbody>
 
-          </td>
+                          {filteredAllocationRows
+                            .slice(0, 10)
+                            .map((allocation) => (
+                              <tr
+                                key={allocation.id}
+                                className="border-b border-border last:border-0 hover:bg-surface-muted"
+                              >
 
-          <td className="px-5 py-4">
+                                <td className="px-5 py-4 text-sm text-text">
+                                  {allocation.exam_date || "—"}
+                                </td>
 
-            <div className="flex items-center justify-end gap-2">
+                                <td className="px-5 py-4 text-sm font-semibold text-sidebar">
+                                  {allocation.session || "—"}
+                                </td>
 
-              <button
-                type="button"
-                onClick={() =>
-                  setEditingAllocation(allocation)
-                }
-                className="
+                                <td className="px-5 py-4 text-sm font-semibold text-text">
+                                  {allocation.hall || "—"}
+                                </td>
+
+                                <td className="px-5 py-4 text-sm text-text">
+                                  {allocation.building_name || "—"}
+                                </td>
+
+                                <td className="px-5 py-4 text-sm text-text">
+                                  {allocation.floor_no ?? "—"}
+                                </td>
+
+                                <td className="px-5 py-4 text-sm font-semibold text-primary">
+                                  {allocation.allocated_capacity ?? 0}
+                                </td>
+
+                                <td className="px-5 py-4">
+                                  <span className="inline-flex rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-primary">
+                                    {allocation.purpose || "NORMAL"}
+                                  </span>
+                                </td>
+
+                                <td className="px-5 py-4">
+
+                                  <span className="inline-flex rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-success">
+                                    {allocation.status}
+                                  </span>
+
+                                </td>
+
+                                <td className="px-5 py-4">
+
+                                  <div className="flex items-center justify-end gap-2">
+
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setEditingAllocation(allocation)
+                                      }
+                                      className="
                   rounded-lg
                   p-2
                   text-text-muted
@@ -1555,138 +1491,318 @@ const confirmed = window.confirm(
                   hover:bg-accent-light
                   hover:text-primary
                 "
-                title="Edit allocation"
-              >
-                <Pencil size={17} />
-              </button>
+                                      title="Edit allocation"
+                                    >
+                                      <Pencil size={17} />
+                                    </button>
 
-            </div>
+                                  </div>
 
-          </td>
+                                </td>
 
-        </tr>
-      ))}
+                              </tr>
+                            ))}
 
-  </tbody>
-</table>
-                  {allocations.length > 10 && (
-                    <div className="border-t border-border px-5 py-4 text-center text-sm text-text-muted">
-                      Showing first 10 of{" "}
-{allocations.length} hall allocation records.
-Use View Details to see all records.
+                        </tbody>
+                      </table>
+                      {filteredAllocationRows.length > 10 && (
+                        <div className="border-t border-border px-5 py-4 text-center text-sm text-text-muted">
+                          Showing first 10 of{" "}
+                          {filteredAllocationRows.length} hall allocation records.
+                          Use View Details to see all records.
+                        </div>
+                      )}
+
                     </div>
                   )}
+
+                </section>
+              )}
+
+              {/* ================================================= */}
+              {/* FEATURE 21 — WHAT-IF / DYNAMIC REALLOCATION */}
+              {/* ================================================= */}
+
+              {selectedExamination && (
+                <section className="mb-6">
+                  <WhatIfReallocation
+                    examinationId={selectedExamination}
+                    onApplied={() =>
+                      loadAllocationData(selectedExamination)
+                    }
+                  />
+                </section>
+              )}
+
+              {!selectedExamination && (
+                <div className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
+
+                  <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-light text-primary">
+                    <ClipboardList size={27} />
+                  </div>
+
+                  <h3 className="mt-5 text-lg font-bold text-text">
+                    Select an examination
+                  </h3>
+
+                  <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
+                    Select an examination above to view
+                    existing hall allocations or generate a
+                    new examination hall allocation.
+                  </p>
 
                 </div>
               )}
 
-            </section>
+            </>
+          )}
+          {activeAllocationTab === "invigilator" && (
+            <>
+              <BulkExaminationSelector
+                examinations={examinations}
+                selectedBulkExaminations={selectedBulkExaminations}
+                onToggle={handleBulkExaminationChange}
+                onSelectAll={handleSelectAllBulkExaminations}
+                loading={loading}
+                disabled={bulkInvigGenerating}
+              />
+
+              <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+
+                <h3 className="text-sm font-bold text-text">
+                  Bulk Invigilator Allocation
+                </h3>
+                <p className="mt-1 text-xs text-text-muted">
+                  Deterministic invigilator allocation across
+                  selected examinations. Use the shared selection
+                  above.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleBulkInvigilatorGeneration}
+                  disabled={
+                    selectedBulkExaminations.length === 0 ||
+                    bulkInvigGenerating
+                  }
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-sidebar px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {bulkInvigGenerating ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Users size={16} />
+                      Generate Invigilators
+                    </>
+                  )}
+                </button>
+
+                {selectedBulkExaminations.length > 0 && (
+                  <p className="mt-3 text-xs text-text-muted">
+                    {selectedBulkExaminations.length} examination
+                    {selectedBulkExaminations.length !== 1 ? "s" : ""}{" "}
+                    selected.
+                  </p>
+                )}
+
+                {bulkInvigResult && (
+                  <BulkResultList result={bulkInvigResult} />
+                )}
+
+              </section>
+
+              <InvigilatorPanel
+                examinations={examinations}
+                selectedExamination={selectedExamination}
+                onSelectExamination={setSelectedExamination}
+                onMessage={(message, type) => {
+                  if (type === "error") {
+                    setError(message);
+                    setSuccess("");
+                  } else {
+                    setSuccess(message);
+                    setError("");
+                  }
+                }}
+              />
+            </>
+          )}
+          {activeAllocationTab === "seat" && (
+            <>
+              <BulkExaminationSelector
+                examinations={examinations}
+                selectedBulkExaminations={selectedBulkExaminations}
+                onToggle={handleBulkExaminationChange}
+                onSelectAll={handleSelectAllBulkExaminations}
+                loading={loading}
+                disabled={bulkSeatGenerating}
+              />
+
+              <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+
+                <h3 className="text-sm font-bold text-text">
+                  Bulk Seat Allocation
+                </h3>
+                <p className="mt-1 text-xs text-text-muted">
+                  Generate seat allocation for the selected
+                  examinations using the existing seat engine.
+                  Use the shared selection above.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleBulkSeatGeneration}
+                  disabled={
+                    selectedBulkExaminations.length === 0 ||
+                    bulkSeatGenerating
+                  }
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-sidebar px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {bulkSeatGenerating ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={16} />
+                      Generate Seats
+                    </>
+                  )}
+                </button>
+
+                {selectedBulkExaminations.length > 0 && (
+                  <p className="mt-3 text-xs text-text-muted">
+                    {selectedBulkExaminations.length} examination
+                    {selectedBulkExaminations.length !== 1 ? "s" : ""}{" "}
+                    selected.
+                  </p>
+                )}
+
+                {bulkSeatResult && (
+                  <BulkResultList result={bulkSeatResult} />
+                )}
+
+              </section>
+
+              <SeatAllocationPanel
+                examinations={examinations}
+                selectedExamination={selectedExamination}
+                onSelectExamination={setSelectedExamination}
+                onMessage={(message, type) => {
+                  if (type === "error") {
+                    setError(message);
+                    setSuccess("");
+                  } else {
+                    setSuccess(message);
+                    setError("");
+                  }
+                }}
+              />
+            </>
+          )}
+          {activeAllocationTab === "approval" && (
+            <>
+              <BulkExaminationSelector
+                examinations={examinations}
+                selectedBulkExaminations={selectedBulkExaminations}
+                onToggle={handleBulkExaminationChange}
+                onSelectAll={handleSelectAllBulkExaminations}
+                loading={loading}
+                disabled={bulkValidating}
+                showStatusFilter
+              />
+
+              <section className="mb-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
+
+                <h3 className="text-sm font-bold text-text">
+                  Bulk Validation
+                </h3>
+                <p className="mt-1 text-xs text-text-muted">
+                  Read-only validation of selected examinations.
+                  Use the shared selection above.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleBulkValidation}
+                  disabled={
+                    selectedBulkExaminations.length === 0 ||
+                    bulkValidating
+                  }
+                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+                >
+                  {bulkValidating ? (
+                    <>
+                      <RefreshCw size={16} className="animate-spin" />
+                      Validating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={16} />
+                      Validate Selected
+                    </>
+                  )}
+                </button>
+
+                {selectedBulkExaminations.length > 0 && (
+                  <p className="mt-3 text-xs text-text-muted">
+                    {selectedBulkExaminations.length} examination
+                    {selectedBulkExaminations.length !== 1 ? "s" : ""}{" "}
+                    selected.
+                  </p>
+                )}
+
+                {bulkValidationResult && (
+                  <BulkValidationList
+                    result={bulkValidationResult}
+                  />
+                )}
+
+              </section>
+              <ApprovalPanel
+                examinations={examinations}
+                selectedExamination={selectedExamination}
+                onSelectExamination={setSelectedExamination}
+                onNavigateTab={setActiveAllocationTab}
+                onMessage={(message, type) => {
+                  if (type === "error") {
+                    setError(message);
+                    setSuccess("");
+                  } else {
+                    setSuccess(message);
+                    setError("");
+                  }
+                }}
+              />
+            </>
           )}
 
-{/* ================================================= */}
-{/* FEATURE 21 — WHAT-IF / DYNAMIC REALLOCATION */}
-{/* ================================================= */}
-
-{selectedExamination && (
-  <section className="mb-6">
-    <WhatIfReallocation
-      examinationId={selectedExamination}
-      onApplied={() =>
-        loadAllocationData(selectedExamination)
-      }
-    />
-  </section>
-)}
-
-          {!selectedExamination && (
-            <div className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
-
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-light text-primary">
-                <ClipboardList size={27} />
-              </div>
-
-              <h3 className="mt-5 text-lg font-bold text-text">
-                Select an examination
-              </h3>
-
-             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
-  Select an examination above to view
-  existing hall allocations or generate a
-  new examination hall allocation.
-</p>
-
-            </div>
+          {/* ================================================= */}
+          {/* DETAILS MODAL */}
+          {/* ================================================= */}
+          {showDetails && (
+            <AllocationDetails
+              examination={selectedExam}
+              allocations={allocations}
+              onClose={() => setShowDetails(false)}
+            />
           )}
 
-  </>
-)}
-{activeAllocationTab === "invigilator" && (
-  <InvigilatorPanel
-    examinations={examinations}
-    onMessage={(message, type) => {
-      if (type === "error") {
-        setError(message);
-        setSuccess("");
-      } else {
-        setSuccess(message);
-        setError("");
-      }
-    }}
-  />
-)}
+          {editingAllocation && (
+            <AllocationForm
+              allocation={editingAllocation}
+              onClose={() =>
+                setEditingAllocation(null)
+              }
+              onSuccess={handleEditSuccess}
+            />
+          )}
 
-{activeAllocationTab === "seat" && (
-  <SeatAllocationPanel
-    examinations={examinations}
-    onMessage={(message, type) => {
-      if (type === "error") {
-        setError(message);
-        setSuccess("");
-      } else {
-        setSuccess(message);
-        setError("");
-      }
-    }}
-  />
-)}
-
-{activeAllocationTab === "approval" && (
-  <ApprovalPanel
-    examinations={examinations}
-    onMessage={(message, type) => {
-      if (type === "error") {
-        setError(message);
-        setSuccess("");
-      } else {
-        setSuccess(message);
-        setError("");
-      }
-    }}
-  />
-)}
-
-{/* ================================================= */}
-{/* DETAILS MODAL */}
-{/* ================================================= */}
-               {showDetails && (
-          <AllocationDetails
-            examination={selectedExam}
-            allocations={allocations}
-            onClose={() => setShowDetails(false)}
-          />
-        )}
-
-        {editingAllocation && (
-          <AllocationForm
-            allocation={editingAllocation}
-            onClose={() =>
-              setEditingAllocation(null)
-            }
-            onSuccess={handleEditSuccess}
-          />
-        )}
-
-      </main>
+        </main>
       </main>
     </div>
   );
@@ -1750,24 +1866,6 @@ function InfoItem({ label, value }) {
     </div>
   );
 }
-{/* 
-{activeAllocationTab === "invigilator" && (
-  <ComingSoonPanel
-    icon={Users}
-    title="Invigilator Allocation"
-    description="Assign invigilators to examination halls while managing staff availability and workload."
-    label="Coming Next"
-  />
-)}
-
-{activeAllocationTab === "seat" && (
-  <ComingSoonPanel
-    icon={Armchair}
-    title="Student / Seat Allocation"
-    description="Assign eligible students to examination halls and seats after hall allocation is completed."
-    label="Coming Later"
-  />
-)} */}
 
 /* ================================================= */
 /* EMPTY STATE */
@@ -1782,43 +1880,15 @@ function EmptyState() {
       </div>
 
       <h3 className="mt-5 font-bold text-text">
-  No hall allocations found
-</h3>
-
-<p className="mx-auto mt-2 max-w-md text-sm text-text-muted">
-  No examination halls have been allocated
-  for this examination yet.
-</p>
-
-    </div>
-  );
-}
-function ComingSoonPanel({
-  icon: Icon,
-  title,
-  description,
-  label,
-}) {
-  return (
-    <section className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
-
-      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-surface-muted text-text-muted">
-        <Icon size={27} />
-      </div>
-
-      <span className="mt-5 inline-flex rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-text-muted">
-        {label}
-      </span>
-
-      <h3 className="mt-4 text-lg font-bold text-text">
-        {title}
+        No hall allocations found
       </h3>
 
-      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-text-muted">
-        {description}
+      <p className="mx-auto mt-2 max-w-md text-sm text-text-muted">
+        No examination halls have been allocated
+        for this examination yet.
       </p>
 
-    </section>
+    </div>
   );
 }
 
@@ -1828,11 +1898,10 @@ function BulkResultList({ result }) {
       {result.results.map((row) => (
         <div
           key={row.examination_id}
-          className={`rounded-lg border px-3 py-2 text-xs ${
-            row.status === "GENERATED"
-              ? "border-green-200 bg-green-50 text-green-700"
-              : "border-red-200 bg-red-50 text-red-700"
-          }`}
+          className={`rounded-lg border px-3 py-2 text-xs ${row.status === "GENERATED"
+            ? "border-green-200 bg-green-50 text-green-700"
+            : "border-red-200 bg-red-50 text-red-700"
+            }`}
         >
           <p className="font-semibold">
             Examination #{row.examination_id} — {row.status}
@@ -1862,13 +1931,12 @@ function BulkValidationList({ result }) {
       {result.results.map((row) => (
         <div
           key={row.examination_id}
-          className={`rounded-lg border px-3 py-2 text-xs ${
-            row.status === "VALID"
-              ? "border-green-200 bg-green-50 text-green-700"
-              : row.status === "NOT GENERATED"
+          className={`rounded-lg border px-3 py-2 text-xs ${row.status === "VALID"
+            ? "border-green-200 bg-green-50 text-green-700"
+            : row.status === "NOT GENERATED"
               ? "border-yellow-200 bg-yellow-50 text-yellow-800"
               : "border-red-200 bg-red-50 text-red-700"
-          }`}
+            }`}
         >
           <p className="font-semibold">
             Examination #{row.examination_id} — {row.status}

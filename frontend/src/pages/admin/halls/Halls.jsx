@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 
 import { get, patch } from "../../../services/api";
-
+import HallFilters from "./HallFilters";
 import HallForm from "./HallForm";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
@@ -37,6 +37,13 @@ function Halls({
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState({
+  building_name: "",
+  room_type: "",
+  is_active: "",
+  availability_state: "",
+  is_accessible: "",
+});
   const [showForm, setShowForm] = useState(false);
   const [editingHall, setEditingHall] = useState(null);
   const [showCsvImport, setShowCsvImport] = useState(false);
@@ -89,10 +96,25 @@ setCourses(coursesData);
     setShowForm(true);
   };
 
+  const handleFilterChange = (key, value) => {
+  setFilters((current) => ({ ...current, [key]: value }));
+};
+
+const handleResetFilters = () => {
+  setFilters({
+    building_name: "",
+    room_type: "",
+    is_active: "",
+    availability_state: "",
+    is_accessible: "",
+  });
+};
+
   const handleEdit = (hall) => {
     setEditingHall(hall);
     setShowForm(true);
   };
+  
 const handleView = async (hall) => {
   try {
     const response = await get(`/halls/${hall.id}`);
@@ -136,23 +158,100 @@ const handleToggleStatus = async (hall) => {
     loadData();
   };
 
-  const filteredHalls = halls.filter((hall) => {
+  const buildingOptions = [
+  ...new Set(
+    halls.map((hall) => hall.building_name).filter(Boolean)
+  ),
+].sort();
+
+const roomTypeOptions = (() => {
+  const fromData = [
+    ...new Set(
+      halls.map((hall) => hall.room_type).filter(Boolean)
+    ),
+  ];
+  return fromData.length
+    ? fromData.sort()
+    : [
+        "CLASSROOM",
+        "LABORATORY",
+        "AUDITORIUM",
+        "SEMINAR_HALL",
+        "OTHER",
+      ];
+})();
+const filteredHalls = halls.filter((hall) => {
+  // Search (unchanged)
   const searchValue = search.toLowerCase();
 
-  return (
-    hall.name?.toLowerCase().includes(searchValue) ||
-    hall.building_name
-      ?.toLowerCase()
-      .includes(searchValue) ||
-    hall.room_type
-      ?.toLowerCase()
-      .includes(searchValue) ||
-    getCourseName(hall.assigned_course_id)
-      .toLowerCase()
-      .includes(searchValue)
-  );
-});
+  if (searchValue) {
+    const matchesSearch =
+      hall.name?.toLowerCase().includes(searchValue) ||
+      hall.building_name?.toLowerCase().includes(searchValue) ||
+      hall.room_type?.toLowerCase().includes(searchValue) ||
+      getCourseName(hall.assigned_course_id)
+        .toLowerCase()
+        .includes(searchValue);
 
+    if (!matchesSearch) return false;
+  }
+
+  // Filters
+  if (
+    filters.building_name &&
+    hall.building_name !== filters.building_name
+  ) {
+    return false;
+  }
+
+  if (
+    filters.room_type &&
+    hall.room_type !== filters.room_type
+  ) {
+    return false;
+  }
+
+  if (filters.is_active !== "") {
+    const wanted = filters.is_active === "true";
+    if (Boolean(hall.is_active) !== wanted) return false;
+  }
+
+  if (filters.availability_state) {
+    const usable =
+      hall.is_active &&
+      hall.is_available &&
+      !hall.is_under_maintenance &&
+      Number(hall.examination_capacity) > 0;
+
+    if (
+      filters.availability_state === "available" &&
+      !usable
+    ) {
+      return false;
+    }
+
+    if (
+      filters.availability_state === "maintenance" &&
+      !hall.is_under_maintenance
+    ) {
+      return false;
+    }
+
+    if (
+      filters.availability_state === "unavailable" &&
+      usable
+    ) {
+      return false;
+    }
+  }
+
+  if (filters.is_accessible !== "") {
+    const wanted = filters.is_accessible === "true";
+    if (Boolean(hall.is_accessible) !== wanted) return false;
+  }
+
+  return true;
+});
 const usableHalls = halls.filter(
   (hall) =>
     hall.is_active &&
@@ -382,7 +481,6 @@ const accessibleUsableHalls = usableHalls.filter(
               className="w-full rounded-xl border border-border bg-surface py-3 pl-10 pr-4 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
             />
           </div>
-
           <button
             type="button"
             onClick={loadData}
@@ -393,8 +491,17 @@ const accessibleUsableHalls = usableHalls.filter(
           </button>
         </div>
 
-        {/* Hall Cards */}
+        {/* FILTERS */}
 
+        <HallFilters
+          filters={filters}
+          onChange={handleFilterChange}
+          onReset={handleResetFilters}
+          buildingOptions={buildingOptions}
+          roomTypeOptions={roomTypeOptions}
+        />
+
+        {/* Hall Cards */}
         {loading ? (
           <div className="rounded-2xl border border-border bg-surface px-5 py-12 text-center text-sm text-text-muted shadow-sm">
             Loading halls...
@@ -411,7 +518,9 @@ const accessibleUsableHalls = usableHalls.filter(
             </p>
 
             <p className="mt-1 text-sm text-text-muted">
-              Add an examination hall to get started.
+              {search || Object.values(filters).some(Boolean)
+                ? "Try changing your search or clearing filters."
+                : "Add an examination hall to get started."}
             </p>
           </div>
         ) : (

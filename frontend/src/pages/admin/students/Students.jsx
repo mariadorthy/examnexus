@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Plus,
   Search,
@@ -10,14 +10,18 @@ import {
   X,
   Loader2,
   ClipboardList,
+  Image as ImageIcon,
+  Upload,
 } from "lucide-react";
 
 import StudentForm from "./StudentForm";
+import StudentFilters from "./StudentFilters";
 import { get, patch } from "../../../services/api";
 import {
   previewBulkExamRegistrations,
   createBulkExamRegistrations,
 } from "../../../services/examRegistrationService";
+import { bulkUploadProfileImages } from "../../../services/profileImageService";
 
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
@@ -36,12 +40,23 @@ function Students({
     useState(false);
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
-
+const [showBulkPhotoUpload, setShowBulkPhotoUpload] = useState(false);
+const [bulkPhotoFile, setBulkPhotoFile] = useState(null);
+const [bulkPhotoUploading, setBulkPhotoUploading] = useState(false);
+const [bulkPhotoError, setBulkPhotoError] = useState("");
+const [bulkPhotoReport, setBulkPhotoReport] = useState(null);
+const bulkPhotoInputRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
-
+const [filters, setFilters] = useState({
+  course_id: "",
+  semester: "",
+  batch: "",
+  gender: "",
+  is_active: "",
+});
   const [showForm, setShowForm] = useState(false);
   const [editingStudent, setEditingStudent] =
     useState(null);
@@ -306,40 +321,141 @@ const handleBulkRegistrationCreate = async () => {
   }
 };
 
+const handleFilterChange = (key, value) => {
+  setFilters((current) => ({ ...current, [key]: value }));
+};
+
+const handleResetFilters = () => {
+  setFilters({
+    course_id: "",
+    semester: "",
+    batch: "",
+    gender: "",
+    is_active: "",
+  });
+};
+
   const handleFormSuccess = () => {
     setShowForm(false);
     setEditingStudent(null);
     loadData();
   };
 
-  const filteredStudents = students.filter(
-    (student) => {
-      const searchText =
-        search.trim().toLowerCase();
+  const semesterOptions = [
+  ...new Set(
+    students.map((s) => s.semester).filter(Boolean)
+  ),
+].sort((a, b) => a - b);
 
-      if (!searchText) {
-        return true;
-      }
+const batchOptions = [
+  ...new Set(
+    students.map((s) => s.batch).filter(Boolean)
+  ),
+].sort();
 
-      return (
-        student.student_id
-          ?.toLowerCase()
-          .includes(searchText) ||
-        student.name
-          ?.toLowerCase()
-          .includes(searchText) ||
-        student.email
-          ?.toLowerCase()
-          .includes(searchText) ||
-        student.batch
-          ?.toLowerCase()
-          .includes(searchText) ||
-        getCourseName(student.course_id)
-          .toLowerCase()
-          .includes(searchText)
-      );
+const genderOptions = [
+  ...new Set(
+    students.map((s) => s.gender).filter(Boolean)
+  ),
+].sort();
+const filteredStudents = students.filter((student) => {
+  // Search (unchanged)
+  const searchText = search.trim().toLowerCase();
+  if (searchText) {
+    const matchesSearch =
+      student.student_id?.toLowerCase().includes(searchText) ||
+      student.name?.toLowerCase().includes(searchText) ||
+      student.email?.toLowerCase().includes(searchText) ||
+      student.batch?.toLowerCase().includes(searchText) ||
+      getCourseName(student.course_id)
+        .toLowerCase()
+        .includes(searchText);
+
+    if (!matchesSearch) return false;
+  }
+
+  // Filters (new — each one is skipped when empty)
+  if (
+    filters.course_id &&
+    String(student.course_id) !== String(filters.course_id)
+  ) {
+    return false;
+  }
+
+  if (
+    filters.semester &&
+    String(student.semester) !== String(filters.semester)
+  ) {
+    return false;
+  }
+
+  if (filters.batch && student.batch !== filters.batch) {
+    return false;
+  }
+
+  if (filters.gender && student.gender !== filters.gender) {
+    return false;
+  }
+
+  if (filters.is_active !== "") {
+    const wanted = filters.is_active === "true";
+    if (Boolean(student.is_active) !== wanted) {
+      return false;
     }
-  );
+  }
+
+  return true;
+});
+  const handleBulkPhotoFileChange = (event) => {
+  const file = event.target.files?.[0] || null;
+  setBulkPhotoError("");
+  setBulkPhotoReport(null);
+
+  if (!file) {
+    setBulkPhotoFile(null);
+    return;
+  }
+
+  if (!file.name.toLowerCase().endsWith(".zip")) {
+    setBulkPhotoError("Please select a .zip archive.");
+    setBulkPhotoFile(null);
+    if (bulkPhotoInputRef.current) bulkPhotoInputRef.current.value = "";
+    return;
+  }
+
+  setBulkPhotoFile(file);
+};
+
+const handleBulkPhotoUpload = async () => {
+  if (!bulkPhotoFile) {
+    setBulkPhotoError("Please select a .zip archive first.");
+    return;
+  }
+
+  setBulkPhotoUploading(true);
+  setBulkPhotoError("");
+  setBulkPhotoReport(null);
+
+  try {
+    const report = await bulkUploadProfileImages(bulkPhotoFile);
+    setBulkPhotoReport(report);
+    // Refresh the student list so updated photos appear.
+    loadData();
+  } catch (err) {
+    console.error("Bulk photo upload error:", err);
+    setBulkPhotoError(err.message || "Upload failed.");
+  } finally {
+    setBulkPhotoUploading(false);
+  }
+};
+
+const closeBulkPhotoModal = () => {
+  setShowBulkPhotoUpload(false);
+  setBulkPhotoFile(null);
+  setBulkPhotoError("");
+  setBulkPhotoReport(null);
+  if (bulkPhotoInputRef.current) bulkPhotoInputRef.current.value = "";
+};
 
   return (
     <div className="min-h-screen bg-background">
@@ -409,6 +525,15 @@ const handleBulkRegistrationCreate = async () => {
             Refresh
 
           </button>
+
+<button
+  type="button"
+  onClick={() => setShowBulkPhotoUpload(true)}
+  className="flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-sidebar transition hover:bg-surface-muted"
+>
+  <ImageIcon size={18} />
+  Bulk Photos
+</button>
 
 <button
   type="button"
@@ -490,6 +615,17 @@ Bulk Exam Registration
 
       </div>
 
+{/* FILTERS */}
+<StudentFilters
+  filters={filters}
+  onChange={handleFilterChange}
+  onReset={handleResetFilters}
+  courses={courses}
+  semesterOptions={semesterOptions}
+  batchOptions={batchOptions}
+  genderOptions={genderOptions}
+/>
+
       {/* ================================================= */}
       {/* TABLE */}
       {/* ================================================= */}
@@ -568,11 +704,11 @@ Bulk Exam Registration
                       No students found
                     </p>
 
-                    <p className="mt-1 text-sm text-text-muted">
-                      {search
-                        ? "Try changing your search."
-                        : "Create your first student to get started."}
-                    </p>
+              <p className="mt-1 text-sm text-text-muted">
+  {search || Object.values(filters).some(Boolean)
+    ? "Try changing your search or clearing filters."
+    : "Create your first student to get started."}
+</p>
 
                   </td>
 
@@ -1360,6 +1496,129 @@ Bulk Exam Registration
     </div>
   </div>
 )}
+
+{showBulkPhotoUpload && (
+  <div
+    className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) {
+        closeBulkPhotoModal();
+      }
+    }}
+  >
+    <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-surface shadow-2xl">
+      <div className="flex items-center justify-between border-b border-border px-6 py-5">
+        <div>
+          <h2 className="text-lg font-bold text-text">
+            Bulk Profile Photos
+          </h2>
+          <p className="mt-1 text-sm text-text-muted">
+            Upload a ZIP of images. Each file&apos;s name (without
+            extension) must match a student&apos;s ID.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={closeBulkPhotoModal}
+          className="rounded-lg p-2 text-text-muted hover:bg-surface-muted hover:text-text"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <div className="space-y-5 p-6">
+
+        <div className="rounded-xl border border-border bg-surface-muted p-4 text-sm text-text-muted">
+          <p className="font-semibold text-text">Format</p>
+          <p className="mt-1">
+            A .zip file containing images named after student IDs.
+          </p>
+          <pre className="mt-2 rounded-lg bg-surface p-3 text-xs">
+photos.zip
+├── AIA261A001.jpg
+├── AIA261A008.png
+└── AIA261A015.webp
+          </pre>
+          <p className="mt-2 text-xs">
+            JPEG, PNG, or WebP · max 2 MB per image · max 20 MB archive.
+          </p>
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => bulkPhotoInputRef.current?.click()}
+            disabled={bulkPhotoUploading}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-surface-muted px-4 py-6 text-sm font-semibold text-sidebar transition hover:bg-surface disabled:opacity-50"
+          >
+            <Upload size={18} />
+            {bulkPhotoFile
+              ? bulkPhotoFile.name
+              : "Choose ZIP Archive"}
+          </button>
+
+          <input
+            ref={bulkPhotoInputRef}
+            type="file"
+            accept=".zip,application/zip"
+            onChange={handleBulkPhotoFileChange}
+            className="hidden"
+          />
+        </div>
+
+        {bulkPhotoError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-danger">
+            {bulkPhotoError}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleBulkPhotoUpload}
+          disabled={!bulkPhotoFile || bulkPhotoUploading}
+          className="w-full rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white transition hover:bg-primary disabled:opacity-50"
+        >
+          {bulkPhotoUploading ? "Uploading…" : "Upload Photos"}
+        </button>
+
+        {bulkPhotoReport && (
+          <div className="rounded-xl border border-border bg-surface-muted p-4">
+            <p className="font-semibold text-text">
+              {bulkPhotoReport.message}
+            </p>
+
+            <div className="mt-3 grid gap-2 text-sm">
+              <p>
+                Matched:{" "}
+                <strong>{bulkPhotoReport.matched}</strong>
+              </p>
+              <p>
+                Saved: <strong>{bulkPhotoReport.saved}</strong>
+              </p>
+              {bulkPhotoReport.skipped?.length > 0 && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-text-muted">
+                    Skipped ({bulkPhotoReport.skipped.length})
+                  </summary>
+                  <ul className="mt-2 space-y-1 text-xs text-text-muted">
+                    {bulkPhotoReport.skipped.map((s, i) => (
+                      <li key={i}>
+                        <strong>{s.filename}</strong> — {s.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { get } from "../../services/api";
+import { downloadHallTicket } from "../../services/hallTicketService";
 import {
   GraduationCap,
   BookOpen,
@@ -11,24 +12,29 @@ import {
   Ticket,
 } from "lucide-react";
 
+const API_URL = import.meta.env.VITE_API_BASE_URL;
+
 import PortalSidebar from "../../components/PortalSidebar";
 
 function StudentDashboard({
   user,
   onLogout,
 }) {
+
+  const [avatarFailed, setAvatarFailed] = useState(false);
+
   const [dashboardUser, setDashboardUser] =
     useState(user);
 
   const studentName =
     dashboardUser?.name || "Student";
 
-  const studentInitials = studentName
-    .split(" ")
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
+  // const studentInitials = studentName
+  //   .split(" ")
+  //   .filter(Boolean)
+  //   .slice(0, 2)
+  //   .map((part) => part[0].toUpperCase())
+  //   .join("");
 
   const [dashboardData, setDashboardData] =
     useState({
@@ -173,20 +179,19 @@ const [sidebarOpen, setSidebarOpen] =
           {/* WELCOME */}
       <section className="rounded-2xl bg-sidebar p-6 text-white shadow-sm md:p-8">
   <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
-
     {/* STUDENT AVATAR */}
-    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white/20 bg-white/10 text-2xl font-bold text-white">
-      {dashboardUser?.profile_image ? (
-        <img
-          src={dashboardUser.profile_image}
+    <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white/20 bg-white/10 text-white">
+      {dashboardUser?.profile_image && !avatarFailed ? (
+         <img
+          src={`${API_URL}${dashboardUser.profile_image}`}
           alt={studentName}
           className="h-full w-full object-cover"
+          onError={() => setAvatarFailed(true)}
         />
-      ) : (
-        studentInitials
+           ) : (
+        <User size={40} strokeWidth={1.5} aria-label="Default avatar" />
       )}
     </div>
-
     <div>
       <p className="text-sm font-medium text-white/70">
         Welcome back
@@ -585,8 +590,8 @@ const [sidebarOpen, setSidebarOpen] =
 
                           </div>
 
-                          {/* QR */}
-                          <div className="flex shrink-0 flex-col items-center justify-center rounded-2xl border border-border bg-surface p-5">
+                          {/* QR + DOWNLOAD */}
+                          <div className="flex shrink-0 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-surface p-5">
 
                             <img
                               src={`data:image/png;base64,${ticket.qr_base64}`}
@@ -594,9 +599,27 @@ const [sidebarOpen, setSidebarOpen] =
                               className="h-40 w-40 rounded-xl border border-border bg-white p-2"
                             />
 
-                            <p className="mt-3 text-center text-xs font-medium text-text-muted">
+                            <p className="text-center text-xs font-medium text-text-muted">
                               Scan to verify
                             </p>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                downloadHallTicket(
+                                  ticket.examination_id,
+                                  dashboardUser?.id
+                                ).catch((err) =>
+                                  console.error(
+                                    "Hall ticket download failed:",
+                                    err
+                                  )
+                                )
+                              }
+                              className="w-full rounded-xl bg-sidebar px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-90"
+                            >
+                              Download PDF
+                            </button>
 
                           </div>
 

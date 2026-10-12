@@ -68,11 +68,24 @@ function AdminDashboard({
 
   const [recentActivity, setRecentActivity] = useState([]);
 
-  const [allocation, setAllocation] = useState({
+    const [allocation, setAllocation] = useState({
     total_examinations: 0,
     examinations_with_allocations: 0,
     total_allocations: 0,
     status: "NOT_STARTED",
+  });
+
+  // Setup readiness derived from backend `system_status`
+  // (real `count > 0` booleans from /dashboard/).
+  // `null` means "not determined yet" (loading or error) — we
+  // must NOT render these as "Ready" or "Not configured".
+  const [systemStatus, setSystemStatus] = useState({
+    departments: null,
+    courses: null,
+    subjects: null,
+    students: null,
+    staff: null,
+    halls: null,
   });
 
   /* ================================================= */
@@ -154,7 +167,6 @@ if (!data.success) {
       setRecentActivity(
         data.recent_activity || []
       );
-
       /* ================================================= */
       /* ALLOCATION */
       /* ================================================= */
@@ -167,16 +179,152 @@ if (!data.success) {
           status: "NOT_STARTED",
         }
       );
+
+      /* ================================================= */
+      /* SYSTEM READINESS (from backend system_status) */
+      /* ================================================= */
+
+      if (data.system_status) {
+        setSystemStatus({
+          departments:
+            data.system_status.departments ?? null,
+          courses: data.system_status.courses ?? null,
+          subjects: data.system_status.subjects ?? null,
+          students: data.system_status.students ?? null,
+          staff: data.system_status.staff ?? null,
+          halls: data.system_status.halls ?? null,
+        });
+      } else {
+        // Backend did not return readiness — keep it Unknown
+        // rather than guessing.
+        setSystemStatus({
+          departments: null,
+          courses: null,
+          subjects: null,
+          students: null,
+          staff: null,
+          halls: null,
+        });
+      }
     } catch (err) {
       console.error("Dashboard error:", err);
 
       setError(
         "Unable to load dashboard data. Please make sure the backend is running."
       );
+
+      // Clear readiness on error so we never show stale
+      // "Ready" pills after a failed refresh.
+      setSystemStatus({
+        departments: null,
+        courses: null,
+        subjects: null,
+        students: null,
+        staff: null,
+        halls: null,
+      });
     } finally {
       setLoading(false);
     }
   };
+
+  /* ================================================= */
+  /* DERIVED VALUES */
+  /* ================================================= */
+
+  // Map a readiness boolean to an honest label.
+  // null  -> "Not checked"  (loading or API failure)
+  // true  -> "Ready"        (records exist; not proof of full config)
+  // false -> "Not configured"
+  const readinessLabel = (flag) => {
+    if (flag === null || flag === undefined) {
+      return "Not checked";
+    }
+    return flag ? "Ready" : "Not configured";
+  };
+
+  // Derive the Next Step card contents from real data only.
+  // Returns { title, body, action, actionLabel } or null.
+  const getNextStep = () => {
+    if (loading) {
+      return {
+        title: "Loading current status…",
+        body:
+          "Checking the latest examination and allocation information.",
+        action: null,
+        actionLabel: null,
+      };
+    }
+
+    if (error) {
+      return {
+        title: "Unable to determine next step",
+        body:
+          "Dashboard data could not be loaded. Refresh the page to try again.",
+        action: null,
+        actionLabel: null,
+      };
+    }
+
+    const totalExaminations =
+      allocation.total_examinations ?? 0;
+    const allocationStatus = allocation.status;
+
+    // No examinations yet.
+    if (totalExaminations === 0) {
+      return {
+        title: "Create your first examination",
+        body:
+          "Create an examination to begin the examination workflow.",
+        action: "Examinations",
+        actionLabel: "Create Examination",
+      };
+    }
+
+    // Examinations exist but allocations have not started.
+    if (allocationStatus === "NOT_STARTED") {
+      return {
+        title: "Review allocations",
+        body:
+          "Examinations exist but allocations have not started yet. Open the allocation workspace to generate hall, seat and invigilator allocations.",
+        action: "Allocations",
+        actionLabel: "Open Allocations",
+      };
+    }
+
+    // Partial allocation progress.
+    if (allocationStatus === "PARTIAL") {
+      return {
+        title: "Complete pending allocations",
+        body:
+          "Some examinations still require allocations. Continue in the allocation workspace to finish them.",
+        action: "Allocations",
+        actionLabel: "Continue Allocations",
+      };
+    }
+
+    // Allocations completed for all examinations.
+    if (allocationStatus === "COMPLETED") {
+      return {
+        title: "Allocations complete",
+        body:
+          "All examinations have allocations. Review, validate or publish them from the allocation workspace.",
+        action: "Allocations",
+        actionLabel: "Review Allocations",
+      };
+    }
+
+    // Defensive fallback — unknown status string.
+    return {
+      title: "Continue examination workflow",
+      body:
+        "Open the examination workspace to review the current state.",
+      action: "Examinations",
+      actionLabel: "Open Examinations",
+    };
+  };
+
+  const nextStep = getNextStep();
 
   return (
     <div className="min-h-screen bg-background">
@@ -355,9 +503,10 @@ if (!data.success) {
             <div className="grid gap-4 md:grid-cols-3">
 
               {/* CREATE EXAMINATION */}
-
               <button
                 type="button"
+                onClick={() => onNavigate("Examinations")}
+                aria-label="Create Examination"
                 className="group rounded-2xl bg-sidebar p-6 text-left text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary"
               >
 
@@ -366,7 +515,6 @@ if (!data.success) {
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">
                     <Plus size={22} />
                   </div>
-
                   <ArrowRight
                     size={20}
                     className="transition group-hover:translate-x-1"
@@ -385,9 +533,10 @@ if (!data.success) {
               </button>
 
               {/* TIMETABLE */}
-
               <button
                 type="button"
+                onClick={() => onNavigate("Timetable")}
+                aria-label="Manage Timetable"
                 className="group rounded-2xl border border-border bg-surface p-6 text-left shadow-sm transition hover:border-accent hover:shadow-md"
               >
 
@@ -396,7 +545,6 @@ if (!data.success) {
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
                     <CalendarDays size={22} />
                   </div>
-
                   <ArrowRight
                     size={20}
                     className="text-accent transition group-hover:translate-x-1"
@@ -415,9 +563,10 @@ if (!data.success) {
               </button>
 
               {/* ALLOCATION */}
-
               <button
                 type="button"
+                onClick={() => onNavigate("Allocations")}
+                aria-label="Examination Allocation"
                 className="group rounded-2xl border border-border bg-surface p-6 text-left shadow-sm transition hover:border-accent hover:shadow-md"
               >
 
@@ -426,7 +575,6 @@ if (!data.success) {
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
                     <ClipboardList size={22} />
                   </div>
-
                   <ArrowRight
                     size={20}
                     className="text-accent transition group-hover:translate-x-1"
@@ -721,32 +869,44 @@ if (!data.success) {
 
                 <StatusRow
                   label="Departments"
-                  status="Ready"
+                  status={readinessLabel(
+                    systemStatus.departments
+                  )}
                 />
 
                 <StatusRow
                   label="Courses"
-                  status="Ready"
+                  status={readinessLabel(
+                    systemStatus.courses
+                  )}
                 />
 
                 <StatusRow
                   label="Subjects"
-                  status="Ready"
+                  status={readinessLabel(
+                    systemStatus.subjects
+                  )}
                 />
 
                 <StatusRow
                   label="Students"
-                  status="Ready"
+                  status={readinessLabel(
+                    systemStatus.students
+                  )}
                 />
 
                 <StatusRow
                   label="Staff"
-                  status="Ready"
+                  status={readinessLabel(
+                    systemStatus.staff
+                  )}
                 />
 
                 <StatusRow
                   label="Halls"
-                  status="Ready"
+                  status={readinessLabel(
+                    systemStatus.halls
+                  )}
                 />
 
               </div>
@@ -760,7 +920,6 @@ if (!data.success) {
             <div className="rounded-2xl bg-accent p-6 text-white shadow-lg">
 
               <div className="flex h-full flex-col justify-between">
-
                 <div>
 
                   <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-white/10">
@@ -772,25 +931,28 @@ if (!data.success) {
                   </p>
 
                   <h3 className="mt-2 text-2xl font-bold">
-                    Create your first examination
+                    {nextStep.title}
                   </h3>
 
                   <p className="mt-3 max-w-md text-sm leading-6 text-accent-light">
-                    Your departments, courses, subjects, students,
-                    staff and halls are ready. Create an examination
-                    to begin the examination workflow.
+                    {nextStep.body}
                   </p>
 
                 </div>
 
-                <button
-                  type="button"
-                  className="mt-8 flex w-fit items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-sidebar transition hover:bg-background"
-                >
-                  Create Examination
-                  <ArrowRight size={17} />
-                </button>
-
+                {nextStep.action && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onNavigate(nextStep.action)
+                    }
+                    aria-label={nextStep.actionLabel}
+                    className="mt-8 flex w-fit items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-sidebar transition hover:bg-background"
+                  >
+                    {nextStep.actionLabel}
+                    <ArrowRight size={17} />
+                  </button>
+                )}
               </div>
 
             </div>

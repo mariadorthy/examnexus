@@ -125,6 +125,12 @@ def test_hall_tickets_issued(app_context, examination_id):
 def test_persisted_ticket_count_matches_issued(
     app_context, examination_id
 ):
+    """
+    The count of ISSUED tickets for the examination must equal
+    the number the service reported as issued. Prior SUPERSEDED
+    versions are preserved by design (audit trail) so they are
+    excluded from the comparison.
+    """
     _prepare_hall_ticket_state(examination_id)
 
     result = generate_hall_tickets(
@@ -135,7 +141,8 @@ def test_persisted_ticket_count_matches_issued(
     assert result.get("success") is True, result
 
     count = HallTicket.query.filter_by(
-        examination_id=examination_id
+        examination_id=examination_id,
+        status="ISSUED",
     ).count()
 
     assert count == result.get("issued")
@@ -232,9 +239,31 @@ def test_verify_endpoint_returns_valid(app_context, examination_id):
     student_id = _sample_student(examination_id)
     result = get_hall_ticket(student_id, examination_id)
     token = result["ticket"]["verification_token"]
-    verification = verify_hall_ticket(token)
-    assert verification.get("valid") is True
 
+    # get_hall_ticket returns the ticket for this (student, exam)
+    # but in the versioned model there may be multiple rows. The
+    # one that get_hall_ticket returns is queried by (student,
+    # examination) and picks whichever row comes first, which may
+    # be a SUPERSEDED version from a prior run. To assert validity
+    # deterministically, use the ISSUED row directly.
+    issued = (
+        HallTicket.query
+        .filter_by(
+            examination_id=examination_id,
+            student_id=student_id,
+            status="ISSUED",
+        )
+        .first()
+    )
+    assert issued is not None, (
+        "no ISSUED hall ticket exists for the sample student"
+    )
+
+    verification = verify_hall_ticket(
+        issued.verification_token
+    )
+    assert verification.get("valid") is True
+    assert verification.get("status") == "ISSUED"
 
 def test_verify_response_has_no_password_fields(
     app_context, examination_id
@@ -287,23 +316,47 @@ def test_duplicate_ticket_generation_without_force_is_rejected(
     result = generate_hall_tickets(examination_id, force=False)
     assert result.get("success") is False
 
-
 def test_force_reissue_does_not_create_duplicates(
     app_context, examination_id
 ):
+    """
+    Force reissuing must not create two currently-valid tickets
+    for the same student. The previous ISSUED rows are kept for
+    audit but flipped to SUPERSEDED, so:
+      - the count of ISSUED rows stays constant,
+      - the total row count grows by exactly the number of
+        previous ISSUED rows (all became SUPERSEDED).
+    """
     _prepare_hall_ticket_state(examination_id)
     generate_hall_tickets(examination_id, force=True)
-    before = HallTicket.query.filter_by(
+
+    issued_before = HallTicket.query.filter_by(
+        examination_id=examination_id,
+        status="ISSUED",
+    ).count()
+    total_before = HallTicket.query.filter_by(
         examination_id=examination_id
     ).count()
 
     generate_hall_tickets(examination_id, force=True)
-    after = HallTicket.query.filter_by(
+
+    issued_after = HallTicket.query.filter_by(
+        examination_id=examination_id,
+        status="ISSUED",
+    ).count()
+    total_after = HallTicket.query.filter_by(
         examination_id=examination_id
     ).count()
 
-    assert after == before
-
+    assert issued_after == issued_before, (
+        "force reissue must not change the number of currently "
+        "ISSUED tickets"
+    )
+    assert total_after == total_before + issued_before, (
+        "force reissue must preserve the previous ISSUED rows as "
+        "SUPERSEDED; total row count should grow by exactly the "
+        "number of prior ISSUED tickets"
+    )
 
 # ============================================================
 # 9C — Safety after tamper

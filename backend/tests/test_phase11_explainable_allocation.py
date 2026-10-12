@@ -405,3 +405,135 @@ def test_transient_exclusion_is_reported(prepared_examination):
     codes = {r["code"] for r in result["reasons"]}
     assert "REJECTED_TRANSIENTLY_EXCLUDED" in codes
     assert codes.issubset(REASON_CODES)
+
+# ============================================================
+# Coverage extension for app/services/explanation.py
+#
+# The existing suite covers selected/rejected reason codes,
+# maintenance/unavailable exclusions, determinism, and
+# non-mutation. These three tests target the uncovered
+# branches flagged in the Phase A audit: aggregate reasons,
+# type validation, and a full read-only guarantee.
+# ============================================================
+
+from app.services.explanation import (
+    explain_allocation,
+    explain_hall_decision,
+    REASON_CODES,
+)
+
+
+def test_explain_allocation_returns_aggregate_for_shortfall(
+    app_context, examination_id
+):
+    """
+    When allocated capacity is below eligible students, or
+    accessible capacity below accessibility students, an
+    aggregate reason is emitted.
+
+    We can't easily force a shortfall without breaking the
+    allocation, so this test:
+      - runs explain_allocation
+      - asserts the shape of `aggregate`
+      - if aggregate is non-empty, asserts the reason codes are
+        from the closed enum
+    """
+    result = explain_allocation(examination_id)
+
+    if not result["success"]:
+        # No allocation yet — the DB was reset between phases.
+        import pytest as _pytest
+        _pytest.skip(
+            "no hall allocation persisted for this examination "
+            "in the current test DB"
+        )
+
+    assert "aggregate" in result
+    assert isinstance(result["aggregate"], list)
+
+    for entry in result["aggregate"]:
+        for reason in entry["reasons"]:
+            assert reason["code"] in REASON_CODES, (
+                f"aggregate reason {reason['code']} is not in the "
+                f"closed enum — the service is inventing codes"
+            )
+
+
+def test_explain_allocation_rejects_non_integer_excluded_ids(
+    app_context, examination_id
+):
+    """
+    Passing a non-convertible excluded_hall_ids value returns a
+    clean error instead of crashing or silently ignoring input.
+    """
+    result = explain_allocation(
+        examination_id, excluded_hall_ids=["not-an-int"]
+    )
+
+    assert result["success"] is False
+    assert "integer" in result["message"].lower()
+
+
+def test_explain_hall_decision_rejects_non_integer_excluded_ids(
+    app_context, examination_id
+):
+    """Same guard on the single-decision entry point."""
+    from app.models.timetable import Timetable
+
+    entry = (
+        Timetable.query
+        .filter_by(examination_id=examination_id)
+        .first()
+    )
+    if entry is None:
+        import pytest as _pytest
+        _pytest.skip("no timetable entry to test against")
+
+    from app.models.hall import Hall
+    hall = Hall.query.first()
+    if hall is None:
+        import pytest as _pytest
+        _pytest.skip("no hall to test against")
+
+    result = explain_hall_decision(
+        examination_id,
+        hall_id=hall.id,
+        timetable_id=entry.id,
+        excluded_hall_ids=["not-an-int"],
+    )
+
+    assert result["success"] is False
+    assert "integer" in result["message"].lower()
+
+
+def test_explain_allocation_is_read_only(
+    app_context, examination_id
+):
+    """
+    Running explain_allocation must not change any table count.
+
+    This is stronger than the existing non-mutation test because
+    it exercises the full aggregate path, not just one decision.
+    """
+    from app.models.hall_allocation import HallAllocation
+    from app.models.seat_allocation import SeatAllocation
+    from app.models.timetable import Timetable
+    from app.models.hall import Hall
+
+    def snapshot():
+        return {
+            "hall_allocations": HallAllocation.query.count(),
+            "seat_allocations": SeatAllocation.query.count(),
+            "timetable": Timetable.query.count(),
+            "halls": Hall.query.count(),
+        }
+
+    before = snapshot()
+
+    explain_allocation(examination_id)
+    explain_allocation(
+        examination_id, excluded_hall_ids=[]
+    )
+
+    after = snapshot()
+    assert before == after

@@ -313,3 +313,78 @@ export const getHallExplanation = async (
 
   return data;
 };
+
+// =========================================================
+// EMERGENCY REALLOCATION (PUBLISHED EXAMINATIONS)
+// =========================================================
+
+export async function simulateEmergencyReallocation(
+  examinationId,
+  incidentId,
+  excludedHallIds
+) {
+  const response = await fetch(
+    `${API_URL}/reallocate/emergency/what-if/${examinationId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem(
+          "examnexus_token"
+        )}`,
+      },
+      body: JSON.stringify({
+        incident_id: incidentId,
+        excluded_hall_ids: excludedHallIds,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result.message ||
+        "Failed to simulate emergency reallocation."
+    );
+  }
+
+  return result;
+}
+
+export async function applyEmergencyReallocation(
+  examinationId,
+  incidentId,
+  excludedHallIds,
+  acknowledgeInProgress = false
+) {
+  const response = await fetch(
+    `${API_URL}/reallocate/emergency/apply/${examinationId}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem(
+          "examnexus_token"
+        )}`,
+      },
+      body: JSON.stringify({
+        incident_id: incidentId,
+        excluded_hall_ids: excludedHallIds,
+        confirm: true,
+        acknowledge_in_progress: acknowledgeInProgress,
+      }),
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      result.message ||
+        "Failed to apply emergency reallocation."
+    );
+  }
+
+  return result;
+}

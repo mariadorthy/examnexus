@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   X,
   GraduationCap,
+  Image as ImageIcon,
 } from "lucide-react";
-import { post, put } from "../../../services/api";
 
+const API_URL = import.meta.env.VITE_API_BASE_URL;
+
+import { post, put } from "../../../services/api";
+import { uploadStudentProfileImage } from "../../../services/profileImageService";
 function StudentForm({
   student,
   courses,
@@ -29,15 +33,23 @@ function StudentForm({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-
+const [photoFile, setPhotoFile] = useState(null);
+const [photoPreview, setPhotoPreview] = useState(null);
+const [photoUploading, setPhotoUploading] = useState(false);
+const [photoError, setPhotoError] = useState("");
+const photoInputRef = useRef(null);
   const isEditing = Boolean(student);
 
   useEffect(() => {
     if (student) {
+      // Preload the existing photo URL for display.
+      setPhotoPreview(student.student_img || null);
+      setPhotoFile(null);
+      setPhotoError("");
+
       setFormData({
         student_id:
           student.student_id || "",
-
         name:
           student.name || "",
 
@@ -89,6 +101,34 @@ function StudentForm({
       [name]: value,
     }));
   };
+
+  const handlePhotoChange = (event) => {
+  const file = event.target.files?.[0] || null;
+  setPhotoError("");
+
+  if (!file) {
+    setPhotoFile(null);
+    return;
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    setPhotoError("Image must be 2 MB or smaller.");
+    setPhotoFile(null);
+    if (photoInputRef.current) photoInputRef.current.value = "";
+    return;
+  }
+
+  const allowed = ["image/jpeg", "image/png", "image/webp"];
+  if (!allowed.includes(file.type)) {
+    setPhotoError("Only JPEG, PNG, or WebP images are allowed.");
+    setPhotoFile(null);
+    if (photoInputRef.current) photoInputRef.current.value = "";
+    return;
+  }
+
+  setPhotoFile(file);
+  setPhotoPreview(URL.createObjectURL(file));
+};
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -183,13 +223,39 @@ function StudentForm({
         payload.password = formData.password;
       }
 
+      let savedStudentId = null;
+
       if (isEditing) {
         await put(
           `/students/${student.id}`,
           payload
         );
+        savedStudentId = student.id;
       } else {
-        await post("/students/", payload);
+        const created = await post("/students/", payload);
+        savedStudentId = created?.id || null;
+      }
+
+      // If a new photo was picked, upload it now that the
+      // student record exists. Failures here do NOT undo the
+      // saved student — we surface them separately.
+      if (photoFile && savedStudentId) {
+        try {
+          setPhotoUploading(true);
+          await uploadStudentProfileImage(
+            savedStudentId,
+            photoFile
+          );
+        } catch (uploadErr) {
+          console.error("Photo upload failed:", uploadErr);
+          setPhotoError(
+            uploadErr.message ||
+              "Student saved, but photo upload failed."
+          );
+          // Fall through — student is saved, don't hide it.
+        } finally {
+          setPhotoUploading(false);
+        }
       }
 
       onSuccess();
@@ -565,6 +631,63 @@ function StudentForm({
             </div>
 
           </div>
+
+{/* Profile Photo (edit mode) */}
+{isEditing && (
+  <div>
+    <label className="mb-2 block text-sm font-semibold text-sidebar">
+      Profile Photo
+    </label>
+
+    <div className="flex items-center gap-4 rounded-xl border border-border bg-surface-muted p-4">
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-primary/10 bg-primary/10 text-primary">
+        {photoPreview ? (
+                    <img
+            src={
+              photoPreview.startsWith("blob:")
+                ? photoPreview
+                : `${API_URL}${photoPreview}`
+            }
+            alt="Profile preview"
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = "none";
+            }}
+          />
+        ) : (
+          <ImageIcon size={32} />
+        )}
+      </div>
+
+      <div className="flex-1">
+        <button
+          type="button"
+          onClick={() => photoInputRef.current?.click()}
+          disabled={loading || photoUploading}
+          className="rounded-lg border border-border bg-surface px-4 py-2 text-sm font-semibold text-sidebar transition hover:bg-surface disabled:opacity-50"
+        >
+          {photoFile ? "Choose Different Photo" : "Choose Photo"}
+        </button>
+
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          onChange={handlePhotoChange}
+          className="hidden"
+        />
+
+        <p className="mt-2 text-xs text-text-muted">
+          JPEG, PNG, or WebP · max 2 MB
+        </p>
+
+        {photoError && (
+          <p className="mt-1 text-xs text-danger">{photoError}</p>
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
           {/* Disability */}
 

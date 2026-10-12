@@ -11,21 +11,47 @@ import {
 
 import { get, post } from "../../../services/api";
 
-
 function SeatAllocationPanel({
   examinations,
+  selectedExamination: selectedExaminationProp,
+  onSelectExamination,
   onMessage,
 }) {
 
-  const [selectedExamination, setSelectedExamination] =
-    useState("");
+  const [internalSelection, setInternalSelection] =
+    useState(selectedExaminationProp || "");
 
-  const [seatRows, setSeatRows] = useState([]);
+  const selectedExamination = onSelectExamination
+    ? (selectedExaminationProp || "")
+    : internalSelection;
+
+  const setSelectedExamination = (value) => {
+    if (onSelectExamination) {
+      onSelectExamination(value);
+    } else {
+      setInternalSelection(value);
+    }
+  };
+
+    const [seatRows, setSeatRows] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
 
-  useEffect(() => {
+  const [seatFilters, setSeatFilters] = useState({
+    session: "",
+    building_name: "",
+    hall: "",
+  });
+  const [seatSearch, setSeatSearch] = useState("");
+    useEffect(() => {
+    setSeatFilters({
+      session: "",
+      building_name: "",
+      hall: "",
+    });
+    setSeatSearch("");
+
     if (selectedExamination) {
       loadSeats(selectedExamination);
     } else {
@@ -106,13 +132,85 @@ function SeatAllocationPanel({
       setGenerating(false);
     }
   };
+  // ---------------------------------------------------------
+  // FILTER OPTIONS (derived from data)
+  // ---------------------------------------------------------
+
+  const buildingOptions = [
+    ...new Set(
+      seatRows.map((row) => row.building_name).filter(Boolean)
+    ),
+  ].sort();
+
+  const hallOptions = [
+    ...new Set(
+      seatRows.map((row) => row.hall).filter(Boolean)
+    ),
+  ].sort();
+
+  const handleSeatFilterChange = (key, value) => {
+    setSeatFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleResetSeatFilters = () => {
+    setSeatFilters({
+      session: "",
+      building_name: "",
+      hall: "",
+    });
+    setSeatSearch("");
+  };
+
+  const activeSeatFilterCount =
+    Object.values(seatFilters).filter(Boolean).length +
+    (seatSearch ? 1 : 0);
+
+  const filteredSeatRows = seatRows.filter((row) => {
+    if (
+      seatFilters.session &&
+      row.session !== seatFilters.session
+    ) {
+      return false;
+    }
+
+    if (
+      seatFilters.building_name &&
+      row.building_name !== seatFilters.building_name
+    ) {
+      return false;
+    }
+
+    if (
+      seatFilters.hall &&
+      row.hall !== seatFilters.hall
+    ) {
+      return false;
+    }
+
+    if (seatSearch.trim()) {
+      const s = seatSearch.trim().toLowerCase();
+      const haystack = [
+        row.student_code,
+        row.student_name,
+        row.seat_number,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      if (!haystack.includes(s)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   // ---------------------------------------------------------
   // GROUP BY TIMETABLE → HALL
   // ---------------------------------------------------------
 
-  const grouped = seatRows.reduce((accumulator, row) => {
-
+  const grouped = filteredSeatRows.reduce((accumulator, row) => {
     const key = `${row.exam_date}-${row.session}`;
 
     if (!accumulator[key]) {
@@ -238,7 +336,6 @@ function SeatAllocationPanel({
       {selectedExamination && (
 
         <div className="rounded-2xl border border-border bg-surface shadow-sm">
-
           <div className="flex items-center justify-between border-b border-border p-5 md:p-6">
 
             <div>
@@ -253,11 +350,111 @@ function SeatAllocationPanel({
             </div>
 
             <span className="rounded-full bg-accent-light px-3 py-1 text-xs font-semibold text-primary">
-              {seatRows.length} seats
+              {filteredSeatRows.length} of {seatRows.length} seats
             </span>
 
           </div>
 
+          {/* FILTERS */}
+
+          {seatRows.length > 0 && (
+            <div className="border-b border-border p-5 md:p-6">
+              <div className="flex flex-wrap items-end gap-3">
+
+                <div className="min-w-[180px] flex-1">
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Search
+                  </label>
+                  <input
+                    type="text"
+                    value={seatSearch}
+                    onChange={(event) =>
+                      setSeatSearch(event.target.value)
+                    }
+                    placeholder="Student ID, name, seat..."
+                    className="w-full rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm text-text outline-none focus:border-primary"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Session
+                  </label>
+                  <select
+                    value={seatFilters.session}
+                    onChange={(event) =>
+                      handleSeatFilterChange(
+                        "session",
+                        event.target.value
+                      )
+                    }
+                    className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm text-text outline-none focus:border-primary"
+                  >
+                    <option value="">All sessions</option>
+                    <option value="FN">FN</option>
+                    <option value="AN">AN</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Building
+                  </label>
+                  <select
+                    value={seatFilters.building_name}
+                    onChange={(event) =>
+                      handleSeatFilterChange(
+                        "building_name",
+                        event.target.value
+                      )
+                    }
+                    className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm text-text outline-none focus:border-primary"
+                  >
+                    <option value="">All buildings</option>
+                    {buildingOptions.map((b) => (
+                      <option key={b} value={b}>
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    Hall
+                  </label>
+                  <select
+                    value={seatFilters.hall}
+                    onChange={(event) =>
+                      handleSeatFilterChange(
+                        "hall",
+                        event.target.value
+                      )
+                    }
+                    className="rounded-xl border border-border bg-surface-muted px-3 py-2 text-sm text-text outline-none focus:border-primary"
+                  >
+                    <option value="">All halls</option>
+                    {hallOptions.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {activeSeatFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleResetSeatFilters}
+                    className="rounded-xl px-3 py-2 text-xs font-semibold text-text-muted hover:bg-surface-muted hover:text-text"
+                  >
+                    Reset ({activeSeatFilterCount})
+                  </button>
+                )}
+
+              </div>
+            </div>
+          )}
           {loading ? (
 
             <div className="flex items-center justify-center py-16">
@@ -273,7 +470,7 @@ function SeatAllocationPanel({
 
             </div>
 
-          ) : seatRows.length === 0 ? (
+              ) : filteredSeatRows.length === 0 ? (
 
             <div className="px-5 py-14 text-center">
 
@@ -282,13 +479,15 @@ function SeatAllocationPanel({
               </div>
 
               <h3 className="mt-5 font-bold text-text">
-                No seat allocation found
+                {seatRows.length === 0
+                  ? "No seat allocation found"
+                  : "No seats match your filters"}
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm text-text-muted">
-                Generate seat allocation after hall
-                allocation has been created for this
-                examination.
+                {seatRows.length === 0
+                  ? "Generate seat allocation after hall allocation has been created for this examination."
+                  : "Try changing or clearing your filters."}
               </p>
 
             </div>

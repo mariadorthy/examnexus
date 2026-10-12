@@ -697,3 +697,118 @@ def test_invalid_hall_capacity_values(
     codes = {e["code"] for e in body["errors"]}
 
     assert "VALUE_OUT_OF_RANGE" in codes
+
+# ============================================================
+# Coverage extension: courses, halls, departments success paths
+# plus atomicity guarantees that Phase 13 didn't yet test.
+# ============================================================
+
+def test_valid_course_csv(admin_client, app_context):
+    """A fully valid course CSV passes validation."""
+    dept = Department.query.first()
+    assert dept is not None
+
+    code = "TCOURSE-" + uuid.uuid4().hex[:6].upper()
+    csv = (
+        "course_code,course_name,course_abbreviation,"
+        "program_level,study_shift,session,"
+        "department_id,total_semesters\n"
+        f"{code},Test Course {code},TC,UG,MORNING,2026,"
+        f"{dept.id},8\n"
+    )
+
+    r = _post_validate(admin_client, "courses", csv)
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body["valid"] is True
+    assert body["summary"]["error_count"] == 0
+
+
+def test_valid_hall_csv(admin_client, app_context):
+    """A fully valid hall CSV passes validation."""
+    name = "THall-" + uuid.uuid4().hex[:6]
+
+    csv = (
+        "name,building_name,floor_no,capacity,"
+        "examination_capacity,room_type\n"
+        f"{name},Test Building,1,40,40,LECTURE\n"
+    )
+
+    r = _post_validate(admin_client, "halls", csv)
+    assert r.status_code == 200, r.get_json()
+    body = r.get_json()
+    assert body["valid"] is True
+    assert body["summary"]["error_count"] == 0
+
+
+def test_import_partial_success_persists_only_valid_rows(
+    admin_client, app_context
+):
+    """
+    When a CSV mixes valid and invalid rows, only valid rows land
+    in the DB. This is the documented "partial import" behavior.
+    """
+    good = _unique_dept_code()
+    csv = (
+        "department_code,department_name\n"
+        f"{good},Good Row {good}\n"
+        ",\n"
+    )
+
+    before = Department.query.count()
+    r = _post_import(admin_client, "departments", csv)
+    after = Department.query.count()
+
+    assert r.status_code == 200, r.get_json()
+    assert after == before + 1
+    assert Department.query.filter_by(
+        department_code=good
+    ).first() is not None
+
+
+def test_import_missing_required_columns_rejects_whole_file(
+    admin_client, app_context
+):
+    """
+    A missing required column is a file-level failure; the file
+    is not partially imported even if some rows would have been OK.
+    """
+    before = Department.query.count()
+
+    # Missing department_name column entirely
+    csv = (
+        "department_code\n"
+        f"{_unique_dept_code()}\n"
+    )
+
+    r = _post_import(admin_client, "departments", csv)
+    after = Department.query.count()
+
+    assert r.status_code == 400
+    assert after == before
+
+
+def test_import_unknown_fk_rejects_whole_file(
+    admin_client, app_context
+):
+    """
+    A row with an unknown foreign key invalidates the row; the
+    response reports the FK error and no bad row is persisted.
+    """
+    before = Course.query.count()
+
+    csv = (
+        "course_code,course_name,course_abbreviation,"
+        "program_level,study_shift,session,"
+        "department_id,total_semesters\n"
+        "TCOURSE-BAD,Test Course,TB,UG,MORNING,2026,"
+        "999999,8\n"
+    )
+
+    r = _post_import(admin_client, "courses", csv)
+    after = Course.query.count()
+
+    assert r.status_code == 400, r.get_json()
+    assert after == before
+    body = r.get_json()
+    assert body["success"] is False

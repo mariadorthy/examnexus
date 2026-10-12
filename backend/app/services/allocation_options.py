@@ -28,6 +28,7 @@ ALLOCATION_OPTION_KEYS = frozenset({
     "exclude_maintenance_halls",
     "exclude_unavailable_halls",
     "avoid_timetable_conflicts",
+    "generate_invigilators",
 })
 
 
@@ -109,6 +110,8 @@ def describe_options(options):
             "Exclude unavailable halls",
         "avoid_timetable_conflicts":
             "Avoid timetable conflicts",
+        "generate_invigilators":
+            "Generate invigilators as part of apply",
     }
     return [
         labels[key]

@@ -451,3 +451,103 @@ def toggle_hall_status(hall_id):
         ),
         "is_active": hall.is_active,
     }, 200
+
+# =========================================================
+# HALL INCIDENTS
+# =========================================================
+
+from app.auth.security import decode_access_token
+from app.services.hall_incident import (
+    report_incident,
+    resolve_incident,
+    list_incidents,
+)
+
+
+def _current_admin_id():
+    """
+    Extract the admin's DB id from the JWT. Returns None if
+    the payload is missing or malformed — the caller treats
+    that as an auth failure.
+    """
+    payload = decode_access_token() or {}
+    raw = payload.get("sub")
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+@halls_bp.route(
+    "/<int:hall_id>/incidents",
+    methods=["POST"],
+)
+@roles_required("admin")
+def create_hall_incident(hall_id):
+    data = request.get_json(silent=True) or {}
+
+    admin_id = _current_admin_id()
+    if admin_id is None:
+        return {
+            "success": False,
+            "message": "Admin identity is required.",
+        }, 401
+
+    result = report_incident(
+        hall_id=hall_id,
+        category=data.get("category"),
+        description=data.get("description"),
+        scope=data.get("scope", "GLOBAL"),
+        reported_by_admin_id=admin_id,
+        examination_id=data.get("examination_id"),
+    )
+
+    return result, (200 if result["success"] else 400)
+
+
+@halls_bp.route(
+    "/incidents/<int:incident_id>/resolve",
+    methods=["POST"],
+)
+@roles_required("admin")
+def resolve_hall_incident(incident_id):
+    data = request.get_json(silent=True) or {}
+
+    admin_id = _current_admin_id()
+    if admin_id is None:
+        return {
+            "success": False,
+            "message": "Admin identity is required.",
+        }, 401
+
+    result = resolve_incident(
+        incident_id=incident_id,
+        resolved_by_admin_id=admin_id,
+        notes=data.get("resolution_notes"),
+    )
+
+    return result, (200 if result["success"] else 400)
+
+@halls_bp.route(
+    "/incidents",
+    methods=["GET"],
+)
+@roles_required("admin")
+def list_hall_incidents():
+    status = request.args.get("status")
+    hall_id = request.args.get("hall_id", type=int)
+    examination_id = request.args.get(
+        "examination_id", type=int
+    )
+
+    rows = list_incidents(
+        status=status,
+        hall_id=hall_id,
+        examination_id=examination_id,
+    )
+
+    return {
+        "success": True,
+        "count": len(rows),
+        "incidents": rows,
+    }, 200

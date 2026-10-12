@@ -8,12 +8,18 @@ import {
   ShieldCheck,
   Send,
   Eye,
+  Building2,
+  Armchair,
+  Users,
+  ExternalLink,
 } from "lucide-react";
 
 import {
   get,
   post,
 } from "../../../services/api";
+
+import AllocationValidation from "./AllocationValidation";
 
 
 const STAGES = [
@@ -31,96 +37,207 @@ const STAGE_ACTION = {
     label: "Mark as Generated",
     endpoint: "generate",
     hint: "Requires hall allocation to exist.",
+    requiresValidation: false,
   },
   GENERATED: {
     label: "Mark as Validated",
     endpoint: "validate",
     hint: "Runs hall + invigilator validation first.",
+    requiresValidation: true,
   },
   VALIDATED: {
     label: "Start Review",
     endpoint: "review",
     hint: "Moves the examination into admin review.",
+    requiresValidation: false,
   },
   REVIEW: {
     label: "Approve Allocation",
     endpoint: "approve",
     hint: "Re-runs validation; refuses if invalid.",
+    requiresValidation: true,
   },
   APPROVED: {
     label: "Publish Examination",
     endpoint: "publish",
     hint: "Exposes hall tickets downstream.",
+    requiresValidation: true,
   },
   PUBLISHED: {
     label: "Published",
     endpoint: null,
     hint: "Lifecycle complete.",
+    requiresValidation: false,
   },
+};
+
+// Tabs the parent (Allocations.jsx) understands. Used by the
+// "Fix in…" links. If onNavigateTab is not provided, links are
+// simply hidden.
+const FIX_TABS = {
+  hall: "hall",
+  seat: "seat",
+  invigilator: "invigilator",
 };
 
 
 function ApprovalPanel({
   examinations,
+  selectedExamination: selectedExaminationProp,
+  onSelectExamination,
   onMessage,
+  onNavigateTab,
 }) {
-  const [selectedExamination, setSelectedExamination] =
-    useState("");
+  const [internalSelection, setInternalSelection] =
+    useState(selectedExaminationProp || "");
+
+  const selectedExamination = onSelectExamination
+    ? (selectedExaminationProp || "")
+    : internalSelection;
+
+  const setSelectedExamination = (value) => {
+    if (onSelectExamination) {
+      onSelectExamination(value);
+    } else {
+      setInternalSelection(value);
+    }
+  };
 
   const [examination, setExamination] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [hallValidation, setHallValidation] = useState(null);
+  const [invigValidation, setInvigValidation] = useState(null);
+
+  // loadState tracks each source independently so we never treat
+  // a failed fetch as "ready".  Values:
+  //   "idle" | "loading" | "ok" | "failed"
+  const [examLoad, setExamLoad] = useState("idle");
+  const [hallLoad, setHallLoad] = useState("idle");
+  const [invigLoad, setInvigLoad] = useState("idle");
+
   const [acting, setActing] = useState(false);
   const [error, setError] = useState("");
+  const [actionErrors, setActionErrors] = useState([]);
   const [success, setSuccess] = useState("");
 
+  // ---------------------------------------------------------
+  // CLEAR STALE DATA IMMEDIATELY ON SELECTION CHANGE
+  //
+  // This is the fix for "no stale details shown as if they
+  // belong to the newly selected examination".
+  // ---------------------------------------------------------
   useEffect(() => {
+    // Wipe everything the previous examination produced BEFORE
+    // the new fetch begins.
+    setExamination(null);
+    setHallValidation(null);
+    setInvigValidation(null);
+    setError("");
+    setActionErrors([]);
+    setSuccess("");
+    setExamLoad("idle");
+    setHallLoad("idle");
+    setInvigLoad("idle");
+
     if (selectedExamination) {
-      loadExamination(selectedExamination);
-    } else {
-      setExamination(null);
+      loadReadiness(selectedExamination);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedExamination]);
 
-  const loadExamination = async (examinationId) => {
-    try {
-      setLoading(true);
-      setError("");
-      setSuccess("");
+  const loadReadiness = async (examinationId) => {
+    // ---------------------------------------------------------
+    // Three independent fetches. Each tracks its own load state.
+    // A failed one is NEVER treated as a success.
+    // ---------------------------------------------------------
 
-      const data = await get(
-        `/examinations/${examinationId}`
-      );
+    // Exam detail
+    setExamLoad("loading");
+    const examPromise = get(
+      `/examinations/${examinationId}`
+    )
+      .then((data) => {
+        // Backend returns the exam object directly for
+        // GET /examinations/:id (per routes/examinations.py).
+        // Keep the tolerant shape in case a wrapper is added.
+        const exam =
+          data?.examination ||
+          (data?.id ? data : null);
 
-      // Backend may return either the examination object
-      // or {success, examination}. Handle both.
-      const exam =
-        data?.examination ||
-        (data?.id ? data : null);
-
-      setExamination(exam);
-    } catch (err) {
-      console.error("Approval load error:", err);
-
-      // Fallback: fetch list and filter
-      try {
-        const list = await get("/examinations/");
-        const found = (list || []).find(
-          (item) =>
-            String(item.id) === String(examinationId)
-        );
-        setExamination(found || null);
-      } catch (innerError) {
-        console.error(innerError);
+        if (!exam) {
+          throw new Error(
+            "Examination response was empty."
+          );
+        }
+        setExamination(exam);
+        setExamLoad("ok");
+        return exam;
+      })
+      .catch((err) => {
+        console.error("Approval load error:", err);
+        setExamLoad("failed");
         setError(
           err.message ||
             "Unable to load examination."
         );
-        setExamination(null);
-      }
-    } finally {
-      setLoading(false);
-    }
+        // Do NOT fall back to a list lookup. Honest failure.
+        return null;
+      });
+
+    // Hall + seat validation
+    setHallLoad("loading");
+    const hallPromise = get(
+      `/allocations/validate/${examinationId}`
+    )
+      .then((data) => {
+        setHallValidation(data);
+        setHallLoad("ok");
+        return data;
+      })
+      .catch((err) => {
+        console.error("Hall validation error:", err);
+        setHallValidation(null);
+        setHallLoad("failed");
+        return null;
+      });
+
+    // Invigilator validation — soft-fail like
+    // AllocationValidation does, but record the failure
+    // so we never render a false VALID.
+    setInvigLoad("loading");
+    const invigPromise = get(
+      `/allocations/invigilators/validate/${examinationId}`
+    )
+      .then((data) => {
+        setInvigValidation(data);
+        setInvigLoad("ok");
+        return data;
+      })
+      .catch((err) => {
+        console.error(
+          "Invigilator validation error:",
+          err
+        );
+        // Preserve the error message as an INVALID result,
+        // exactly as AllocationValidation does, but mark
+        // the source as failed so the gate treats it as
+        // unknown rather than "not generated".
+        setInvigValidation({
+          status: "INVALID",
+          errors: [
+            err.message ||
+              "Unable to validate invigilator allocation.",
+          ],
+          __loadFailed: true,
+        });
+        setInvigLoad("failed");
+        return null;
+      });
+
+    await Promise.allSettled([
+      examPromise,
+      hallPromise,
+      invigPromise,
+    ]);
   };
 
   const handleAction = async () => {
@@ -144,6 +261,7 @@ function ApprovalPanel({
     try {
       setActing(true);
       setError("");
+      setActionErrors([]);
       setSuccess("");
 
       const data = await post(
@@ -171,15 +289,22 @@ function ApprovalPanel({
         );
       }
 
-      await loadExamination(selectedExamination);
+      // Refresh the exam + both validators so the readiness
+      // cards reflect the post-transition reality.
+      await loadReadiness(selectedExamination);
     } catch (err) {
       console.error("Lifecycle error:", err);
 
-      // 400 responses carry structured errors
       const message =
         err.message || "Lifecycle transition failed.";
 
       setError(message);
+
+      // Surface structured backend errors (from
+      // transition_status's errors[]) if present.
+      if (Array.isArray(err.errors) && err.errors.length) {
+        setActionErrors(err.errors);
+      }
 
       if (onMessage) {
         onMessage(message, "error");
@@ -197,6 +322,118 @@ function ApprovalPanel({
   );
 
   const nextStage = STAGE_ACTION[currentStage];
+
+  // ---------------------------------------------------------
+  // READINESS DERIVATION
+  //
+  // We never invent rules. We only read what the backend
+  // validators returned.
+  // ---------------------------------------------------------
+
+  const hallStatus = hallValidation?.status || null;
+  const invigStatus = invigValidation?.status || null;
+
+  const readinessUnknown =
+    examLoad === "loading" ||
+    hallLoad === "loading" ||
+    invigLoad === "loading";
+
+  const readinessFailed =
+    examLoad === "failed" ||
+    hallLoad === "failed" ||
+    invigLoad === "failed";
+
+  const validationPasses =
+    hallStatus === "VALID" &&
+    invigStatus === "VALID";
+
+  const validationNotGenerated =
+    hallStatus === "NOT GENERATED";
+
+  const combinedValidationStatus = readinessUnknown
+    ? "LOADING"
+    : readinessFailed
+    ? "UNKNOWN"
+    : validationPasses
+    ? "VALID"
+    : validationNotGenerated
+    ? "NOT GENERATED"
+    : "INVALID";
+
+  // Reason shown under the action button when the action is
+  // blocked. Prefer specific validator errors; fall back to a
+  // short derived explanation.
+  const blockingReasons = (() => {
+    const reasons = [];
+
+    if (!nextStage?.endpoint) return reasons;
+
+    if (examLoad === "failed") {
+      reasons.push(
+        "Examination details could not be loaded."
+      );
+    }
+
+    if (
+      nextStage.requiresValidation &&
+      hallLoad === "failed"
+    ) {
+      reasons.push(
+        "Hall/seat validation could not be loaded."
+      );
+    }
+
+    if (
+      nextStage.requiresValidation &&
+      invigLoad === "failed"
+    ) {
+      reasons.push(
+        "Invigilator validation could not be loaded."
+      );
+    }
+
+    if (
+      nextStage.requiresValidation &&
+      hallStatus &&
+      hallStatus !== "VALID"
+    ) {
+      if (hallStatus === "NOT GENERATED") {
+        reasons.push(
+          "Hall / seat allocation has not been generated."
+        );
+      } else {
+        const first =
+          hallValidation?.errors?.[0] ||
+          "Hall / seat allocation is invalid.";
+        reasons.push(first);
+      }
+    }
+
+    if (
+      nextStage.requiresValidation &&
+      invigStatus &&
+      invigStatus !== "VALID"
+    ) {
+      const first =
+        invigValidation?.errors?.[0] ||
+        "Invigilator allocation is invalid.";
+      reasons.push(first);
+    }
+
+    return reasons;
+  })();
+
+  const actionDisabled =
+    acting ||
+    readinessUnknown ||
+    // Never treat an unknown readiness as ready.
+    (readinessFailed && nextStage?.requiresValidation) ||
+    // Blocked when the backend validator says the data isn't valid.
+    (nextStage?.requiresValidation && !validationPasses);
+
+  // ---------------------------------------------------------
+  // RENDER
+  // ---------------------------------------------------------
 
   return (
     <>
@@ -230,12 +467,24 @@ function ApprovalPanel({
                 Select an examination
               </option>
 
-              {examinations.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {`Examination #${item.id}`} —{" "}
-                  {item.name}
-                </option>
-              ))}
+              {examinations.map((item) => {
+                // Enrich with fields already returned by
+                // GET /examinations/. Falls back gracefully
+                // when a field is missing.
+                const bits = [
+                  `Examination #${item.id}`,
+                  item.name,
+                  item.exam_type,
+                  item.start_date,
+                  item.status,
+                ].filter(Boolean);
+
+                return (
+                  <option key={item.id} value={item.id}>
+                    {bits.join(" · ")}
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -243,7 +492,12 @@ function ApprovalPanel({
             <button
               type="button"
               onClick={handleAction}
-              disabled={acting || loading}
+              disabled={actionDisabled}
+              title={
+                actionDisabled && blockingReasons.length
+                  ? blockingReasons[0]
+                  : undefined
+              }
               className="flex items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
               {acting ? (
@@ -265,6 +519,25 @@ function ApprovalPanel({
 
         </div>
 
+        {/* Blocking reason under the button */}
+
+        {examination &&
+          nextStage?.endpoint &&
+          actionDisabled &&
+          !acting &&
+          blockingReasons.length > 0 && (
+            <div className="mt-4 rounded-xl border border-yellow-200 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
+              <p className="font-semibold">
+                This action is currently blocked:
+              </p>
+              <ul className="mt-1 list-disc pl-5">
+                {blockingReasons.map((reason, idx) => (
+                  <li key={idx}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
       </section>
 
       {/* ============================================ */}
@@ -272,15 +545,31 @@ function ApprovalPanel({
       {/* ============================================ */}
 
       {error && (
-        <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <AlertCircle size={19} className="mt-0.5 shrink-0" />
-          <span>{error}</span>
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="flex items-start gap-3">
+            <AlertCircle
+              size={19}
+              className="mt-0.5 shrink-0"
+            />
+            <span>{error}</span>
+          </div>
+
+          {actionErrors.length > 0 && (
+            <ul className="mt-2 list-disc space-y-1 pl-8">
+              {actionErrors.map((line, idx) => (
+                <li key={idx}>{line}</li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
       {success && (
         <div className="mb-6 flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          <CheckCircle2 size={19} className="mt-0.5 shrink-0" />
+          <CheckCircle2
+            size={19}
+            className="mt-0.5 shrink-0"
+          />
           <span>{success}</span>
         </div>
       )}
@@ -306,7 +595,6 @@ function ApprovalPanel({
           <ol className="mt-6 grid gap-3 md:grid-cols-6">
 
             {STAGES.map((stage, idx) => {
-
               const reached = idx <= currentStageIndex;
               const isCurrent = idx === currentStageIndex;
 
@@ -360,14 +648,15 @@ function ApprovalPanel({
       )}
 
       {/* ============================================ */}
-      {/* STATE PREVIEW */}
+      {/* READINESS SUMMARY */}
       {/* ============================================ */}
 
       {examination && (
-        <section className="grid gap-5 lg:grid-cols-3">
+        <section className="mb-6 grid gap-5 lg:grid-cols-4">
+
+          {/* Lifecycle */}
 
           <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-text-muted">
                 Current Status
@@ -378,11 +667,122 @@ function ApprovalPanel({
             <p className="mt-2 text-2xl font-bold text-primary">
               {currentStage}
             </p>
-
           </div>
 
-          <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+          {/* Hall / Seat */}
 
+          <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-text-muted">
+                Hall / Seat
+              </p>
+              <Building2
+                size={18}
+                className="text-accent"
+              />
+            </div>
+
+            <p
+              className={`mt-2 text-2xl font-bold ${
+                hallStatus === "VALID"
+                  ? "text-success"
+                  : hallStatus === "NOT GENERATED"
+                  ? "text-warning"
+                  : hallLoad === "failed"
+                  ? "text-warning"
+                  : "text-text"
+              }`}
+            >
+              {hallLoad === "loading"
+                ? "..."
+                : hallLoad === "failed"
+                ? "UNKNOWN"
+                : hallStatus || "—"}
+            </p>
+
+            {hallValidation && (
+              <dl className="mt-3 space-y-1 text-xs text-text-muted">
+                <div className="flex items-center justify-between">
+                  <dt>Eligible</dt>
+                  <dd className="font-semibold text-text">
+                    {hallValidation.eligible_students ?? 0}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt>Allocated</dt>
+                  <dd className="font-semibold text-text">
+                    {hallValidation.allocated_capacity ?? 0}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt>Unallocated</dt>
+                  <dd className="font-semibold text-text">
+                    {hallValidation.unallocated_students ?? 0}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt>Halls used</dt>
+                  <dd className="font-semibold text-text">
+                    {hallValidation.halls_used ?? 0}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt>Seat records</dt>
+                  <dd className="font-semibold text-text">
+                    {hallValidation.seat_records ?? 0}
+                  </dd>
+                </div>
+              </dl>
+            )}
+          </div>
+
+          {/* Invigilators */}
+
+          <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium text-text-muted">
+                Invigilators
+              </p>
+              <Users size={18} className="text-accent" />
+            </div>
+
+            <p
+              className={`mt-2 text-2xl font-bold ${
+                invigStatus === "VALID"
+                  ? "text-success"
+                  : invigLoad === "failed"
+                  ? "text-warning"
+                  : "text-text"
+              }`}
+            >
+              {invigLoad === "loading"
+                ? "..."
+                : invigLoad === "failed"
+                ? "UNKNOWN"
+                : invigStatus || "—"}
+            </p>
+
+            {invigValidation && (
+              <dl className="mt-3 space-y-1 text-xs text-text-muted">
+                <div className="flex items-center justify-between">
+                  <dt>Assignments</dt>
+                  <dd className="font-semibold text-text">
+                    {invigValidation.invigilator_assignments ?? 0}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt>Distinct staff</dt>
+                  <dd className="font-semibold text-text">
+                    {invigValidation.distinct_staff ?? 0}
+                  </dd>
+                </div>
+              </dl>
+            )}
+          </div>
+
+          {/* Overall readiness */}
+
+          <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
             <div className="flex items-center justify-between">
               <p className="text-sm font-medium text-text-muted">
                 Validation
@@ -393,39 +793,84 @@ function ApprovalPanel({
               />
             </div>
 
-            <p className="mt-2 text-sm text-text-muted">
-              Validation runs automatically at the{" "}
-              <span className="font-semibold text-text">
-                VALIDATED
-              </span>{" "}
-              and{" "}
-              <span className="font-semibold text-text">
-                APPROVED
-              </span>{" "}
-              stages.
+            <p
+              className={`mt-2 text-2xl font-bold ${
+                combinedValidationStatus === "VALID"
+                  ? "text-success"
+                  : combinedValidationStatus ===
+                      "NOT GENERATED" ||
+                    combinedValidationStatus === "UNKNOWN"
+                  ? "text-warning"
+                  : combinedValidationStatus === "LOADING"
+                  ? "text-text-muted"
+                  : "text-warning"
+              }`}
+            >
+              {combinedValidationStatus}
             </p>
 
-          </div>
-
-          <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-text-muted">
-                Publishing
+            {readinessFailed && (
+              <p className="mt-3 text-xs text-warning">
+                Readiness could not be fully determined.
+                Retry loading before acting.
               </p>
-              <Send size={18} className="text-accent" />
-            </div>
-
-            <p className="mt-2 text-sm text-text-muted">
-              Hall tickets become available only after{" "}
-              <span className="font-semibold text-text">
-                PUBLISHED
-              </span>
-              .
-            </p>
-
+            )}
           </div>
 
+        </section>
+      )}
+
+      {/* ============================================ */}
+      {/* QUICK FIX LINKS */}
+      {/* ============================================ */}
+
+      {examination &&
+        onNavigateTab &&
+        (hallStatus === "INVALID" ||
+          hallStatus === "NOT GENERATED" ||
+          invigStatus === "INVALID") && (
+          <section className="mb-6 flex flex-wrap gap-3">
+
+            {(hallStatus === "INVALID" ||
+              hallStatus === "NOT GENERATED") && (
+              <button
+                type="button"
+                onClick={() =>
+                  onNavigateTab(FIX_TABS.hall)
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted"
+              >
+                <ExternalLink size={16} />
+                Fix Hall / Seat Allocation
+              </button>
+            )}
+
+            {invigStatus === "INVALID" && (
+              <button
+                type="button"
+                onClick={() =>
+                  onNavigateTab(FIX_TABS.invigilator)
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted"
+              >
+                <ExternalLink size={16} />
+                Fix Invigilator Allocation
+              </button>
+            )}
+
+          </section>
+        )}
+
+      {/* ============================================ */}
+      {/* FULL VALIDATION DETAIL (reused component) */}
+      {/* ============================================ */}
+
+      {examination && (
+        <section className="mb-6">
+          <AllocationValidation
+            examinationId={selectedExamination}
+            examination={examination}
+          />
         </section>
       )}
 
@@ -433,24 +878,27 @@ function ApprovalPanel({
       {/* EMPTY STATE */}
       {/* ============================================ */}
 
-      {!examination && !loading && (
-        <div className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
+      {!examination &&
+        examLoad !== "loading" &&
+        !error && (
+          <div className="rounded-2xl border border-dashed border-border bg-surface p-12 text-center">
 
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-light text-primary">
-            <PlayCircle size={27} />
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-accent-light text-primary">
+              <PlayCircle size={27} />
+            </div>
+
+            <h3 className="mt-5 text-lg font-bold text-text">
+              Select an examination
+            </h3>
+
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
+              Pick an examination above to inspect its
+              readiness and take the next permitted
+              lifecycle action.
+            </p>
+
           </div>
-
-          <h3 className="mt-5 text-lg font-bold text-text">
-            Select an examination
-          </h3>
-
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-text-muted">
-            Pick an examination above to walk through the
-            review, approval, and publishing lifecycle.
-          </p>
-
-        </div>
-      )}
+        )}
 
     </>
   );

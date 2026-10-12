@@ -14,3 +14,4 @@ from app.models.admin import Admin
 from app.models.activity import Activity
 from app.models.invigilator_allocation import InvigilatorAllocation
 from app.models.hall_ticket import HallTicket
+from app.models.hall_incident import HallIncident 

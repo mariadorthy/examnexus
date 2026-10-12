@@ -4,7 +4,13 @@ import {
   getAllocations,
   simulateReallocation,
   applyReallocation,
+  simulateEmergencyReallocation,
+  applyEmergencyReallocation,
 } from "../../../services/allocationService";
+import {
+  reportHallIncident,
+  listHallIncidents,
+} from "../../../services/hallIncidentService";
 
 import {
   AlertCircle,
@@ -25,6 +31,19 @@ export default function WhatIfReallocation({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+const [incidentOpen, setIncidentOpen] = useState(false);
+const [incidentHallId, setIncidentHallId] = useState(null);
+const [incidentCategory, setIncidentCategory] = useState("MAINTENANCE");
+const [incidentDescription, setIncidentDescription] = useState("");
+const [incidentScope, setIncidentScope] = useState("GLOBAL");
+const [incidentSubmitting, setIncidentSubmitting] = useState(false);
+const [incidentError, setIncidentError] = useState("");
+const [incidentInfo, setIncidentInfo] = useState("");
+const [emergencyMode, setEmergencyMode] = useState(false);
+const [openIncidents, setOpenIncidents] = useState([]);
+const [selectedIncidentId, setSelectedIncidentId] = useState("");
+const [acknowledgeInProgress, setAcknowledgeInProgress] = useState(false);
+const [inProgress, setInProgress] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -35,6 +54,10 @@ export default function WhatIfReallocation({
     setInfo("");
     setProposal(null);
     setExcluded([]);
+    setEmergencyMode(false);
+    setSelectedIncidentId("");
+    setAcknowledgeInProgress(false);
+    setInProgress(false);
 
     getAllocations(examinationId)
       .then((rows) => {
@@ -43,6 +66,16 @@ export default function WhatIfReallocation({
       .catch((err) => {
         if (alive) setError(err.message);
       });
+
+    // Preload the incident list and switch on emergency mode
+    // as soon as we know the parent passed us an examination
+    // that is already PUBLISHED. The Allocations page only
+    // mounts this component for PUBLISHED exams.
+    (async () => {
+      if (!alive) return;
+      await reloadOpenIncidents();
+      if (alive) setEmergencyMode(true);
+    })();
 
     return () => {
       alive = false;
@@ -61,6 +94,20 @@ export default function WhatIfReallocation({
     return Array.from(map.values());
   }, [allocations]);
 
+  async function reloadOpenIncidents() {
+    try {
+      const data = await listHallIncidents({
+        status: "OPEN",
+        examinationId,
+      });
+      setOpenIncidents(data.incidents || []);
+    } catch (err) {
+      // Non-fatal — the dropdown will just be empty and the
+      // admin will see the reason when they try to simulate.
+      console.error("Failed to load open incidents:", err);
+    }
+  }  
+
   function toggleHall(hallId) {
     setProposal(null);
     setError("");
@@ -72,11 +119,17 @@ export default function WhatIfReallocation({
         : [...prev, hallId]
     );
   }
-
   async function handleSimulate() {
     if (excluded.length === 0) {
       setError(
         "Select at least one hall to mark unavailable."
+      );
+      return;
+    }
+
+    if (emergencyMode && !selectedIncidentId) {
+      setError(
+        "Select an open incident to authorize the emergency reallocation."
       );
       return;
     }
@@ -86,27 +139,72 @@ export default function WhatIfReallocation({
     setInfo("");
 
     try {
-      const result = await simulateReallocation(
-        examinationId,
-        excluded
-      );
+      const result = emergencyMode
+        ? await simulateEmergencyReallocation(
+            examinationId,
+            Number(selectedIncidentId),
+            excluded
+          )
+        : await simulateReallocation(
+            examinationId,
+            excluded
+          );
 
       setProposal(result);
+
+      if (result.in_progress_state === "IN_PROGRESS") {
+        setInProgress(true);
+      } else {
+        setInProgress(false);
+      }
     } catch (err) {
+      // Detect the published-exam refusal and switch to
+      // emergency mode instead of showing a dead-end error.
+
+      if (
+        !emergencyMode &&
+        typeof err.message === "string" &&
+        err.message.includes("PUBLISHED")
+      ) {
+        setEmergencyMode(true);
+        setError("");
+        await reloadOpenIncidents();
+      } else {      
       setError(err.message);
-      setProposal(null);
+        setProposal(null);
+      }
     } finally {
       setBusy(false);
     }
   }
 
-  async function handleApply() {
+     async function handleApply() {
     if (!proposal) return;
 
+    // Emergency apply requires an in-progress acknowledgement
+    // when the examination is currently running.
+    if (
+      emergencyMode &&
+      inProgress &&
+      !acknowledgeInProgress
+    ) {
+      setError(
+        "This examination is currently in progress. Tick the " +
+        "acknowledgement box to confirm the operational " +
+        "situation has been assessed before applying."
+      );
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Apply this proposed reallocation?\n\n" +
-      "The current hall, seat and invigilator allocation " +
-      "will be replaced with the proposed arrangement."
+      emergencyMode
+        ? "Apply this emergency reallocation?\n\n" +
+          "Existing hall tickets will be superseded by new " +
+          "tickets and old QR codes will no longer verify as " +
+          "current. The examination stays published."
+        : "Apply this proposed reallocation?\n\n" +
+          "The current hall, seat and invigilator allocation " +
+          "will be replaced with the proposed arrangement."
     );
 
     if (!confirmed) return;
@@ -116,19 +214,45 @@ export default function WhatIfReallocation({
     setInfo("");
 
     try {
-      const result = await applyReallocation(
-        examinationId,
-        excluded
-      );
+      let result;
 
-      setInfo(
-        result.requires_reapproval
-          ? "Reallocation applied successfully. The examination has been returned to REVIEW and requires re-approval."
-          : "Reallocation applied successfully. Hall, seat, and invigilator allocations were regenerated."
-      );
+      if (emergencyMode) {
+        if (!selectedIncidentId) {
+          setError(
+            "Select an open incident to authorize the emergency reallocation."
+          );
+          return;
+        }
+
+        result = await applyEmergencyReallocation(
+          examinationId,
+          Number(selectedIncidentId),
+          excluded,
+          acknowledgeInProgress
+        );
+
+        setInfo(
+          `Emergency reallocation applied. ` +
+          `${result.tickets_superseded || 0} ticket(s) superseded, ` +
+          `${result.tickets_issued || 0} reissued. ` +
+          `The examination stays published.`
+        );
+      } else {
+        result = await applyReallocation(
+          examinationId,
+          excluded
+        );
+
+        setInfo(
+          result.requires_reapproval
+            ? "Reallocation applied successfully. The examination has been returned to REVIEW and requires re-approval."
+            : "Reallocation applied successfully. Hall, seat, and invigilator allocations were regenerated."
+        );
+      }
 
       setProposal(null);
       setExcluded([]);
+      setAcknowledgeInProgress(false);
 
       if (onApplied) {
         onApplied(result);
@@ -148,6 +272,70 @@ export default function WhatIfReallocation({
     );
     setError("");
   }
+
+  function openIncidentModal(hallId) {
+  setIncidentHallId(hallId);
+  setIncidentCategory("MAINTENANCE");
+  setIncidentDescription("");
+  setIncidentScope("GLOBAL");
+  setIncidentError("");
+  setIncidentInfo("");
+  setIncidentOpen(true);
+}
+
+function closeIncidentModal() {
+  if (incidentSubmitting) return;
+  setIncidentOpen(false);
+  setIncidentHallId(null);
+}
+async function submitIncident() {
+  if (!incidentDescription.trim()) {
+    setIncidentError("Description is required.");
+    return;
+  }
+
+  setIncidentSubmitting(true);
+  setIncidentError("");
+  setIncidentInfo("");
+
+  try {
+    const result = await reportHallIncident(incidentHallId, {
+      category: incidentCategory,
+      description: incidentDescription.trim(),
+      scope: incidentScope,
+      examinationId:
+        incidentScope === "EXAM_SPECIFIC"
+          ? examinationId
+          : null,
+    });
+
+    setIncidentInfo(
+      `Incident recorded (id ${result.incident?.id}). ` +
+      (incidentScope === "GLOBAL"
+        ? "This hall will be excluded from future allocation planning until the incident is resolved."
+        : "This hall will be excluded from planning for this examination only.")
+    );
+
+    // The admin's next step is to authorise an emergency
+    // reallocation with the incident they just created. Refresh
+    // the dropdown from the server (which now filters to
+    // incidents that apply to this examination), turn on
+    // emergency mode, and pre-select the new incident so the
+    // admin does not have to hunt for it.
+    await reloadOpenIncidents();
+    setEmergencyMode(true);
+
+    if (result.incident?.id) {
+      setSelectedIncidentId(String(result.incident.id));
+    }
+
+    setIncidentDescription("");
+  } catch (err) {
+    setIncidentError(err.message || "Failed to record incident.");
+  } finally {
+    setIncidentSubmitting(false);
+  }
+}
 
   return (
     <section className="mt-6 rounded-2xl border border-border bg-surface p-5 shadow-sm md:p-6">
@@ -284,6 +472,19 @@ export default function WhatIfReallocation({
                       {row.examination_capacity ?? "—"}
                     </p>
 
+<button
+  type="button"
+  onClick={(event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openIncidentModal(row.hall_id);
+  }}
+  disabled={busy}
+  className="mt-2 text-xs font-semibold text-primary underline-offset-2 hover:underline"
+>
+  Report as incident
+</button>
+
                   </div>
 
                 </label>
@@ -298,18 +499,22 @@ export default function WhatIfReallocation({
       {/* ================================================= */}
       {/* SIMULATION ACTION */}
       {/* ================================================= */}
-
-      {uniqueHalls.length > 0 && (
+      {uniqueHalls.length > 0 &&
+        excluded.length > 0 &&
+        (!emergencyMode || openIncidents.length > 0) && (
         <div className="mt-5 flex flex-col gap-3 rounded-xl bg-surface-muted p-4 sm:flex-row sm:items-center sm:justify-between">
-
           <div>
             <p className="text-sm font-semibold text-text">
-              Ready to simulate?
+              {emergencyMode
+                ? "Emergency reallocation (published examination)"
+                : "Ready to simulate?"}
             </p>
-
             <p className="mt-1 text-xs text-text-muted">
-              The allocator will calculate an alternative
-              arrangement without changing the database.
+              {emergencyMode
+                ? "Choose an OPEN incident. The proposal is a " +
+                  "simulation; nothing changes until you approve."
+                : "The allocator will calculate an alternative " +
+                  "arrangement without changing the database."}
             </p>
           </div>
 
@@ -318,7 +523,8 @@ export default function WhatIfReallocation({
             onClick={handleSimulate}
             disabled={
               busy ||
-              excluded.length === 0
+              excluded.length === 0 ||
+              (emergencyMode && !selectedIncidentId)
             }
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
           >
@@ -333,7 +539,9 @@ export default function WhatIfReallocation({
             ) : (
               <>
                 <ShieldAlert size={17} />
-                Generate Proposed Reallocation
+                {emergencyMode
+                  ? "Generate Emergency Proposal"
+                  : "Generate Proposed Reallocation"}
               </>
             )}
           </button>
@@ -341,6 +549,78 @@ export default function WhatIfReallocation({
         </div>
       )}
 
+      {emergencyMode &&
+        excluded.length > 0 &&
+        openIncidents.length > 0 && (
+        <div className="mt-4 rounded-xl border border-yellow-200 bg-yellow-50 p-4">
+
+          <p className="text-sm font-semibold text-yellow-800">
+            Emergency reallocation
+          </p>
+
+          <p className="mt-1 text-xs text-yellow-700">
+            This examination is PUBLISHED. Pick an OPEN incident
+            that authorizes the change. Existing hall tickets
+            will be superseded by new tickets after approval.
+          </p>
+
+          <div className="mt-3">
+            <label className="mb-1 block text-xs font-semibold text-yellow-800">
+              Authorizing incident
+            </label>
+
+            <select
+              value={selectedIncidentId}
+              onChange={(e) =>
+                setSelectedIncidentId(e.target.value)
+              }
+              disabled={busy || openIncidents.length === 0}
+              className="w-full rounded-xl border border-yellow-300 bg-white px-3 py-2 text-sm disabled:opacity-60"
+            >
+              <option value="">
+                {openIncidents.length === 0
+                  ? "No open incidents yet — use 'Report as incident' on a hall below"
+                  : "Select an incident"}
+              </option>
+              {openIncidents.map((incident) => (
+                <option
+                  key={incident.id}
+                  value={incident.id}
+                >
+                  #{incident.id} — {incident.category} —{" "}
+                  {incident.hall_name
+                    ? `${incident.hall_name} — `
+                    : ""}
+                  {incident.scope === "GLOBAL"
+                    ? "Global"
+                    : `Examination #${incident.examination_id}`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {inProgress && (
+            <label className="mt-3 flex items-start gap-2 text-xs text-yellow-800">
+              <input
+                type="checkbox"
+                checked={acknowledgeInProgress}
+                onChange={(e) =>
+                  setAcknowledgeInProgress(e.target.checked)
+                }
+                disabled={busy}
+                className="mt-0.5"
+              />
+              <span>
+                I confirm the examination is currently in
+                progress and I have assessed the operational
+                situation. Apply only if moving students is
+                safe.
+              </span>
+            </label>
+          )}
+
+        </div>
+      )}
       {/* ================================================= */}
       {/* ERROR */}
       {/* ================================================= */}
@@ -565,40 +845,28 @@ export default function WhatIfReallocation({
 
           {/* Reasons */}
 
-          {proposal.explanations?.length > 0 && (
-            <div className="mt-6">
+          <div className="mt-6">
 
-              <h4 className="text-sm font-bold text-text">
-                Reallocation Reasons
-              </h4>
+            <h4 className="text-sm font-bold text-text">
+              Reallocation Reasons
+            </h4>
 
+            {Array.isArray(proposal.explanations) &&
+            proposal.explanations.length > 0 ? (
               <div className="mt-3 space-y-2">
-
-                {proposal.explanations.map(
-                  (ex, i) => (
-                    <div
-                      key={i}
-                      className="rounded-xl border border-border bg-surface px-4 py-3"
-                    >
-
-                      <p className="text-sm text-text">
-
-                        <span className="font-semibold">
-                          {ex.hall}:
-                        </span>{" "}
-
-                        {ex.reason}
-
-                      </p>
-
-                    </div>
-                  )
-                )}
-
+                {proposal.explanations.map((ex, i) => (
+                  <ExplanationCard key={i} explanation={ex} />
+                ))}
               </div>
+            ) : (
+              <div className="mt-3 rounded-xl border border-border bg-surface px-4 py-3">
+                <p className="text-sm text-text-muted">
+                  No specific explanation was returned.
+                </p>
+              </div>
+            )}
 
-            </div>
-          )}
+          </div>
 
           {/* Reapproval Warning */}
 
@@ -644,7 +912,8 @@ export default function WhatIfReallocation({
               onClick={handleApply}
               disabled={
                 busy ||
-                proposal.validation?.status !== "VALID"
+                proposal.validation?.status !== "VALID" ||
+                (emergencyMode && inProgress && !acknowledgeInProgress)
               }
               className="flex items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary disabled:cursor-not-allowed disabled:opacity-60"
             >
@@ -659,7 +928,9 @@ export default function WhatIfReallocation({
               ) : (
                 <>
                   <CheckCircle2 size={17} />
-                  Approve Reallocation
+                  {emergencyMode
+                    ? "Approve Emergency Reallocation"
+                    : "Approve Reallocation"}
                 </>
               )}
             </button>
@@ -668,6 +939,126 @@ export default function WhatIfReallocation({
 
         </div>
       )}
+
+{incidentOpen && (
+  <div
+    className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm"
+    onMouseDown={(event) => {
+      if (event.target === event.currentTarget) closeIncidentModal();
+    }}
+  >
+    <div className="w-full max-w-xl rounded-2xl bg-surface shadow-2xl">
+
+      <div className="flex items-center justify-between border-b border-border px-6 py-5">
+        <div>
+          <h2 className="text-lg font-bold text-text">
+            Report Hall Incident
+          </h2>
+          <p className="mt-1 text-sm text-text-muted">
+            Persist this hall as unavailable. This is a
+            separate action from the What-If simulation.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={closeIncidentModal}
+          disabled={incidentSubmitting}
+          className="rounded-lg p-2 text-text-muted hover:bg-surface-muted"
+        >
+          ×
+        </button>
+      </div>
+
+      <div className="space-y-4 p-6">
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-sidebar">
+            Category
+          </label>
+          <select
+            value={incidentCategory}
+            onChange={(e) => setIncidentCategory(e.target.value)}
+            disabled={incidentSubmitting}
+            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm"
+          >
+            <option value="MAINTENANCE">Maintenance</option>
+            <option value="EQUIPMENT_FAILURE">Equipment failure</option>
+            <option value="FACILITY_DAMAGE">Facility damage</option>
+            <option value="TEMPORARY_UNAVAILABLE">Temporary unavailability</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-sidebar">
+            Description
+          </label>
+          <textarea
+            rows={3}
+            value={incidentDescription}
+            onChange={(e) => setIncidentDescription(e.target.value)}
+            disabled={incidentSubmitting}
+            placeholder="Describe the issue briefly."
+            className="w-full resize-none rounded-xl border border-border bg-surface px-4 py-3 text-sm"
+          />
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-sidebar">
+            Scope
+          </label>
+          <select
+            value={incidentScope}
+            onChange={(e) => setIncidentScope(e.target.value)}
+            disabled={incidentSubmitting}
+            className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-sm"
+          >
+            <option value="GLOBAL">
+              Global — affects every examination until resolved
+            </option>
+            <option value="EXAM_SPECIFIC">
+              Exam-specific — affects this examination only
+            </option>
+          </select>
+        </div>
+
+        {incidentError && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {incidentError}
+          </div>
+        )}
+
+        {incidentInfo && (
+          <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+            {incidentInfo}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 border-t border-border pt-5">
+          <button
+            type="button"
+            onClick={closeIncidentModal}
+            disabled={incidentSubmitting}
+            className="rounded-xl border border-border bg-surface px-5 py-3 text-sm font-semibold text-sidebar"
+          >
+            Close
+          </button>
+
+          <button
+            type="button"
+            onClick={submitIncident}
+            disabled={incidentSubmitting}
+            className="rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {incidentSubmitting ? "Saving…" : "Report Incident"}
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+)}
 
     </section>
   );
@@ -684,6 +1075,73 @@ function ImpactCard({ label, value }) {
       <p className="mt-2 text-2xl font-bold text-text">
         {value}
       </p>
+
+    </div>
+  );
+}
+function ExplanationCard({ explanation }) {
+  if (!explanation || typeof explanation !== "object") {
+    return (
+      <div className="rounded-xl border border-border bg-surface px-4 py-3">
+        <p className="text-sm text-text-muted">
+          No specific explanation was returned.
+        </p>
+      </div>
+    );
+  }
+
+  const hall = explanation.hall || "Unknown hall";
+  const decision = explanation.decision || null;
+  const reasons = Array.isArray(explanation.reasons)
+    ? explanation.reasons
+    : [];
+
+  return (
+    <div className="rounded-xl border border-border bg-surface px-4 py-3">
+
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-semibold text-text">
+          {hall}
+        </p>
+
+        {decision && (
+          <span
+            className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              decision === "SELECTED"
+                ? "bg-green-50 text-green-700"
+                : "bg-yellow-50 text-warning"
+            }`}
+          >
+            {decision}
+          </span>
+        )}
+      </div>
+
+      {reasons.length === 0 ? (
+        <p className="mt-2 text-sm text-text-muted">
+          No specific explanation was returned.
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-1.5">
+          {reasons.map((r, i) => (
+            <li key={i} className="text-sm text-text">
+
+              {r && r.code && (
+                <span className="mr-1.5 inline-flex rounded bg-surface-muted px-1.5 py-0.5 font-mono text-[11px] text-text-muted">
+                  {r.code}
+                </span>
+              )}
+
+              <span>
+                {r && r.message
+                  ? r.message
+                  : "No message provided."}
+              </span>
+
+            </li>
+          ))}
+        </ul>
+      )}
 
     </div>
   );

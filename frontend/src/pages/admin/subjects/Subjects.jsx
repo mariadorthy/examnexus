@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import SubjectForm from "./SubjectForm";
+import SubjectFilters from "./SubjectFilters";
 import { get, patch } from "../../../services/api";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
@@ -29,7 +30,12 @@ function Subjects({
     useState(false);
   const [subjects, setSubjects] = useState([]);
   const [courses, setCourses] = useState([]);
-
+const [filters, setFilters] = useState({
+  course_id: "",
+  semester: "",
+  subject_type: "",
+  is_active: "",
+});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -135,6 +141,35 @@ console.log(
   }
 };
 
+const handleFilterChange = (key, value) => {
+  setFilters((current) => ({ ...current, [key]: value }));
+};
+
+const handleResetFilters = () => {
+  setFilters({
+    course_id: "",
+    semester: "",
+    subject_type: "",
+    is_active: "",
+  });
+};
+
+const semesterOptions = [
+  ...new Set(
+    subjects.map((s) => s.semester).filter(Boolean)
+  ),
+].sort((a, b) => a - b);
+
+const subjectTypeOptions = (() => {
+  const fromData = [
+    ...new Set(
+      subjects.map((s) => s.subject_type).filter(Boolean)
+    ),
+  ];
+  return fromData.length
+    ? fromData.sort()
+    : ["CORE", "ELECTIVE", "LAB", "PROJECT"];
+})();
   const handleStatusChange = async (subject) => {
   try {
     setStatusLoading(subject.id);
@@ -187,32 +222,53 @@ setSubjects((currentSubjects) =>
     setEditingSubject(null);
     loadData();
   };
+  const filteredSubjects = subjects.filter((subject) => {
+    // Search (unchanged)
+    const searchText = search.trim().toLowerCase();
 
-  const filteredSubjects = subjects.filter(
-    (subject) => {
-      const searchText =
-        search.trim().toLowerCase();
-
-      if (!searchText) {
-        return true;
-      }
-
-      return (
-        subject.subject_code
-          ?.toLowerCase()
-          .includes(searchText) ||
-        subject.subject_name
-          ?.toLowerCase()
-          .includes(searchText) ||
-        subject.subject_type
-          ?.toLowerCase()
-          .includes(searchText) ||
+    if (searchText) {
+      const matchesSearch =
+        subject.subject_code?.toLowerCase().includes(searchText) ||
+        subject.subject_name?.toLowerCase().includes(searchText) ||
+        subject.subject_type?.toLowerCase().includes(searchText) ||
         getCourseName(subject.course_id)
           .toLowerCase()
-          .includes(searchText)
-      );
+          .includes(searchText);
+
+      if (!matchesSearch) return false;
     }
-  );
+
+    // Filters (each skipped when empty)
+    if (
+      filters.course_id &&
+      String(subject.course_id) !== String(filters.course_id)
+    ) {
+      return false;
+    }
+
+    if (
+      filters.semester &&
+      String(subject.semester) !== String(filters.semester)
+    ) {
+      return false;
+    }
+
+    if (
+      filters.subject_type &&
+      subject.subject_type !== filters.subject_type
+    ) {
+      return false;
+    }
+
+    if (filters.is_active !== "") {
+      const wanted = filters.is_active === "true";
+      if (Boolean(subject.is_active) !== wanted) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -335,15 +391,23 @@ setSubjects((currentSubjects) =>
             placeholder="Search by subject code, name, course..."
             className="w-full rounded-xl border border-border bg-surface-muted py-3 pl-11 pr-4 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
           />
-
         </div>
 
       </div>
 
+{/* FILTERS */}
+<SubjectFilters
+  filters={filters}
+  onChange={handleFilterChange}
+  onReset={handleResetFilters}
+  courses={courses}
+  semesterOptions={semesterOptions}
+  subjectTypeOptions={subjectTypeOptions}
+/>
+
       {/* ================================================= */}
       {/* TABLE */}
       {/* ================================================= */}
-
       <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
 
         <div className="overflow-x-auto">
@@ -412,11 +476,11 @@ setSubjects((currentSubjects) =>
                     </p>
 
                     <p className="mt-1 text-sm text-text-muted">
-                      {search
-                        ? "Try changing your search."
+                      {search || Object.values(filters).some(Boolean)
+                        ? "Try changing your search or clearing filters."
                         : "Create your first subject to get started."}
                     </p>
-
+                    
                   </td>
                 </tr>
 

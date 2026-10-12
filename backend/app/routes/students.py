@@ -7,6 +7,12 @@ from app import db
 from app.auth.decorators import roles_required
 from app.models.course import Course
 from app.models.student import Student
+from app.services.profile_image import (
+    save_profile_image,
+    delete_profile_image,
+)
+
+from app.services.profile_image_bulk import process_bulk_zip
 
 students_bp = Blueprint("students", __name__)
 
@@ -327,3 +333,118 @@ def update_student_status(student_id):
         "message": "Student status updated successfully",
         "is_active": student.is_active
     }
+
+@students_bp.route(
+    "/<int:student_id>/profile-image",
+    methods=["POST"],
+)
+@roles_required("admin")
+def upload_student_profile_image(student_id):
+    """
+    Admin-only. Upload a profile photo for a specific student.
+
+    Replaces any existing photo, deleting the previous file
+    best-effort. Returns the new URL so the admin UI can
+    refresh without a refetch.
+    """
+    student = db.session.get(Student, student_id)
+
+    if not student:
+        return {
+            "success": False,
+            "message": "Student not found.",
+        }, 404
+
+    if "file" not in request.files:
+        return {
+            "success": False,
+            "message": "No file provided under field 'file'.",
+        }, 400
+
+    result = save_profile_image(request.files["file"])
+
+    if not result.get("success"):
+        return {
+            "success": False,
+            "message": result.get(
+                "message", "Profile image upload failed."
+            ),
+        }, 400
+
+    if student.student_img:
+        delete_profile_image(student.student_img)
+
+    student.student_img = result["url"]
+    db.session.commit()
+
+    return {
+        "success": True,
+        "message": "Profile image updated.",
+        "student_id": student.id,
+        "profile_image": result["url"],
+    }, 200
+
+@students_bp.route(
+    "/profile-images/bulk",
+    methods=["POST"],
+)
+@roles_required("admin")
+def bulk_upload_profile_images():
+    """
+    Admin-only. Accept a ZIP of images whose filenames
+    (without extension) are student_ids.
+
+    All-or-nothing at the DB level: the image files are
+    written as we go, but the DB transaction commits only
+    if the whole archive is processed without an unexpected
+    error. Per-file skips are reported, not failed.
+    """
+    if "file" not in request.files:
+        return {
+            "success": False,
+            "message": "No archive provided under field 'file'.",
+        }, 400
+
+    archive = request.files["file"]
+
+    try:
+        archive_bytes = archive.read()
+    except Exception:
+        return {
+            "success": False,
+            "message": "Could not read the uploaded archive.",
+        }, 400
+
+    # Map student_id (code, not pk) -> Student instance.
+    students_by_code = {
+        s.student_id: s for s in Student.query.all()
+    }
+
+    report = process_bulk_zip(
+        archive_bytes, students_by_code
+    )
+
+    if not report["success"]:
+        return {
+            "success": False,
+            "message": report["message"],
+        }, 400
+
+    try:
+        db.session.commit()
+    except Exception as exc:
+        db.session.rollback()
+        return {
+            "success": False,
+            "message": "Could not save the updates.",
+            "error": str(exc),
+        }, 500
+
+    return {
+        "success": True,
+        "message": report["message"],
+        "matched": report["matched"],
+        "saved": report["saved"],
+        "skipped": report["skipped"],
+        "updated_count": len(report["updated_student_ids"]),
+    }, 200

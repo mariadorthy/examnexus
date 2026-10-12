@@ -7,10 +7,10 @@ import {
   Search,
   Edit3,
   Trash2,
-    Eye,
+  Eye,
   X,
 } from "lucide-react";
-
+import ExaminationFilters from "./ExaminationFilters";
 import ExaminationForm from "./ExaminationForm";
 import ExaminationDetails from "./ExaminationDetails";
 import { get } from "../../../services/api";
@@ -18,25 +18,30 @@ import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 
 function Examinations({
-  user, 
-  onLogout, 
+  user,
+  onLogout,
   onNavigate,
 }) {
-    const [sidebarOpen, setSidebarOpen] =
+  const [sidebarOpen, setSidebarOpen] =
     useState(false);
   const [examinations, setExaminations] = useState([]);
 
-const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-
+  const [filters, setFilters] = useState({
+    course_id: "",
+    exam_type: "",
+    semester: "",
+    status: "",
+  });
   const [showForm, setShowForm] = useState(false);
   const [editingExamination, setEditingExamination] = useState(null);
-const [viewingExamination, setViewingExamination] = useState(null);
+  const [viewingExamination, setViewingExamination] = useState(null);
   useEffect(() => {
-  loadExaminations();
-}, []);
+    loadExaminations();
+  }, []);
 
   const loadExaminations = async () => {
     try {
@@ -45,7 +50,7 @@ const [viewingExamination, setViewingExamination] = useState(null);
 
       const data = await get("/examinations/");
 
-setExaminations(data);
+      setExaminations(data);
 
     } catch (err) {
       console.error("Examinations error:", err);
@@ -63,14 +68,27 @@ setExaminations(data);
     setShowForm(true);
   };
 
+  const handleFilterChange = (key, value) => {
+    setFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleResetFilters = () => {
+    setFilters({
+      course_id: "",
+      exam_type: "",
+      semester: "",
+      status: "",
+    });
+  };
+
   const handleEdit = (examination) => {
     setEditingExamination(examination);
     setShowForm(true);
   };
 
-const handleView = (examination) => {
-  setViewingExamination(examination);
-};
+  const handleView = (examination) => {
+    setViewingExamination(examination);
+  };
 
   const handleFormSuccess = () => {
     setShowForm(false);
@@ -106,29 +124,96 @@ const handleView = (examination) => {
     );
   };
 
- const filteredExaminations =
-  examinations.filter((examination) => {
-    const searchText =
-  search.toLowerCase();
+  const courseOptionsFromData = (() => {
+    const seen = new Map();
+    examinations.forEach((e) => {
+      if (e.course_id && !seen.has(e.course_id)) {
+        seen.set(e.course_id, {
+          id: e.course_id,
+          course_code: e.course_code || `Course #${e.course_id}`,
+          course_name: e.course_name || "",
+        });
+      }
+    });
+    return Array.from(seen.values());
+  })();
 
-    return (
-      examination.name
-        ?.toLowerCase()
-        .includes(searchText) ||
-      examination.course_name
-        ?.toLowerCase()
-        .includes(searchText) ||
-      examination.exam_type
-        ?.toLowerCase()
-        .includes(searchText) ||
-      String(examination.semester)
-        .includes(searchText) ||
-      examination.status
-        ?.toLowerCase()
-        .includes(searchText)
-    );
+  const semesterOptions = [
+    ...new Set(
+      examinations.map((e) => e.semester).filter(Boolean)
+    ),
+  ].sort((a, b) => a - b);
+
+  const examTypeOptions = (() => {
+    const fromData = [
+      ...new Set(
+        examinations.map((e) => e.exam_type).filter(Boolean)
+      ),
+    ];
+    return fromData.length
+      ? fromData.sort()
+      : [
+        "REGULAR",
+        "INTERNAL",
+        "MODEL",
+        "SUPPLEMENTARY",
+        "PRACTICAL",
+      ];
+  })();
+
+  const statusOptions = (() => {
+    const fromData = [
+      ...new Set(
+        examinations.map((e) => e.status).filter(Boolean)
+      ),
+    ];
+    return fromData.length
+      ? fromData.sort()
+      : ["SCHEDULED", "ONGOING", "COMPLETED", "CANCELLED"];
+  })();
+  const filteredExaminations = examinations.filter((examination) => {
+    // Search (unchanged)
+    const searchText = search.toLowerCase();
+
+    if (searchText) {
+      const matchesSearch =
+        examination.name?.toLowerCase().includes(searchText) ||
+        examination.course_name?.toLowerCase().includes(searchText) ||
+        examination.exam_type?.toLowerCase().includes(searchText) ||
+        String(examination.semester).includes(searchText) ||
+        examination.status?.toLowerCase().includes(searchText);
+
+      if (!matchesSearch) return false;
+    }
+
+    // Filters
+    if (
+      filters.course_id &&
+      String(examination.course_id) !== String(filters.course_id)
+    ) {
+      return false;
+    }
+
+    if (
+      filters.exam_type &&
+      examination.exam_type !== filters.exam_type
+    ) {
+      return false;
+    }
+
+    if (
+      filters.semester &&
+      String(examination.semester) !== String(filters.semester)
+    ) {
+      return false;
+    }
+
+    if (filters.status && examination.status !== filters.status) {
+      return false;
+    }
+
+    return true;
   });
-  
   const formatDate = (date) => {
     if (!date) {
       return "—";
@@ -167,431 +252,442 @@ const handleView = (examination) => {
     <div className="min-h-screen bg-background">
 
 
-    <AdminSidebar
-      user={user}
-      onLogout={onLogout}
-      sidebarOpen={sidebarOpen}
-      setSidebarOpen={setSidebarOpen}
-      activePage="Examinations"
-      onNavigate={onNavigate}
-    />
-
-    <main className="lg:ml-72">
-
-      <AdminTopbar
+      <AdminSidebar
         user={user}
-        title="Examinations"
-        section="Administration"
-        onOpenSidebar={() =>
-          setSidebarOpen(true)
-        }
+        onLogout={onLogout}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        activePage="Examinations"
+        onNavigate={onNavigate}
       />
 
-      <div className="p-5 md:p-8">
+      <main className="lg:ml-72">
 
-      {/* ================================================= */}
-      {/* HEADER */}
-      {/* ================================================= */}
+        <AdminTopbar
+          user={user}
+          title="Examinations"
+          section="Administration"
+          onOpenSidebar={() =>
+            setSidebarOpen(true)
+          }
+        />
 
-      <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div className="p-5 md:p-8">
 
-        <div>
-          <p className="text-sm font-medium text-accent">
-            Examination Management
-          </p>
+          {/* ================================================= */}
+          {/* HEADER */}
+          {/* ================================================= */}
 
-          <h1 className="mt-1 text-2xl font-bold text-text md:text-3xl">
-            Examinations
-          </h1>
-
-          <p className="mt-2 text-sm text-text-muted">
-            Create and manage examination schedules.
-          </p>
-        </div>
-
-        <div className="flex gap-3">
-
-          <button
-            type="button"
-            onClick={loadExaminations}
-            disabled={loading}
-            className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted disabled:opacity-50"
-          >
-            <RefreshCw
-              size={17}
-              className={loading ? "animate-spin" : ""}
-            />
-
-            Refresh
-          </button>
-
-          <button
-            type="button"
-            onClick={handleCreate}
-            className="flex items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary"
-          >
-            <Plus size={18} />
-
-            Create Examination Plan
-          </button>
-
-        </div>
-
-      </div>
-
-      {/* ================================================= */}
-      {/* ERROR */}
-      {/* ================================================= */}
-
-      {error && (
-        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {/* ================================================= */}
-      {/* SEARCH */}
-      {/* ================================================= */}
-
-      <div className="mb-6 rounded-2xl border border-border bg-surface p-4 shadow-sm">
-
-        <div className="relative max-w-xl">
-
-          <Search
-            size={18}
-            className="absolute left-4 top-1/2 -translate-y-1/2 text-text-light"
-          />
-
-          <input
-            type="text"
-            value={search}
-            onChange={(event) =>
-              setSearch(event.target.value)
-            }
-            placeholder="Search examinations..."
-            className="w-full rounded-xl border border-border bg-background py-3 pl-11 pr-4 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
-          />
-
-        </div>
-
-      </div>
-
-      {/* ================================================= */}
-      {/* STATISTICS */}
-      {/* ================================================= */}
-
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-
-          <div className="flex items-center gap-3">
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
-              <CalendarDays size={21} />
-            </div>
+          <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
 
             <div>
-              <p className="text-xs font-medium text-text-muted">
-                Total Examinations
+              <p className="text-sm font-medium text-accent">
+                Examination Management
               </p>
 
-              <p className="mt-1 text-2xl font-bold text-text">
-                {loading ? "..." : examinations.length}
-              </p>
-            </div>
+              <h1 className="mt-1 text-2xl font-bold text-text md:text-3xl">
+                Examinations
+              </h1>
 
-          </div>
-
-        </div>
-
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-
-          <div className="flex items-center gap-3">
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
-              <Clock3 size={21} />
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-text-muted">
-                Scheduled
-              </p>
-
-              <p className="mt-1 text-2xl font-bold text-text">
-                {loading
-                  ? "..."
-                  : examinations.filter(
-                      (item) =>
-                        item.status === "SCHEDULED"
-                    ).length}
+              <p className="mt-2 text-sm text-text-muted">
+                Create and manage examination schedules.
               </p>
             </div>
 
-          </div>
-
-        </div>
-
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-
-          <div className="flex items-center gap-3">
-
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
-              <CalendarDays size={21} />
-            </div>
-
-            <div>
-              <p className="text-xs font-medium text-text-muted">
-                Showing
-              </p>
-
-              <p className="mt-1 text-2xl font-bold text-text">
-                {loading
-                  ? "..."
-                  : filteredExaminations.length}
-              </p>
-            </div>
-
-          </div>
-
-        </div>
-
-      </div>
-
-      {/* ================================================= */}
-      {/* TABLE */}
-      {/* ================================================= */}
-
-      <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
-
-        <div className="overflow-x-auto">
-
-          <table className="w-full min-w-[950px]">
-
-            <thead>
-              <tr className="border-b border-border bg-surface-muted">
-
-                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-Examination
-                </th>
-
-                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-Type
-                </th>
-
-                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-Course                </th>
-
-                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-Semester
-                </th>
-
-                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-Date Range
-                </th>
-
-                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-Duration
-                </th>
-
-                <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Status
-                </th>
-
-                <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-text-muted">
-                  Actions
-                </th>
-
-              </tr>
-            </thead>
-
-            <tbody>
-
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan="8"
-                    className="px-5 py-12 text-center text-sm text-text-muted"
-                  >
-                    Loading examinations...
-                  </td>
-                </tr>
-              ) : filteredExaminations.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="8"
-                    className="px-5 py-12 text-center"
-                  >
-                    <CalendarDays
-                      size={32}
-                      className="mx-auto text-text-light"
-                    />
-
-                    <p className="mt-3 font-semibold text-text">
-                      No examinations found
-                    </p>
-
-                    <p className="mt-1 text-sm text-text-muted">
-                      Create an examination to get started.
-                    </p>
-                  </td>
-                </tr>
-              ) : (
-                filteredExaminations.map(
-                  (examination) => (
-                 <tr
-  key={examination.id}
-  className="border-b border-border last:border-0 hover:bg-surface-muted"
->
-  <td className="px-5 py-4">
-    <p className="font-semibold text-text">
-      {examination.name}
-    </p>
-
-    <p className="mt-1 text-xs text-text-muted">
-      Examination #{examination.id}
-    </p>
-  </td>
-
-  <td className="px-5 py-4 text-sm text-text">
-    {examination.exam_type}
-  </td>
-
-  <td className="px-5 py-4 text-sm text-text">
-    {examination.course_name || `Course #${examination.course_id}`}
-  </td>
-
-  <td className="px-5 py-4 text-sm text-text">
-    {examination.semester}
-  </td>
-
-  <td className="px-5 py-4 text-sm text-text">
-    {formatDate(examination.start_date)}
-    {" — "}
-    {formatDate(examination.end_date)}
-  </td>
-
-  <td className="px-5 py-4 text-sm text-text">
-    {examination.duration_minutes} min
-  </td>
-
-  <td className="px-5 py-4">
-    <span
-      className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
-        examination.status
-      )}`}
-    >
-      {examination.status}
-    </span>
-  </td>
-
-  <td className="px-5 py-4">
-    <div className="flex justify-end gap-2">
-
-<button 
-  type="button" 
-  onClick={() => handleView(examination)} 
-  className="rounded-lg p-2 text-primary transition hover:bg-accent-light" 
-  title="View examination" 
-> 
-  <Eye size={17} /> 
-</button>
-
-      <button
-        type="button"
-        onClick={() =>
-          handleEdit(examination)
-        }
-        className="rounded-lg p-2 text-primary transition hover:bg-accent-light"
-        title="Edit examination"
-      >
-        <Edit3 size={17} />
-      </button>
-
-      <button
-        type="button"
-        onClick={() =>
-          handleDelete(examination.id)
-        }
-        className="rounded-lg p-2 text-danger transition hover:bg-red-50"
-        title="Delete examination"
-      >
-        <Trash2 size={17} />
-      </button>
-
-    </div>
-  </td>
-</tr>
-
-                  )
-                )
-              )}
-
-            </tbody>
-
-          </table>
-
-        </div>
-
-      </div>
-
-      {/* ================================================= */}
-      {/* FORM MODAL */}
-      {/* ================================================= */}
-
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8 backdrop-blur-sm">
-
-          <div className="w-full max-w-2xl rounded-2xl bg-surface shadow-2xl">
-
-            <div className="flex items-center justify-between border-b border-border px-6 py-5">
-
-              <div>
-                <h2 className="text-xl font-bold text-text">
-  {editingExamination
-    ? "Edit Examination"
-    : "Create Examination Plan"}
-</h2>
-
-                <p className="mt-1 text-sm text-text-muted">
-  {editingExamination
-    ? "Update examination details."
-    : "Create examinations for multiple courses and semesters."}
-</p>
-              </div>
+            <div className="flex gap-3">
 
               <button
                 type="button"
-                onClick={handleCloseForm}
-                className="rounded-lg p-2 text-text-muted hover:bg-surface-muted hover:text-text"
+                onClick={loadExaminations}
+                disabled={loading}
+                className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold text-sidebar transition hover:border-accent hover:bg-surface-muted disabled:opacity-50"
               >
-                <X size={20} />
+                <RefreshCw
+                  size={17}
+                  className={loading ? "animate-spin" : ""}
+                />
+
+                Refresh
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCreate}
+                className="flex items-center justify-center gap-2 rounded-xl bg-sidebar px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-sidebar/10 transition hover:bg-primary"
+              >
+                <Plus size={18} />
+
+                Create Examination Plan
               </button>
 
             </div>
 
-            <div className="p-6">
+          </div>
 
-             <ExaminationForm
-  examination={editingExamination}
-  onSuccess={handleFormSuccess}
-  onCancel={handleCloseForm}
-/>
+          {/* ================================================= */}
+          {/* ERROR */}
+          {/* ================================================= */}
+
+          {error && (
+            <div className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          {/* ================================================= */}
+          {/* SEARCH */}
+          {/* ================================================= */}
+
+          <div className="mb-6 rounded-2xl border border-border bg-surface p-4 shadow-sm">
+
+            <div className="relative max-w-xl">
+
+              <Search
+                size={18}
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-text-light"
+              />
+
+              <input
+                type="text"
+                value={search}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
+                placeholder="Search examinations..."
+                className="w-full rounded-xl border border-border bg-background py-3 pl-11 pr-4 text-sm text-text outline-none transition placeholder:text-text-light focus:border-primary focus:ring-4 focus:ring-primary/10"
+              />
+
+            </div>
+
+          </div>
+      {/* FILTERS */}
+
+      <ExaminationFilters
+        filters={filters}
+        onChange={handleFilterChange}
+        onReset={handleResetFilters}
+        courses={courseOptionsFromData}
+        semesterOptions={semesterOptions}
+        examTypeOptions={examTypeOptions}
+        statusOptions={statusOptions}
+      />
+          {/* ================================================= */}
+          {/* STATISTICS */}
+          {/* ================================================= */}
+
+          <div className="mb-6 grid gap-4 sm:grid-cols-3">
+
+            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
+                  <CalendarDays size={21} />
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-text-muted">
+                    Total Examinations
+                  </p>
+
+                  <p className="mt-1 text-2xl font-bold text-text">
+                    {loading ? "..." : examinations.length}
+                  </p>
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
+                  <Clock3 size={21} />
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-text-muted">
+                    Scheduled
+                  </p>
+
+                  <p className="mt-1 text-2xl font-bold text-text">
+                    {loading
+                      ? "..."
+                      : examinations.filter(
+                        (item) =>
+                          item.status === "SCHEDULED"
+                      ).length}
+                  </p>
+                </div>
+
+              </div>
+
+            </div>
+
+            <div className="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+
+              <div className="flex items-center gap-3">
+
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent-light text-primary">
+                  <CalendarDays size={21} />
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium text-text-muted">
+                    Showing
+                  </p>
+
+                  <p className="mt-1 text-2xl font-bold text-text">
+                    {loading
+                      ? "..."
+                      : filteredExaminations.length}
+                  </p>
+                </div>
+
+              </div>
 
             </div>
 
           </div>
 
+          {/* ================================================= */}
+          {/* TABLE */}
+          {/* ================================================= */}
+
+          <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+
+            <div className="overflow-x-auto">
+
+              <table className="w-full min-w-[950px]">
+
+                <thead>
+                  <tr className="border-b border-border bg-surface-muted">
+
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Examination
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Type
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Course                </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Semester
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Date Range
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Duration
+                    </th>
+
+                    <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Status
+                    </th>
+
+                    <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wider text-text-muted">
+                      Actions
+                    </th>
+
+                  </tr>
+                </thead>
+
+                <tbody>
+
+                  {loading ? (
+                    <tr>
+                      <td
+                        colSpan="8"
+                        className="px-5 py-12 text-center text-sm text-text-muted"
+                      >
+                        Loading examinations...
+                      </td>
+                    </tr>
+                  ) : filteredExaminations.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan="8"
+                        className="px-5 py-12 text-center"
+                      >
+                        <CalendarDays
+                          size={32}
+                          className="mx-auto text-text-light"
+                        />
+
+                        <p className="mt-3 font-semibold text-text">
+                          No examinations found
+                        </p>
+                        <p className="mt-1 text-sm text-text-muted">
+                          {search || Object.values(filters).some(Boolean)
+                            ? "Try changing your search or clearing filters."
+                            : "Create an examination to get started."}
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredExaminations.map(
+                      (examination) => (
+                        <tr
+                          key={examination.id}
+                          className="border-b border-border last:border-0 hover:bg-surface-muted"
+                        >
+                          <td className="px-5 py-4">
+                            <p className="font-semibold text-text">
+                              {examination.name}
+                            </p>
+
+                            <p className="mt-1 text-xs text-text-muted">
+                              Examination #{examination.id}
+                            </p>
+                          </td>
+
+                          <td className="px-5 py-4 text-sm text-text">
+                            {examination.exam_type}
+                          </td>
+
+                          <td className="px-5 py-4 text-sm text-text">
+                            {examination.course_name || `Course #${examination.course_id}`}
+                          </td>
+
+                          <td className="px-5 py-4 text-sm text-text">
+                            {examination.semester}
+                          </td>
+
+                          <td className="px-5 py-4 text-sm text-text">
+                            {formatDate(examination.start_date)}
+                            {" — "}
+                            {formatDate(examination.end_date)}
+                          </td>
+
+                          <td className="px-5 py-4 text-sm text-text">
+                            {examination.duration_minutes} min
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClasses(
+                                examination.status
+                              )}`}
+                            >
+                              {examination.status}
+                            </span>
+                          </td>
+
+                          <td className="px-5 py-4">
+                            <div className="flex justify-end gap-2">
+
+                              <button
+                                type="button"
+                                onClick={() => handleView(examination)}
+                                className="rounded-lg p-2 text-primary transition hover:bg-accent-light"
+                                title="View examination"
+                              >
+                                <Eye size={17} />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleEdit(examination)
+                                }
+                                className="rounded-lg p-2 text-primary transition hover:bg-accent-light"
+                                title="Edit examination"
+                              >
+                                <Edit3 size={17} />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleDelete(examination.id)
+                                }
+                                className="rounded-lg p-2 text-danger transition hover:bg-red-50"
+                                title="Delete examination"
+                              >
+                                <Trash2 size={17} />
+                              </button>
+
+                            </div>
+                          </td>
+                        </tr>
+
+                      )
+                    )
+                  )}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          </div>
+
+          {/* ================================================= */}
+          {/* FORM MODAL */}
+          {/* ================================================= */}
+
+          {showForm && (
+            <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-8 backdrop-blur-sm">
+
+              <div className="w-full max-w-2xl rounded-2xl bg-surface shadow-2xl">
+
+                <div className="flex items-center justify-between border-b border-border px-6 py-5">
+
+                  <div>
+                    <h2 className="text-xl font-bold text-text">
+                      {editingExamination
+                        ? "Edit Examination"
+                        : "Create Examination Plan"}
+                    </h2>
+
+                    <p className="mt-1 text-sm text-text-muted">
+                      {editingExamination
+                        ? "Update examination details."
+                        : "Create examinations for multiple courses and semesters."}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCloseForm}
+                    className="rounded-lg p-2 text-text-muted hover:bg-surface-muted hover:text-text"
+                  >
+                    <X size={20} />
+                  </button>
+
+                </div>
+
+                <div className="p-6">
+
+                  <ExaminationForm
+                    examination={editingExamination}
+                    onSuccess={handleFormSuccess}
+                    onCancel={handleCloseForm}
+                  />
+
+                </div>
+
+              </div>
+
+            </div>
+          )}
+          {/* DETAILS MODAL */}
+          {viewingExamination && (
+            <ExaminationDetails
+              examinationId={viewingExamination.id}
+              onClose={() => setViewingExamination(null)}
+            />
+          )}
         </div>
-      )}
-{/* DETAILS MODAL */}
-      {viewingExamination && (
-  <ExaminationDetails
-    examinationId={viewingExamination.id}
-    onClose={() => setViewingExamination(null)}
-  />
-)}
-      </div>
-    </main>
+      </main>
     </div>
   );
 }

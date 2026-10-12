@@ -1002,3 +1002,206 @@ def test_sample_seat_has_valid_student_hall_seat(
     assert sample.student is not None
     assert sample.hall is not None
     assert sample.seat_number
+
+# ============================================================
+# Coverage extension for app/services/allocation.py
+#
+# The Phase A coverage report flagged the failure paths in
+# generate_allocation() and _plan_hall_allocations() (lines
+# 758–952) as unexercised. These tests close the gap for the
+# option-validation and excluded-hall_ids contracts, and prove
+# that failures leave no partial state behind.
+# ============================================================
+
+from app.services.allocation import generate_allocation
+from app.models.hall import Hall
+from app.models.hall_allocation import HallAllocation
+from app.models.seat_allocation import SeatAllocation
+from app.models.examination import Examination
+
+
+def test_generate_allocation_rejects_unknown_option_key(
+    app_context, examination_id
+):
+    """
+    An allocation_options dict with a key outside the closed
+    schema must be rejected immediately — never silently
+    ignored, never passed through to the planner.
+    """
+    result = generate_allocation(
+        examination_id,
+        force=True,
+        allocation_options={"teleport_students": True},
+    )
+
+    assert result["success"] is False
+    assert "unsupported allocation option" in result["message"].lower()
+    assert "teleport_students" in result["message"]
+
+
+def test_generate_allocation_rejects_non_boolean_option_value(
+    app_context, examination_id
+):
+    """
+    Every option value must be a bool. A string or int must be
+    rejected with a message naming the offending key.
+    """
+    result = generate_allocation(
+        examination_id,
+        force=True,
+        allocation_options={"minimize_halls": "yes"},
+    )
+
+    assert result["success"] is False
+    assert "minimize_halls" in result["message"]
+    assert "boolean" in result["message"].lower()
+
+
+def test_generate_allocation_rejects_non_integer_excluded_hall_ids(
+    app_context, examination_id
+):
+    """
+    excluded_hall_ids must be integers; strings that don't parse
+    must return a clean error instead of silently excluding nothing.
+    """
+    result = generate_allocation(
+        examination_id,
+        force=True,
+        excluded_hall_ids=["not-a-number"],
+    )
+
+    assert result["success"] is False
+    assert "excluded_hall_ids" in result["message"]
+
+
+def test_generate_allocation_rejects_unknown_examination(
+    app_context
+):
+    """A nonexistent examination id fails fast."""
+    result = generate_allocation(999999999, force=True)
+
+    assert result["success"] is False
+    assert "not found" in result["message"].lower()
+
+
+def test_excluded_hall_ids_does_not_touch_hall_row(
+    app_context, examination_id
+):
+    """
+    Passing a hall id via excluded_hall_ids must NOT change the
+    Hall row. The exclusion is transient, in-memory only.
+
+    The service docstring is explicit about this — the test
+    holds it to that contract.
+    """
+    hall = (
+        Hall.query
+        .filter(Hall.is_active.is_(True))
+        .first()
+    )
+    if hall is None:
+        pytest.skip("no active hall to exclude")
+
+    before = {
+        "id": hall.id,
+        "name": hall.name,
+        "is_active": hall.is_active,
+        "is_available": hall.is_available,
+        "is_under_maintenance": hall.is_under_maintenance,
+        "examination_capacity": hall.examination_capacity,
+    }
+
+    # Run the allocator with the hall transiently excluded.
+    # Regardless of whether the plan succeeds, the Hall row must
+    # be unchanged.
+    generate_allocation(
+        examination_id,
+        force=True,
+        excluded_hall_ids=[hall.id],
+    )
+
+    db.session.refresh(hall)
+    after = {
+        "id": hall.id,
+        "name": hall.name,
+        "is_active": hall.is_active,
+        "is_available": hall.is_available,
+        "is_under_maintenance": hall.is_under_maintenance,
+        "examination_capacity": hall.examination_capacity,
+    }
+
+    assert before == after
+
+
+def test_failed_plan_does_not_partially_mutate_allocation_tables(
+    app_context, examination_id
+):
+    """
+    Force a planner failure by excluding every active hall. The
+    planner must fail before persisting; HallAllocation and
+    SeatAllocation row counts for this examination must be
+    unchanged from before the call.
+
+    Uses force=True on purpose: even the cleanup path (which
+    deletes prior rows) must roll back on planner failure.
+    """
+    active_hall_ids = [
+        row.id
+        for row in Hall.query.filter(Hall.is_active.is_(True)).all()
+    ]
+    if not active_hall_ids:
+        pytest.skip("no active halls to exclude")
+
+    before_hall = HallAllocation.query.filter_by(
+        examination_id=examination_id
+    ).count()
+    before_seat = SeatAllocation.query.filter_by(
+        examination_id=examination_id
+    ).count()
+
+    result = generate_allocation(
+        examination_id,
+        force=True,
+        excluded_hall_ids=active_hall_ids,
+    )
+
+    assert result["success"] is False, (
+        "excluding every active hall must fail the plan"
+    )
+
+    after_hall = HallAllocation.query.filter_by(
+        examination_id=examination_id
+    ).count()
+    after_seat = SeatAllocation.query.filter_by(
+        examination_id=examination_id
+    ).count()
+
+    assert after_hall == before_hall, (
+        f"HallAllocation count changed on failure: "
+        f"{before_hall} → {after_hall}"
+    )
+    assert after_seat == before_seat, (
+        f"SeatAllocation count changed on failure: "
+        f"{before_seat} → {after_seat}"
+    )
+
+
+def test_allocation_options_none_is_equivalent_to_omitted(
+    app_context, examination_id
+):
+    """
+    Passing allocation_options=None must be byte-identical to
+    passing no options at all — same success flag, same shape.
+    """
+    a = generate_allocation(
+        examination_id, force=True, allocation_options=None
+    )
+    b = generate_allocation(examination_id, force=True)
+
+    # Both must succeed (or both fail the same way) and agree on
+    # the top-level keys that describe the outcome.
+    assert a["success"] == b["success"]
+    if a["success"]:
+        assert a["eligible_students"] == b["eligible_students"]
+        assert a["halls_used"] == b["halls_used"]
+        assert a["allocated_capacity"] == b["allocated_capacity"]

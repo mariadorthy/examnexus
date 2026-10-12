@@ -1,12 +1,11 @@
-const API_URL =
+export const API_URL =
   import.meta.env.VITE_API_BASE_URL;
 
-function getToken() {
+export function getToken() {
   return localStorage.getItem(
     "examnexus_token"
   );
 }
-
 
 async function parseResponse(response) {
   const data = await response.json();
@@ -23,14 +22,25 @@ async function parseResponse(response) {
       );
     }
 
-    throw new Error(
+    const error = new Error(
       data.message || "Request failed"
     );
+
+    // Preserve structured backend error bodies so callers
+    // can show actual validation reasons, not just the
+    // summary message. Backwards-compatible: err.message
+    // is unchanged for all existing callers.
+    error.status = response.status;
+    error.errors = Array.isArray(data?.errors)
+      ? data.errors
+      : [];
+    error.response = data;
+
+    throw error;
   }
 
   return data;
 }
-
 
 export async function get(endpoint) {
 

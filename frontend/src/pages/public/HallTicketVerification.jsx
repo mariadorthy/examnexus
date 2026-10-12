@@ -11,6 +11,7 @@ import {
   MapPin,
   Clock3,
   Loader2,
+    UserRound,
 } from "lucide-react";
 
 function HallTicketVerification() {
@@ -75,9 +76,10 @@ function HallTicketVerification() {
     );
   }
 
-const valid = result?.valid;
+  const valid = result?.valid;
+const superseded = result?.status === "SUPERSEDED";
 const timetable = result?.timetable || [];
-
+  
 const studentName =
   result?.student_name || "Student";
 
@@ -112,7 +114,9 @@ const studentInitials = studentName
           className={`overflow-hidden rounded-3xl border shadow-sm ${
             valid
               ? "border-green-200 bg-green-50"
-              : "border-red-200 bg-red-50"
+              : superseded
+                ? "border-yellow-200 bg-yellow-50"
+                : "border-red-200 bg-red-50"
           }`}
         >
           <div className="flex flex-col items-center gap-4 p-7 text-center md:flex-row md:text-left">
@@ -121,7 +125,9 @@ const studentInitials = studentName
               className={`flex h-16 w-16 shrink-0 items-center justify-center rounded-full ${
                 valid
                   ? "bg-green-100"
-                  : "bg-red-100"
+                  : superseded
+                    ? "bg-yellow-100"
+                    : "bg-red-100"
               }`}
             >
               {valid ? (
@@ -132,7 +138,11 @@ const studentInitials = studentName
               ) : (
                 <XCircle
                   size={36}
-                  className="text-red-600"
+                  className={
+                    superseded
+                      ? "text-yellow-600"
+                      : "text-red-600"
+                  }
                 />
               )}
             </div>
@@ -142,25 +152,32 @@ const studentInitials = studentName
                 className={`text-xs font-bold uppercase tracking-widest ${
                   valid
                     ? "text-green-700"
-                    : "text-red-700"
+                    : superseded
+                      ? "text-yellow-700"
+                      : "text-red-700"
                 }`}
               >
                 {valid
-                  ? "Identity Verified"
-                  : "Verification Failed"}
+                  ? "Hall Ticket Verified"
+                  : superseded
+                    ? "Outdated Hall Ticket"
+                    : "Verification Failed"}
               </p>
-
               <h2 className="mt-1 text-2xl font-bold text-text">
                 {valid
                   ? "Authentic Hall Ticket"
-                  : "Invalid Hall Ticket"}
+                  : superseded
+                    ? "Superseded Hall Ticket"
+                    : "Invalid Hall Ticket"}
               </h2>
 
               <p
                 className={`mt-1 text-sm ${
                   valid
                     ? "text-green-700"
-                    : "text-red-700"
+                    : superseded
+                      ? "text-yellow-700"
+                      : "text-red-700"
                 }`}
               >
                 {result?.message}
@@ -171,14 +188,16 @@ const studentInitials = studentName
               className={`rounded-full px-4 py-2 text-xs font-bold ${
                 valid
                   ? "bg-green-100 text-green-700"
-                  : "bg-red-100 text-red-700"
+                  : superseded
+                    ? "bg-yellow-100 text-yellow-700"
+                    : "bg-red-100 text-red-700"
               }`}
             >
               {result?.status || "INVALID"}
             </div>
           </div>
         </section>
-
+        
         {/* STUDENT IDENTITY */}
         {result && (
           <section className="mt-6 rounded-2xl border border-border bg-surface p-6 shadow-sm">
@@ -205,18 +224,14 @@ const studentInitials = studentName
             </div>
 
       <div className="mt-6 flex flex-col gap-6 md:flex-row md:items-center">
-
-  {/* STUDENT AVATAR */}
-  <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-primary/10 bg-primary/10 text-3xl font-bold text-primary">
-    {result?.profile_image ? (
-      <img
-        src={result.profile_image}
-        alt={studentName}
-        className="h-full w-full object-cover"
-      />
-    ) : (
-      studentInitials
-    )}
+  {/* STUDENT AVATAR (default icon only — do not render the
+      uploaded photo on this public page; see brief §6) */}
+  <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-primary/10 bg-primary/10 text-primary">
+    <UserRound
+      size={56}
+      strokeWidth={1.25}
+      aria-label="Candidate avatar"
+    />
   </div>
 
   <div className="grid flex-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">

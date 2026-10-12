@@ -120,5 +120,6 @@ def test_full_pipeline_is_healthy(app_context, examination_id):
     assert tickets.get("issued", 0) > 0
 
     assert HallTicket.query.filter_by(
-        examination_id=examination_id
+        examination_id=examination_id,
+        status="ISSUED",
     ).count() > 0
