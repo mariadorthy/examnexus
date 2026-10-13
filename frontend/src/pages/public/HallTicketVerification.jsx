@@ -34,22 +34,31 @@ function HallTicketVerification() {
         return;
       }
 
-      try {
+            try {
         const data = await get(
           `/hall-tickets/verify/${token}`
         );
 
         setResult(data);
       } catch (error) {
-        setResult({
-          valid: false,
-          message:
-            error.message ||
-            "Unable to verify hall ticket.",
-        });
+        // If the backend attached a structured body to the error
+        // (see api.js parseResponse: error.response), prefer it
+        // so a known-but-invalid ticket still renders identity,
+        // examination, and status — not a wall of dashes.
+        if (error.response && typeof error.response === "object") {
+          setResult(error.response);
+        } else {
+          setResult({
+            valid: false,
+            message:
+              error.message ||
+              "Unable to verify hall ticket.",
+          });
+        }
       } finally {
         setLoading(false);
       }
+      
     };
 
     verifyTicket();

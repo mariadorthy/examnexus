@@ -1,13 +1,36 @@
   const API_URL =
   `${import.meta.env.VITE_API_BASE_URL}/api/allocations`;
 
-export async function generateAllocation(
+  const REQUEST_TIMEOUT_MS = 20000;
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    REQUEST_TIMEOUT_MS
+  );
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+  export async function generateAllocation(
   examinationId
 ) {
-  const response = await fetch(
+  const token = localStorage.getItem("examnexus_token");
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+ const response = await fetchWithTimeout(
     `${API_URL}/generate/${examinationId}`,
     {
       method: "POST",
+      headers,
     }
   );
 
@@ -37,7 +60,7 @@ export async function getAllocations(
       `Bearer ${token}`;
   }
 
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${API_URL}/${examinationId}`,
     {
       method: "GET",
@@ -60,8 +83,13 @@ export async function getAllocations(
 export async function validateAllocation(
   examinationId
 ) {
-  const response = await fetch(
-    `${API_URL}/validate/${examinationId}`
+  const token = localStorage.getItem("examnexus_token");
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetchWithTimeout(
+    `${API_URL}/validate/${examinationId}`,
+    { headers }
   );
 
   const result = await response.json();
@@ -79,8 +107,13 @@ export async function validateAllocation(
 export async function getAllocationSummary(
   examinationId
 ) {
-  const response = await fetch(
-    `${API_URL}/summary/${examinationId}`
+  const token = localStorage.getItem("examnexus_token");
+  const headers = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetchWithTimeout(
+    `${API_URL}/summary/${examinationId}`,
+    { headers }
   );
 
   if (!response.ok) {
@@ -94,13 +127,15 @@ export async function getAllocationSummary(
 export async function generateBulkAllocation(
   examinationIds
 ) {
-  const response = await fetch(
+  const token = localStorage.getItem("examnexus_token");
+  const headers = { "Content-Type": "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetchWithTimeout(
     `${API_URL}/bulk-generate`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers,
       body: JSON.stringify({
         examination_ids: examinationIds,
       }),
@@ -123,7 +158,7 @@ export async function generateBulkSeatAllocation(
   examinationIds,
   force = false
 ) {
-  const response = await fetch(
+ const response = await fetchWithTimeout(
     `${API_URL}/seats/bulk-generate`,
     {
       method: "POST",
@@ -156,7 +191,7 @@ export async function generateBulkSeatAllocation(
 export async function bulkValidateExaminations(
   examinationIds
 ) {
-  const response = await fetch(
+const response = await fetchWithTimeout(
     `${API_URL}/validate/bulk`,
     {
       method: "POST",
@@ -191,7 +226,7 @@ export async function simulateReallocation(
   examinationId,
   excludedHallIds
 ) {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${API_URL}/reallocate/what-if/${examinationId}`,
     {
       method: "POST",
@@ -223,7 +258,7 @@ export async function applyReallocation(
   examinationId,
   excludedHallIds
 ) {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${API_URL}/reallocate/apply/${examinationId}`,
     {
       method: "POST",
@@ -261,7 +296,7 @@ export const getExplanation = async (examinationId) => {
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(
+const response = await fetchWithTimeout(
     `${API_URL}/explain/${examinationId}`,
     {
       method: "GET",
@@ -294,7 +329,7 @@ export const getHallExplanation = async (
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(
+const response = await fetchWithTimeout(
     `${API_URL}/explain/${examinationId}/hall/${hallId}?timetable_id=${timetableId}`,
     {
       method: "GET",
@@ -323,7 +358,7 @@ export async function simulateEmergencyReallocation(
   incidentId,
   excludedHallIds
 ) {
-  const response = await fetch(
+ const response = await fetchWithTimeout(
     `${API_URL}/reallocate/emergency/what-if/${examinationId}`,
     {
       method: "POST",
@@ -358,7 +393,7 @@ export async function applyEmergencyReallocation(
   excludedHallIds,
   acknowledgeInProgress = false
 ) {
-  const response = await fetch(
+ const response = await fetchWithTimeout(
     `${API_URL}/reallocate/emergency/apply/${examinationId}`,
     {
       method: "POST",

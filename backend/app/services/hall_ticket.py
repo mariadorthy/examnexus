@@ -296,13 +296,20 @@ def get_hall_ticket(student_id, examination_id):
     """
     Full hall-ticket data for a student, including QR base64 image.
     """
-
+    # Always serve the CURRENT ticket for (student, examination):
+    # the highest-version row whose status is ISSUED. After an
+    # emergency reallocation a student can have multiple rows
+    # (v1 SUPERSEDED, v2 ISSUED); .first() without ordering and
+    # without a status filter can silently return the superseded
+    # row and cause the QR/PDF path to hand out a dead token.
     ticket = (
         HallTicket.query
         .filter_by(
             student_id=student_id,
             examination_id=examination_id
         )
+        .filter(HallTicket.status == "ISSUED")
+        .order_by(HallTicket.version.desc())
         .first()
     )
 

@@ -79,6 +79,66 @@ def _ensure_invigilators(examination_id):
 
     assert result.get("success") is True, result
 
+@pytest.fixture
+def issued_and_reissued_ticket(app_context, examination_id):
+    """
+    Produce a realistic supersede scenario for one student:
+
+      1. Prepare the examination (allocation + invigilators + PUBLISHED).
+      2. Issue v1 hall tickets.
+      3. Pick one student, capture their v1 verification_token.
+      4. Force-regenerate -> v1 rows flip to SUPERSEDED, v2 rows ISSUED.
+      5. Capture the same student's v2 verification_token.
+
+    Returns a dict with student_id, examination_id, old_token, new_token.
+    """
+    _prepare_hall_ticket_state(examination_id)
+
+    # Step 2 — v1 issuance.
+    first = generate_hall_tickets(examination_id, force=True)
+    assert first.get("success") is True, first
+
+    # Step 3 — pick a student with a v1 ticket.
+    v1_row = (
+        HallTicket.query
+        .filter_by(examination_id=examination_id, status="ISSUED")
+        .order_by(HallTicket.id.asc())
+        .first()
+    )
+    assert v1_row is not None, (
+        "no v1 ticket was issued; cannot build reissue fixture"
+    )
+    student_id = v1_row.student_id
+    old_token = v1_row.verification_token
+
+    # Step 4 — force reissue: v1 -> SUPERSEDED, v2 -> ISSUED.
+    second = generate_hall_tickets(examination_id, force=True)
+    assert second.get("success") is True, second
+
+    # Step 5 — capture v2 token for the same student.
+    v2_row = (
+        HallTicket.query
+        .filter_by(
+            examination_id=examination_id,
+            student_id=student_id,
+            status="ISSUED",
+        )
+        .order_by(HallTicket.version.desc())
+        .first()
+    )
+    assert v2_row is not None, (
+        "no v2 ticket was issued for the sampled student"
+    )
+    assert v2_row.verification_token != old_token, (
+        "reissue must generate a fresh verification_token"
+    )
+
+    return {
+        "student_id": student_id,
+        "examination_id": examination_id,
+        "old_token": old_token,
+        "new_token": v2_row.verification_token,
+    }
 
 def _prepare_hall_ticket_state(examination_id):
     """
@@ -381,3 +441,47 @@ def test_hall_ticket_rejected_when_invigilators_missing(
         generate_invigilator_allocation(
             examination_id, force=True
         )
+
+def test_verify_unknown_token_returns_404(client):
+    resp = client.get("/api/hall-tickets/verify/deadbeefdeadbeef")
+    assert resp.status_code == 404
+    body = resp.get_json()
+    assert body["valid"] is False
+    assert "not found" in body["message"].lower()
+    # No identity fields on a truly unknown token.
+    assert "student_name" not in body
+
+
+def test_verify_superseded_token_returns_200_with_identity(client, issued_and_reissued_ticket):
+    old_token = issued_and_reissued_ticket["old_token"]
+    resp = client.get(f"/api/hall-tickets/verify/{old_token}")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["valid"] is False
+    assert body["status"] == "SUPERSEDED"
+    assert body["student_name"]
+    assert body["student_code"]
+    assert body["examination"]
+    assert "superseded" in body["message"].lower()
+
+
+def test_verify_new_token_after_reissue_is_valid(client, issued_and_reissued_ticket):
+    new_token = issued_and_reissued_ticket["new_token"]
+    resp = client.get(f"/api/hall-tickets/verify/{new_token}")
+    assert resp.status_code == 200
+    body = resp.get_json()
+    assert body["valid"] is True
+    assert body["status"] == "ISSUED"
+
+
+def test_get_hall_ticket_prefers_latest_issued_after_reissue(issued_and_reissued_ticket):
+    from app.services.hall_ticket import get_hall_ticket
+    result = get_hall_ticket(
+        issued_and_reissued_ticket["student_id"],
+        issued_and_reissued_ticket["examination_id"],
+    )
+    assert result["success"] is True
+    assert (
+        result["ticket"]["verification_token"]
+        == issued_and_reissued_ticket["new_token"]
+    )

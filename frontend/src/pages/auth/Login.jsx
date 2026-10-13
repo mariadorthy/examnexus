@@ -245,25 +245,6 @@ return (
             </select>
           </div>
 
-          {/* Remember */}
-          <div className="flex items-center justify-between">
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-text-muted">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300 accent-sidebar"
-              />
-
-              Remember me
-            </label>
-
-            <button
-              type="button"
-              className="text-sm font-semibold text-primary hover:text-sidebar"
-            >
-              Forgot password?
-            </button>
-          </div>
-
           {/* Login */}
           <button
             type="submit"

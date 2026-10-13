@@ -510,6 +510,17 @@ function Examinations({
                         Loading examinations...
                       </td>
                     </tr>
+                  ) : error ? (
+
+                    <tr>
+                      <td
+                        colSpan="5"
+                        className="px-6 py-12 text-center text-sm text-text-muted"
+                      >
+                        Could not load. Use Retry above.
+                      </td>
+                    </tr>
+
                   ) : filteredExaminations.length === 0 ? (
                     <tr>
                       <td

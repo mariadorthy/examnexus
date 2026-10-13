@@ -1,5 +1,4 @@
-import { useState } from "react";
-
+import { useEffect, useState } from "react";
 import Login from "./pages/auth/Login";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import Departments from "./pages/admin/departments/Departments";
@@ -33,6 +32,73 @@ function App() {
   const [adminPage, setAdminPage] =
     useState("Dashboard");
 
+  // --------------------------------------------------
+  // URL HASH ROUTER (DEF-01)
+  // Lets F5 / Back / Forward / deep links work without
+  // pulling in react-router. Public verify route is
+  // already handled separately above.
+  // --------------------------------------------------
+
+  useEffect(() => {
+    const readHash = () => {
+      const raw = window.location.hash.replace(/^#\/?/, "");
+      if (!raw) return "Dashboard";
+      // Match against known admin pages (case-insensitive,
+      // dashes -> nothing). Unknown values fall back.
+      const known = [
+        "Dashboard", "Departments", "Courses", "Subjects",
+        "Students", "Staff", "Examinations", "Timetable",
+        "Registrations", "Halls", "Allocations",
+        "HallTickets", "Reports",
+      ];
+      const match = known.find(
+        (k) => k.toLowerCase() === raw.toLowerCase()
+      );
+      return match || "Dashboard";
+    };
+
+        const onHashChange = () => {
+      setAdminPage(readHash());
+    };
+
+    // Apply the current hash only if it disagrees with the
+    // current state. Avoids a redundant render on mount.
+    const initial = readHash();
+    setAdminPage((current) =>
+      current === initial ? current : initial
+    );
+
+    window.addEventListener("hashchange", onHashChange);
+    return () =>
+      window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  const navigateTo = (page) => {
+    setAdminPage(page);
+    const slug =
+      page === "Hall Tickets" ? "HallTickets" : page;
+    window.location.hash = `#/${slug}`;
+  };  
+
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null);
+      setAdminPage("Dashboard");
+      window.location.hash = "";
+    };
+
+    window.addEventListener(
+      "examnexus:unauthorized",
+      onUnauthorized
+    );
+
+    return () => {
+      window.removeEventListener(
+        "examnexus:unauthorized",
+        onUnauthorized
+      );
+    };
+  }, []);
 
   // --------------------------------------------------
   // PUBLIC HALL-TICKET QR VERIFICATION
@@ -47,14 +113,15 @@ function App() {
     return <HallTicketVerification />;
   }
 
-  const handleLogin = (userData) => {
+    const handleLogin = (userData) => {
 
     setUser(userData);
 
     setAdminPage("Dashboard");
 
-  };
+    window.location.hash = "#/Dashboard";
 
+  };
   const handleLogout = () => {
 
     logout();
@@ -63,8 +130,9 @@ function App() {
 
     setAdminPage("Dashboard");
 
-  };
+    window.location.hash = "";
 
+  };
   if (!user) {
 
     return (
@@ -84,7 +152,7 @@ function App() {
         <Departments
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+          onNavigate={navigateTo}
         />
       );
 
@@ -96,7 +164,7 @@ function App() {
         <Courses
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+          onNavigate={navigateTo}
         />
       );
     }
@@ -106,7 +174,7 @@ function App() {
         <Subjects
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+          onNavigate={navigateTo}
         />
       );
     }
@@ -116,7 +184,7 @@ function App() {
         <Students
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+         onNavigate={navigateTo}
         />
       );
     }
@@ -126,7 +194,7 @@ function App() {
         <Staff
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+          onNavigate={navigateTo}
         />
       );
     }
@@ -136,7 +204,7 @@ function App() {
         <Examinations
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+          onNavigate={navigateTo}
         />
       );
     }
@@ -146,7 +214,7 @@ function App() {
         <Timetables
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+         onNavigate={navigateTo}
         />
       );
     }
@@ -156,7 +224,7 @@ function App() {
         <ExamRegistrations
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+          onNavigate={navigateTo}
         />
       );
     }
@@ -166,7 +234,7 @@ function App() {
         <Halls
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+         onNavigate={navigateTo}
         />
       );
     }
@@ -176,7 +244,7 @@ function App() {
         <Allocations
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+      onNavigate={navigateTo}
         />
       );
     }
@@ -186,7 +254,7 @@ function App() {
         <HallTickets
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+         onNavigate={navigateTo}
         />
       );
     }
@@ -196,7 +264,7 @@ function App() {
         <Reports
           user={user}
           onLogout={handleLogout}
-          onNavigate={setAdminPage}
+         onNavigate={navigateTo}
         />
       );
     }
@@ -204,7 +272,7 @@ function App() {
       <AdminDashboard
         user={user}
         onLogout={handleLogout}
-        onNavigate={setAdminPage}
+       onNavigate={navigateTo}
       />
     );
 
@@ -233,10 +301,10 @@ function App() {
 
   }
 
-
-  handleLogout();
-
-  return null;
+  // Unknown role: send the user back to Login without
+  // mutating state during render (DEF-02).
+  logout();
+  return <Login onLogin={handleLogin} />;
 }
 
 

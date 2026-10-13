@@ -1,17 +1,35 @@
 export const API_URL =
   import.meta.env.VITE_API_BASE_URL;
 
-export function getToken() {
+  export function getToken() {
   return localStorage.getItem(
     "examnexus_token"
   );
+}
+
+const REQUEST_TIMEOUT_MS = 20000;
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(),
+    REQUEST_TIMEOUT_MS
+  );
+
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function parseResponse(response) {
   const data = await response.json();
 
   if (!response.ok) {
-
     if (response.status === 401) {
       localStorage.removeItem(
         "examnexus_token"
@@ -20,8 +38,14 @@ async function parseResponse(response) {
       localStorage.removeItem(
         "examnexus_user"
       );
-    }
 
+      // Tell App.jsx to drop the in-memory user without
+      // a full page reload (DEF-05 / DEF-10).
+      window.dispatchEvent(
+        new Event("examnexus:unauthorized")
+      );
+    }
+    
     const error = new Error(
       data.message || "Request failed"
     );
@@ -53,7 +77,7 @@ export async function get(endpoint) {
       `Bearer ${token}`;
   }
 
-  const response = await fetch(
+    const response = await fetchWithTimeout(
     `${API_URL}/api${endpoint}`,
     {
       method: "GET",
@@ -81,7 +105,7 @@ export async function post(
       `Bearer ${token}`;
   }
 
-  const response = await fetch(
+    const response = await fetchWithTimeout(
     `${API_URL}/api${endpoint}`,
     {
       method: "POST",
@@ -108,7 +132,7 @@ export async function put(
       `Bearer ${token}`;
   }
 
-  const response = await fetch(
+   const response = await fetchWithTimeout(
     `${API_URL}/api${endpoint}`,
     {
       method: "PUT",
@@ -136,7 +160,7 @@ export async function patch(
       `Bearer ${token}`;
   }
 
-  const response = await fetch(
+    const response = await fetchWithTimeout(
     `${API_URL}/api${endpoint}`,
     {
       method: "PATCH",

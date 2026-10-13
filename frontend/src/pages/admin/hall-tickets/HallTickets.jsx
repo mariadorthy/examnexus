@@ -407,6 +407,17 @@ function HallTickets({
                       Loading...
                     </span>
                   </div>
+                  ) : error ? (
+
+                    <tr>
+                      <td
+                        colSpan="5"
+                        className="px-6 py-12 text-center text-sm text-text-muted"
+                      >
+                        Could not load. Use Retry above.
+                      </td>
+                    </tr>
+
                 ) : filteredTickets.length === 0 ? (
                   <div className="p-10 text-center">
                     <Ticket

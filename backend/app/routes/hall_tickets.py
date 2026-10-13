@@ -41,7 +41,6 @@ def fetch_one(examination_id, student_id):
 
     return result, (200 if result.get("success") else 404)
 
-
 @hall_tickets_bp.route(
     "/verify/<string:verification_token>",
     methods=["GET"]
@@ -49,9 +48,26 @@ def fetch_one(examination_id, student_id):
 def verify(verification_token):
 
     # Public endpoint. No auth required. Returns only safe fields.
+    #
+    # Wire contract:
+    #   200 + {valid: true,  ...}                          -> current, authentic ticket
+    #   200 + {valid: false, status: "SUPERSEDED", ...}    -> token resolved; state is terminal
+    #   200 + {valid: false, status: "INVALIDATED", ...}   -> token resolved; state is terminal
+    #   404 + {valid: false, message: "Ticket not found"}  -> token did not resolve to any row
+    #
+    # Only a token that resolves to NO row is a real 404. A token that
+    # resolves to a known ticket with a terminal status is a found
+    # resource whose state is invalid; the body still carries safe
+    # identity/exam fields so the public page can explain why.
     result = verify_hall_ticket(verification_token)
 
-    return result, (200 if result.get("valid") else 404)
+    if result.get("valid"):
+        return result, 200
+
+    if result.get("status") in ("SUPERSEDED", "INVALIDATED"):
+        return result, 200
+
+    return result, 404
 
 @hall_tickets_bp.route(
     "/download/<int:examination_id>/<int:student_id>",

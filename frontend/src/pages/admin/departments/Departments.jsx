@@ -581,8 +581,18 @@ const handleResetFilters = () => {
 
                     </tr>
 
-                  ) : filteredDepartments.length === 0 ? (
+                  ) : error ? (
 
+                    <tr>
+                      <td
+                        colSpan="5"
+                        className="px-6 py-12 text-center text-sm text-text-muted"
+                      >
+                        Could not load departments. Use Retry above.
+                      </td>
+                    </tr>
+
+                  ) : filteredDepartments.length === 0 ? (
                     <tr>
 
                       <td

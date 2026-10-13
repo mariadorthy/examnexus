@@ -20,8 +20,17 @@ export async function login(
       }),
     }
   );
+  const raw = await response.text();
+  let result = {};
+  if (raw) {
+    try { result = JSON.parse(raw); }
+    catch { result = { message: raw.slice(0, 300) }; }
+  }
 
-  const result = await response.json();
+  if (response.status === 401) {
+    localStorage.removeItem("examnexus_token");
+    localStorage.removeItem("examnexus_user");
+  }
 
   if (!response.ok) {
     throw new Error(
@@ -31,8 +40,6 @@ export async function login(
 
   return result;
 }
-
-
 export async function verifyToken(token) {
   const response = await fetch(
     `${API_URL}/verify`,
@@ -44,7 +51,20 @@ export async function verifyToken(token) {
     }
   );
 
-  const result = await response.json();
+  const raw = await response.text();
+  let result = {};
+  if (raw) {
+    try { result = JSON.parse(raw); }
+    catch { result = { message: raw.slice(0, 300) }; }
+  }
+
+  if (response.status === 401) {
+    localStorage.removeItem("examnexus_token");
+    localStorage.removeItem("examnexus_user");
+    window.dispatchEvent(
+      new Event("examnexus:unauthorized")
+    );
+  }
 
   if (!response.ok) {
     throw new Error(
@@ -54,7 +74,6 @@ export async function verifyToken(token) {
 
   return result;
 }
-
 
 export function logout() {
   localStorage.removeItem("examnexus_token");

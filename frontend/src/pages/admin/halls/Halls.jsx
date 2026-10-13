@@ -506,6 +506,17 @@ const accessibleUsableHalls = usableHalls.filter(
           <div className="rounded-2xl border border-border bg-surface px-5 py-12 text-center text-sm text-text-muted shadow-sm">
             Loading halls...
           </div>
+                  ) : error ? (
+
+                    <tr>
+                      <td
+                        colSpan="5"
+                        className="px-6 py-12 text-center text-sm text-text-muted"
+                      >
+                        Could not load. Use Retry above.
+                      </td>
+                    </tr>
+
         ) : filteredHalls.length === 0 ? (
           <div className="rounded-2xl border border-border bg-surface px-5 py-12 text-center shadow-sm">
             <Building2
