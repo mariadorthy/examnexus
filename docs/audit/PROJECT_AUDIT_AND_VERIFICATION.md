@@ -3,7 +3,7 @@
 **Review date:** 2026-10-14  
 **Repository:** `D:\GitHub\ExamNexus`  
 **Branch / HEAD:** `main` / `6205bcc` (`chore: checkpoint project improvements and integration updates`)  
-**Scope:** Read-only project review, available tests/build/lint, and safe runtime checks. No implementation fixes, dependency installs, migrations, deploys, or database writes were performed.
+**Scope:** Project source and documentation review, automated tests, production build, lint, and safe runtime/database checks. Existing working-tree changes were preserved. The continuation included source and test changes documented below. No production migration, deployment, or production database write was performed.
 
 ## Status legend
 
@@ -12,11 +12,13 @@
 - 🔴 Confirmed defect — reproducible failure or direct source evidence of a broken behavior.
 - ⚪ Not implemented or not tested — absent by inspection, or not safely verifiable here.
 
-## Executive assessment
+## Executive Assessment
 
-The backend suite was rerun against the verified local `examnexus_test` database and passed. A read-only Flask-Migrate check confirms revision `2e11c30af147` and no model/schema drift. Frontend tests and the production build pass. Focused tests now cover student PDF ownership and examination-delete rollback/error redaction.
+The latest recorded verification on 14 October 2026 reports **455 backend tests collected, 449 passed, 6 skipped, and 0 failed**. The frontend suite reports **83 passed tests across 15 test files**, with 0 failures. The frontend production build passed with a large-chunk advisory, and lint exited with code 0 with warnings remaining.
 
-Full submission readiness is **not established**: the frontend suite uses mocked API calls, local browser navigation to Vite timed out, lint reports warnings, and no deployed environment was checked. The latest frontend and backend full-suite checks after all current changes are pending.
+Read-only inspection of the local `examnexus_test` database confirmed Alembic revision `2e11c30af147`, the presence of `hall_incidents` and `hall_tickets.version`, and no new operations from Flask-Migrate's schema check.
+
+**Full submission and production readiness are not established.** Browser-based workflows, responsive behavior, accessibility, and deployed production database state remain unverified. The frontend suite uses mocked API responses, so it does not prove complete integration with a live Flask API. Six skipped backend tests remain unverified for their intended scenarios.
 
 ## 1. Repository state and protection
 
@@ -40,7 +42,7 @@ The source contains 17 route modules; services include allocation, seating, invi
 
 ### Feature inventory (source/API/UI/test/runtime distinction)
 
-Most backend business workflows are exposed by protected Flask routes and connected to frontend service/page code. Database/runtime verification is pending for every database-backed row below. Test references are present in the named suites, but backend tests did not run through their test bodies in this review.
+Most backend business workflows are exposed by protected Flask routes and connected to frontend service/page code. Backend tests pass in the latest recorded full-suite run, but database-backed browser workflows and live frontend/API integration remain unverified. Test references are present in the named suites; six backend tests skip because the current fixtures cannot represent their target scenarios.
 
 | Feature/workflow | Code / API / UI evidence | Tests present | Current verification |
 |---|---|---|---|
@@ -73,9 +75,11 @@ The earlier split inventory and UI notes were consolidated from `FEATURE_AUDIT_M
 
 ## 3. Backend APIs, services, models, migrations
 
-The API is organized by domain blueprint: auth, dashboards, six master-data entities, examinations, registrations, timetables, readiness, CSV import, allocations, requirements, natural-language queries, tickets, and reports. Master-data update methods include PUT/PATCH; the six master-data domains do not expose DELETE. The current examinations route has a `DELETE /api/examinations/<id>` admin handler that rejects missing IDs and non-DRAFT status, refuses when allocations or tickets exist, removes timetable/registration rows, and commits transactionally. This new path was inspected but not run.
+The API is organized by domain blueprint: auth, dashboards, six master-data entities, examinations, registrations, timetables, readiness, CSV import, allocations, requirements, natural-language queries, tickets, and reports. Master-data update methods include PUT/PATCH; the six master-data domains do not expose DELETE. The current examinations route has a `DELETE /api/examinations/<id>` admin handler that rejects missing IDs and non-DRAFT status, refuses when allocations or tickets exist, removes timetable/registration rows, and commits transactionally. Tests for this path, including rollback and error redaction, passed in the latest recorded verification.
 
-Models cover users and academic data plus allocations, timetable, registrations, tickets, incidents, activities, and dependent assignments. Nine migration files form one source-level Alembic chain with a single head `2e11c30af147`. The `hall_incidents` revision creates the incident table and indexes; the ticket-version revision adds non-null `version` with server default 1, replaces uniqueness on (student, examination) with (student, examination, version), and downgrade removes that column/uniqueness. Existing-row behavior is therefore defined by the server default at upgrade. **The live test schema could not be inspected**, so migration state, live constraints, migration-vs-model parity, and production schema remain unverified. No migration command that changes schema was run.
+Models cover users and academic data plus allocations, timetable, registrations, tickets, incidents, activities, and dependent assignments. Nine migration files form one source-level Alembic chain with a single head `2e11c30af147`. The `hall_incidents` revision creates the incident table and indexes; the ticket-version revision adds non-null `version` with server default 1, replaces uniqueness on (student, examination) with (student, examination, version), and downgrade removes that column/uniqueness. Existing-row behavior is therefore defined by the server default at upgrade.
+
+Read-only inspection of the local `examnexus_test` database confirmed the current Alembic revision `2e11c30af147` and the presence of `hall_incidents` and `hall_tickets.version`. Flask-Migrate's read-only schema check reported no new operations. This establishes the observed state of the inspected local test database only; it does not establish that the deployed Render production database has the same revision or schema. No migration command that changes schema was run.
 
 The initial migration and later examination/timetable revisions were read at source level; no deployed schema equivalence is inferred. In particular, the historical claim that a database was already at head cannot be confirmed in this environment.
 
@@ -89,24 +93,24 @@ Source-level UI risks from the prior report remain pending browser confirmation:
 
 ## 5. Commands and results from this review
 
-Commands were run from the indicated project directory, without installing packages or changing application source.
+Commands were run from the indicated project directory. Historical runs are retained as records of earlier checkpoints; the latest full-suite results are recorded in Section 11.
 
 | Command/check | Result |
 |---|---|
 | `git status --short --branch`, `git branch --show-current`, `git log -5 --oneline`, `git diff --stat`, `git diff` | Captured starting state and existing modifications; preserved all. |
-| `backend\venv\Scripts\python.exe -m pytest -q -rs` | **454 collected, 448 passed, 6 skipped**, exit 0 (18.04 s); this was after PDF auth/API fixes but before the final delete rollback test was added. Final suite remains pending. |
-| `backend\venv\Scripts\python.exe -m pytest tests\test_new_coverage.py::TestExaminationDelete -q` | **7 passed**, exit 0, including transaction rollback and error redaction. |
-| `backend\venv\Scripts\python.exe -m pytest tests\test_post_phase7_hall_ticket_pdf.py -q` | **12 passed, 1 skipped**, exit 0; includes student-own PDF and cross-student 403 tests. |
-| `frontend\npm run test -- --reporter=dot` | Existing baseline was 81 passed. After adding 2 API tests, an intervening full run had **1 failed, 82 passed** (double PATCH on fast repeat submit). Guard was added; focused rerun passed 7/7. Final full run remains pending. |
-| `frontend\npm run build` | Passed before the latest status/mobile layout edits; 1,909 modules, JS chunk ~691 kB advisory. Final build remains pending. |
-| `frontend\npm run lint` | Exit 0 before latest edits, with numerous Oxlint warnings. Final lint remains pending. |
+| Earlier backend run: `backend\venv\Scripts\python.exe -m pytest -q -rs` | Historical checkpoint: 454 collected, 448 passed, 6 skipped, exit 0 (18.04 s); this was before the final delete rollback test was added. Superseded by the latest full-suite result in Section 11. |
+| `backend\venv\Scripts\python.exe -m pytest tests\test_new_coverage.py::TestExaminationDelete -q` | 7 passed, exit 0, including transaction rollback and error redaction. |
+| `backend\venv\Scripts\python.exe -m pytest tests\test_post_phase7_hall_ticket_pdf.py -q` | 12 passed, 1 skipped, exit 0; includes student-own PDF and cross-student 403 tests. |
+| Earlier frontend test runs: `frontend\npm run test -- --reporter=dot` | Historical baseline: 81 passed. After adding 2 API tests, an intervening full run had 1 failed, 82 passed (double PATCH on fast repeat submit). Guard was added; focused rerun passed 7/7. The latest full run is recorded in Section 11. |
+| Earlier `frontend\npm run build` | Passed before the latest status/mobile layout edits; 1,909 modules, JS chunk ~691 kB advisory. The latest build passed; see Section 11. |
+| Earlier `frontend\npm run lint` | Exit 0 before latest edits, with numerous Oxlint warnings. The latest lint result is recorded in Section 11. |
 | Read-only query using `TEST_DATABASE_URL` | Target `examnexus_test`, revision `2e11c30af147`; `hall_incidents=True`; `hall_tickets.version=True`. |
-| Flask-Migrate read-only `db check` | **No new upgrade operations detected**, exit 0, against `examnexus_test`. |
-| Python Flask smoke: import `run.app`, GET `/`, count URL rules | **GET `/` returned 200**; 101 URL rules registered. |
+| Flask-Migrate read-only `db check` | No new upgrade operations detected, exit 0, against `examnexus_test`. |
+| Python Flask smoke: import `run.app`, GET `/`, count URL rules | GET `/` returned 200; 101 URL rules registered. |
 
-The previous audit's figures (409 collected, 190 failures/144 passes/7 skips/140 errors; frontend tests blocked) are historical and stale. A later sandboxed connection returned 10013, but read-only elevated inspection and pytest runs against `examnexus_test` succeeded. The root cause of the earlier connection denial is not asserted.
+The previous audit's figures (409 collected, 190 failures/144 passes/7 skips/140 errors; frontend tests blocked) are historical and stale. A later sandboxed connection returned 10013, but read-only inspection and pytest runs against `examnexus_test` succeeded. The root cause of the earlier connection denial is not asserted.
 
-### Six skips in the 454-test backend run
+### Six skips in the latest 455-test backend run
 
 All six were conditional on the current fixture data:
 
@@ -131,20 +135,22 @@ These are data-variation gaps, not infrastructure skips. Rework fixture diversit
 | What-if simulation and apply/confirmation | 🟡 Core tests pass; three emergency replans skip for lack of feasible seed-data cases. |
 | Ticket/PDF generation and QR verification | 🟡 Backend tests pass, including ownership; one QR scoping leak case is unobservable with shared-subject test data. |
 | Emergency report → simulate → apply → ticket version changes | 🟡 Core tests pass; feasible variants skip on current seed data; deployed flow not tested. |
-| Frontend behavior | 🟡 All 83 mock-based tests pass after focused regression fixes; live browser integration remains unverified. |
+| Frontend behavior | 🟡 All 83 mock-based tests pass across 15 test files; live browser integration remains unverified. |
 
-The frontend dev server/browser was not launched for visual inspection. No live network requests, browser console, or responsive layout was observed.
+The frontend dev server was started for browser inspection, but browser navigation to local Vite timed out (`ERR_CONNECTION_TIMED_OUT`); the server was stopped. No live network requests, browser console, or responsive layout was observed.
 
 ## 7. Database and migration safety
 
-The test fixture selects `TEST_DATABASE_URL` from `.env.test` (value omitted); the parsed target is `examnexus_test` on localhost:5432. Read-only inspection confirmed database identity, Alembic revision `2e11c30af147`, and both `hall_incidents` and `hall_tickets.version`. Flask-Migrate `db check` reports no new operations. The backend suite passed after a permitted test-database run. A sandboxed connection attempt returned 10013; the historical cause remains undetermined. No production endpoint/data was contacted, and no upgrade/create-all/stamp/reset/destructive SQL ran.
+The test fixture selects `TEST_DATABASE_URL` from `.env.test` (value omitted); the parsed target is `examnexus_test` on localhost:5432. Read-only inspection confirmed database identity, Alembic revision `2e11c30af147`, and both `hall_incidents` and `hall_tickets.version`. Flask-Migrate `db check` reports no new operations. The backend suite passed against the inspected test database. A sandboxed connection attempt returned 10013; the historical cause remains undetermined.
+
+No production endpoint/data was contacted, and no upgrade/create-all/stamp/reset/destructive SQL ran. **The local test database verification does not establish the state of the deployed Render database.** Any production migration issue must be diagnosed separately against the actual deployed database before choosing a corrective action.
 
 ## 8. Security and authorization
 
-- Protected routes use `roles_required`; unauthenticated and wrong-role behavior has tests but was not executed against the DB in this run.
-- Current uncommitted decorators populate `flask.g.current_user` from JWT claims before invoking protected views. Current PDF route relies on this identity and passes the caller role/student ID to the service. This addresses the earlier source-level identity gap, but enforcement is not freshly runtime verified.
-- Public QR verification intentionally allows anonymous read of safe ticket data; PDF access is role-protected. Token invalidation and superseded responses are represented in services/tests, not exercised here.
-- Natural-language query source uses a restricted intent model rather than arbitrary SQL; mutation rejection tests exist but were blocked.
+- Protected routes use `roles_required`; unauthenticated and wrong-role behavior has tests that passed in the latest backend suite.
+- Current uncommitted decorators populate `flask.g.current_user` from JWT claims before invoking protected views. Current PDF route relies on this identity and passes the caller role/student ID to the service. This addresses the earlier source-level identity gap, and owner download and cross-student denial tests pass.
+- Public QR verification intentionally allows anonymous read of safe ticket data; PDF access is role-protected. Token invalidation and superseded responses are represented in services/tests, not exercised in a deployed environment.
+- Natural-language query source uses a restricted intent model rather than arbitrary SQL; mutation rejection tests exist and pass in the recorded backend suite.
 - No token-refresh endpoint was found; JWT expiry is configured, so session renewal appears to require re-login. Whether a refresh flow is a product requirement is unspecified.
 - `two_factor_enabled` is a student model flag only in inspected auth paths; no complete second-factor challenge/verification flow was found. Current modified model default is `False`.
 - Profile images are written under the app's local `static/profile_images` directory. This is directly confirmed by source and creates deployment persistence risk on ephemeral filesystems; deployed storage behavior was not tested.
@@ -154,22 +160,22 @@ The test fixture selects `TEST_DATABASE_URL` from `.env.test` (value omitted); t
 
 | Earlier claim | Current classification | Evidence in current tree |
 |---|---|---|
-| Test DB lacks `hall_incidents` and `hall_tickets.version` | Not reproduced; confirmed present | Read-only query against `examnexus_test` confirmed both; database revision is at head. |
+| Test DB lacks `hall_incidents` and `hall_tickets.version` | Not reproduced; confirmed present in the inspected local test database | Read-only query against `examnexus_test` confirmed both; database revision is at head. Production state remains unverified. |
 | Frontend test dependencies/scripts missing | Already fixed / stale | Vitest is present; frontend suite runs. |
 | Examination DELETE is a stub | Already fixed in current tree | Guarded route/UI exist; backend tests pass including rollback/error redaction. |
 | Staff dashboard shows only `department_id` | Already fixed in current tree | Backend emits `department_name`; UI renders name with ID fallback. |
 | PDF identity gate lacks `flask.g.current_user` | Decorator fixed; subject-claim issue also fixed | Token account ID is `sub`, not a `student_id` claim; route maps `sub` to Student ID. Owner download and cross-student denial tests pass. |
 | Master entity delete routes absent | Confirmed source limitation | No DELETE route found for departments, courses, subjects, students, staff, or halls; status PATCH is supported. |
-| allocationService lacks 401 handling | Already fixed in current tree | `handle401IfNeeded` clears credentials and dispatches event on non-OK 401 responses. |
+| `allocationService` lacks 401 handling | Already fixed in current tree | `handle401IfNeeded` clears credentials and dispatches event on non-OK 401 responses. |
 | Dependency versions not reproducible | Confirmed | `backend/requirements.txt` contains unpinned requirements. Frontend uses semver ranges and lockfile is present. |
 | Missing refresh behavior | Partially confirmed | No refresh endpoint was found in auth routes/services; requirement status unknown. |
 | Profile images may be lost on redeploy | Partially confirmed risk | Local static-directory writes confirmed; platform's actual filesystem persistence not tested. |
 | Responsive overflow/accessibility issues | Partially confirmed source risks | Historical static inspection indicates likely issues; no current browser/device/accessibility execution. |
 | Misleading/incomplete two-factor setting | Partially confirmed, likely defect | Boolean field exists; complete 2FA flow not found in inspected auth routes. |
-| Stale test counts/status labels in docs | Partially fixed | Project overview, frontend README, and testing guide now show the current 455/449/6 backend result. Other historical audit notes retain explicitly historical counts. Examination summary counts PUBLISHED. |
+| Stale test counts/status labels in docs | Partially reconciled | Project overview and testing guide now show the current 455/449/6 backend result. Older audit notes retain explicitly historical counts. Examination summary counts PUBLISHED. |
 | New examination DELETE and `test_new_coverage.py` | Present and database-tested | Delete tests pass, including rollback/error redaction. |
 | Allocation edit double submission | Confirmed defect, fixed | FRM-04 previously sent 2 PATCH requests; a synchronous ref guard now passes focused regression. |
-| Admin hall-ticket tables mobile overflow | Confirmed source gap, fixed | Tables now have horizontal scrolling/minimum widths; browser viewport validation is still unavailable. |
+| Admin hall-ticket tables mobile overflow | Confirmed source gap, fixed in source | Tables now have horizontal scrolling/minimum widths; browser viewport validation is still unverified. |
 
 ## 10. Confirmed defects and material risks
 
@@ -182,28 +188,28 @@ The test fixture selects `TEST_DATABASE_URL` from `.env.test` (value omitted); t
 5. **P2 — Backend dependency versions are unpinned.** Reproducible installs are not assured.
 6. **P2 — No token refresh route was found.** Expired sessions appear to require reauthentication; product requirement remains undecided.
 7. **P2 — No complete two-factor flow was found.** The student boolean field is not an authentication factor.
-8. **P3 — Stale test totals** remain in project/testing docs.
+8. **P3 — Historical test totals remain in older audit records.** Current project overview and testing guide have been updated to the latest recorded baseline; older figures are retained as historical evidence.
 9. **P2 — Allocation form double-submit race (fixed).** A fast repeat click previously sent duplicate PATCH calls; `useRef` guard and regression now pass.
 10. **P2 — Admin hall-ticket tables lacked horizontal scrolling (fixed in source).** Actual viewport behavior remains unverified.
 11. **P3 — Lint warnings and bundle-size advisory remain.**
 
 ### Not confirmed as current defects
 
-The earlier migration absence is not reproduced: the test database has the relevant objects and is at head. Examination DELETE, staff department display, PDF identity and ownership, allocation 401 handling, and double-submit behavior now have source/runtime evidence. Existing user changes were preserved.
+The earlier migration absence is not reproduced: the inspected local test database has the relevant objects and is at head. This does not prove that Render production has the same schema. Examination DELETE, staff department display, PDF identity and ownership, allocation 401 handling, and double-submit behavior now have source/runtime evidence. Existing user changes were preserved.
 
 ## 11. Coverage gaps and blockers
 
-- Backend full suite: `455 collected; 449 passed; 6 skipped; 0 failed` (exit 0, 32.91s).
-- Frontend full suite: `15 files passed; 83 tests passed` (exit 0). Production build passed (1,909 modules; ~691 kB main JS chunk advisory). Lint exited 0 with Oxlint warnings.
-- Local test DB migration/schema parity passed; deployed Render schema was not inspected.
+- Backend full suite: `python -m pytest -q` — **455 collected, 449 passed, 6 skipped, 0 failed**; exit code 0; 94.53 seconds.
+- Frontend full suite: `npm test` — **15 test files passed, 83 tests passed, 0 failed**; 111.83 seconds.
+- Frontend production build passed with a large-chunk advisory. Lint exited with code 0 with warnings remaining. The local database schema check reported no new migration operations; production database state remains unverified.
 - Browser navigation to local Vite timed out. No viewport emulation, console/network, Lighthouse/axe, screen-reader, or keyboard-only browser check occurred.
 - Backend tests exercise ticket/PDF generation, QR responses, reallocation and rollback; no browser scan or deployed operation occurred.
 - No production credentials or secrets are included in this report. Environment variable names are `DATABASE_URL`, `TEST_DATABASE_URL`, `JWT_SECRET_KEY`, `JWT_ACCESS_TOKEN_EXPIRES_MINUTES`, and `VITE_API_BASE_URL` (plus test config); values were not recorded.
-- Sandboxed localhost access returned 10013, while approved read-only inspection and test runs against the verified test DB succeeded. No dependencies were installed.
+- Sandboxed localhost access returned 10013, while approved read-only inspection and test runs against the verified test DB succeeded. No dependencies were installed during the recorded final verification.
 
 ## 12. Readiness and prioritized next session
 
-**Assessment: backend, frontend tests/build, and local schema checks pass, but submission readiness is not established.** Browser and deployment verification are unavailable. Product decisions remain for master-data removal, durable profile storage, token renewal, and 2FA.
+**Assessment: backend tests, frontend tests/build, and local schema checks pass, but submission readiness is not established.** Browser and deployment verification are unavailable. Product decisions remain for master-data removal, durable profile storage, token renewal, and 2FA.
 
 Recommended order for a separately authorized fix-and-improvement session:
 

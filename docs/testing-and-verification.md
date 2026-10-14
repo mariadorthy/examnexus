@@ -14,20 +14,20 @@ The testing strategy focuses on:
 
 The backend test suite covers:
 
-* Authentication and authorization
-* Master-data management
-* CSV import and validation
-* Examination and timetable management
-* Student eligibility and registration
-* Hall, accessibility, seat, and invigilator allocation
-* Examination lifecycle
-* Reports and hall tickets
-* Requirement understanding
-* Natural-language queries
-* Dynamic reallocation and what-if planning
-* Explainable allocation
-* Requirements-to-allocation integration
-* End-to-end regression
+- Authentication and authorization
+- Master-data management
+- CSV import and validation
+- Examination and timetable management
+- Student eligibility and registration
+- Hall, accessibility, seat, and invigilator allocation
+- Examination lifecycle
+- Reports and hall tickets
+- Requirement understanding
+- Natural-language queries
+- Dynamic reallocation and what-if planning
+- Explainable allocation
+- Requirements-to-allocation integration
+- End-to-end regression
 
 Tests cover both successful workflows and deliberately invalid states.
 
@@ -39,19 +39,19 @@ Backend tests use **pytest** and run against an isolated test environment.
 
 Major verification areas include:
 
-| Area           | Verification                                           |
-| -------------- | ------------------------------------------------------ |
-| Authentication | Login, protected routes, role checks                   |
-| Master Data    | Departments, courses, subjects, students, staff, halls |
-| Allocation     | Capacity, availability, conflicts, accessibility       |
-| Seating        | Seat uniqueness and student assignment                 |
-| Requirements   | Supported/unsupported requirement handling             |
-| Queries        | Read-only queries and unsafe-input rejection           |
-| Reallocation   | What-if planning and controlled application            |
-| Explainability | Deterministic allocation reasons                       |
-| CSV            | Parsing, validation, duplicates, references            |
-| Lifecycle      | Valid and invalid state transitions                    |
-| Regression     | Complete examination workflow                          |
+| Area | Verification |
+|---|---|
+| Authentication | Login, protected routes, role checks |
+| Master Data | Departments, courses, subjects, students, staff, halls |
+| Allocation | Capacity, availability, conflicts, accessibility |
+| Seating | Seat uniqueness and student assignment |
+| Requirements | Supported/unsupported requirement handling |
+| Queries | Read-only queries and unsafe-input rejection |
+| Reallocation | What-if planning and controlled application |
+| Explainability | Deterministic allocation reasons |
+| CSV | Parsing, validation, duplicates, references |
+| Lifecycle | Valid and invalid state transitions |
+| Regression | Complete examination workflow |
 
 ---
 
@@ -59,14 +59,14 @@ Major verification areas include:
 
 Allocation tests verify that:
 
-* eligible students can be allocated;
-* hall capacity is respected;
-* inactive, unavailable, or maintenance halls are excluded;
-* timetable conflicts are prevented;
-* duplicate hall assignments are rejected;
-* accessibility requirements are respected;
-* every eligible student receives a valid seat;
-* seats cannot be assigned to multiple students.
+- Eligible students can be allocated.
+- Hall capacity is respected.
+- Inactive, unavailable, or maintenance halls are excluded.
+- Timetable conflicts are prevented.
+- Duplicate hall assignments are rejected.
+- Accessibility requirements are respected.
+- Every eligible student receives a valid seat.
+- Seats cannot be assigned to multiple students.
 
 The validation layer is also tested independently by deliberately creating invalid states such as capacity overruns and accessibility violations.
 
@@ -88,13 +88,13 @@ This confirms that validation does not simply trust the allocation generator.
 
 Tests verify repeatability for:
 
-* hall allocation;
-* seat allocation;
-* requirement parsing;
-* natural-language query parsing;
-* dynamic reallocation;
-* explanations;
-* requirement-to-allocation integration.
+- Hall allocation
+- Seat allocation
+- Requirement parsing
+- Natural-language query parsing
+- Dynamic reallocation
+- Explanations
+- Requirement-to-allocation integration
 
 Repeated regeneration is also checked to ensure that duplicate hall allocations or seats are not accumulated.
 
@@ -106,20 +106,20 @@ When no allocation options are supplied, integration tests verify that existing 
 
 Requirement parsing is tested for supported requirements such as:
 
-* minimizing halls;
-* accessibility requirements;
-* excluding maintenance halls;
-* excluding unavailable halls;
-* avoiding timetable conflicts.
+- Minimizing halls
+- Accessibility requirements
+- Excluding maintenance halls
+- Excluding unavailable halls
+- Avoiding timetable conflicts
 
 The tests also cover:
 
-* multiple requirements;
-* unsupported requirements;
-* empty or whitespace input;
-* invalid input types;
-* invalid structured keys/types;
-* case-insensitive input.
+- Multiple requirements
+- Unsupported requirements
+- Empty or whitespace input
+- Invalid input types
+- Invalid structured keys/types
+- Case-insensitive input
 
 Unsupported requirements are reported rather than guessed.
 
@@ -152,14 +152,14 @@ Tests also verify that read-only queries do not mutate examination, student, hal
 
 Dynamic reallocation tests verify that the system can:
 
-1. load an existing allocation;
-2. identify affected resources;
-3. temporarily exclude unavailable halls;
-4. discover alternative capacity;
-5. preserve allocation constraints;
-6. produce a deterministic proposal;
-7. validate the proposal;
-8. keep what-if planning separate from persisted state.
+1. Load an existing allocation.
+2. Identify affected resources.
+3. Temporarily exclude unavailable halls.
+4. Discover alternative capacity.
+5. Preserve allocation constraints.
+6. Produce a deterministic proposal.
+7. Validate the proposal.
+8. Keep what-if planning separate from persisted state.
 
 Additional tests verify that rejected proposals do not mutate persisted data and that critical reallocation requires administrator authorization.
 
@@ -173,12 +173,12 @@ The explanation service is tested against the actual allocation logic.
 
 Tests verify that:
 
-* reason codes belong to the supported vocabulary;
-* selected and rejected halls receive appropriate reasons;
-* explanations correspond to persisted allocation state;
-* unsupported reasons are not invented;
-* explanations are deterministic;
-* explanation generation does not modify database state.
+- Reason codes belong to the supported vocabulary.
+- Selected and rejected halls receive appropriate reasons.
+- Explanations correspond to persisted allocation state.
+- Unsupported reasons are not invented.
+- Explanations are deterministic.
+- Explanation generation does not modify database state.
 
 Example reasons include:
 
@@ -198,16 +198,16 @@ REJECTED_TIMETABLE_CONFLICT
 
 CSV tests cover:
 
-* valid files;
-* missing fields or columns;
-* duplicate identifiers;
-* existing database duplicates;
-* invalid emails, integers, booleans, and dates;
-* foreign-key references;
-* capacity boundaries;
-* empty or malformed files;
-* normalized headers and values;
-* warnings for possible duplicate names.
+- Valid files
+- Missing fields or columns
+- Duplicate identifiers
+- Existing database duplicates
+- Invalid emails, integers, booleans, and dates
+- Foreign-key references
+- Capacity boundaries
+- Empty or malformed files
+- Normalized headers and values
+- Warnings for possible duplicate names
 
 The import workflow is validation-first:
 
@@ -277,39 +277,48 @@ This regression coverage ensures that requirement understanding, natural-languag
 
 ## 12. Test Evidence
 
-The complete backend suite was executed with:
+### Latest backend verification
+
+Command:
 
 ```powershell
-pytest -q
+python -m pytest -q
 ```
 
-Verified result:
+| Result | Count |
+|---|---:|
+| Tests collected | 455 |
+| Passed | 449 |
+| Skipped | 6 |
+| Failed | 0 |
+| Duration | 94.53 seconds |
 
-| Result          | Count |
-| --------------- | ----: |
-| Tests collected |   290 |
-| Passed          |   288 |
-| Skipped         |     2 |
-| Failed          |     0 |
-| Errors          |     0 |
+### Latest frontend verification
 
-The two skipped tests are conditional scenarios unavailable in the current test configuration.
+Command:
 
-A focused intelligent-feature suite was also executed:
-
-```text
-116 collected
-116 passed
-0 failed
+```powershell
+npm test
 ```
 
-This suite covers:
+| Result | Count |
+|---|---:|
+| Test files passed | 15 |
+| Tests passed | 83 |
+| Failed | 0 |
+| Duration | 111.83 seconds |
 
-* Requirement understanding
-* Natural-language queries
-* Dynamic reallocation
-* Explainable allocation
-* Requirements-to-allocation integration
+### Additional verification
+
+- Frontend production build completed successfully, with a large-chunk advisory.
+- Lint exited with code 0; warnings remain.
+- The read-only schema check of the local `examnexus_test` database reported no new migration operations.
+- The inspected local test database was at Alembic revision `2e11c30af147`; `hall_incidents` and `hall_tickets.version` were present.
+- Browser-based visual, responsive, accessibility, and complete live frontend/API verification remain pending.
+
+The earlier 290-test result and focused 116-test result are historical results, not the latest verification baseline. The six skipped backend tests are not counted as passed. They depend on fixture data that does not currently represent the required scenarios. Their specific reasons and the remaining audit findings are documented in `audit/PROJECT_AUDIT_AND_VERIFICATION.md`.
+
+The local database verification does not establish that the deployed Render production database has the same schema or migration revision.
 
 ---
 
@@ -335,25 +344,23 @@ Approved Action
 
 Intelligent capabilities are therefore verified not only for correct output, but also for:
 
-* supported-operation boundaries;
-* unsafe-request rejection;
-* deterministic behavior;
-* constraint preservation;
-* explainability;
-* administrator control;
-* non-mutation of read-only operations;
-* regression safety.
+- Supported-operation boundaries
+- Unsafe-request rejection
+- Deterministic behavior
+- Constraint preservation
+- Explainability
+- Administrator control
+- Non-mutation of read-only operations
+- Regression safety
 
 ---
 
 ## 14. Verification Status
 
-The latest full verification on 2026-10-14 reported:
+The latest recorded backend and frontend automated test suites passed with no failures. The production build completed successfully, with a large-chunk advisory. Lint exited with code 0, with warnings remaining.
 
-* Backend: **455 collected, 449 passed, 6 skipped, 0 failed**, exit code 0.
-* Frontend: **83 passed across 15 test files**.
-* Production build: passed, with a large JavaScript chunk advisory.
-* Oxlint: exit code 0 with warnings.
-* Read-only Flask-Migrate schema check: no new upgrade operations on `examnexus_test`.
+The backend suite includes six skipped, fixture-dependent scenarios. The frontend suite uses mocked API responses. Local database schema verification does not establish the state of the deployed production database.
 
-The backend skips depend on available test data. The frontend suite uses mocked API responses. Browser-based responsive/accessibility and live browser-to-API flows remain unverified, so passing automated tests alone do not establish submission readiness. See `audit/PROJECT_AUDIT_AND_VERIFICATION.md` for commands, skip reasons, fixes, and remaining gaps.
+Browser rendering, responsive behavior, accessibility, and complete live browser-to-API workflows remain unverified. Passing automated tests alone does not establish full submission or production readiness.
+
+See `audit/PROJECT_AUDIT_AND_VERIFICATION.md` for detailed results, skip reasons, findings, and remaining verification gaps.

@@ -14,7 +14,7 @@ Introduces ExamNexus, the problem it addresses, core workflows, user roles, capa
 
 Documents the frontend, backend, database, service architecture, domain entities, allocation pipeline, security, and system interactions.
 
-### 3. [Features and Workflows](features-and-workflows.md)
+### 3. [Features and Workflows](features-and-workflow.md)
 
 Describes the implemented examination-management features and workflows from planning and registration through allocation, validation, approval, publication, and reporting.
 

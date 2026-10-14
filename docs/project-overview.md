@@ -274,8 +274,8 @@ Administrative operations such as allocation changes, requirement application, a
 | ---------- | ----------------------------------------------------------------- |
 | Frontend   | React, Vite, Tailwind CSS, Lucide React                           |
 | Backend    | Python, Flask, Flask-SQLAlchemy, Flask-CORS, Flask-Migrate, PyJWT |
-| Database   | Relational database through SQLAlchemy                            |
-| Testing    | pytest                                                            |
+| Database   | Relational database through | 
+| Testing    | pytest, Vitest                                                     |
 | Supporting | QRCode, Pillow                                                    |
 
 ---
@@ -291,6 +291,18 @@ Fresh verification on 2026-10-14 against the configured local test database repo
 * Flask-Migrate read-only schema check reported no new operations on the test database.
 
 The skips depend on fixture-data shapes. The consolidated report in `docs/audit/PROJECT_AUDIT_AND_VERIFICATION.md` lists them and records the remaining browser, accessibility, deployment, and live frontend/API verification gaps. These results do not establish production or submission readiness.
+
+### Latest Testing and Verification
+
+The latest recorded automated verification, dated 14 October 2026, reports:
+
+- **Backend:** 449 passed, 6 skipped, 0 failed out of 455 collected.
+- **Frontend:** 83 passed across 15 test files.
+- **Production build:** Successful, with a large-chunk advisory.
+- **Lint:** Exit code 0, with warnings remaining.
+- **Local database schema check:** No new migration operations reported for the inspected local test database.
+
+Automated verification is not equivalent to complete live-system validation. Browser-level visual and responsive checks, accessibility checks, and full production workflows remain pending where not separately evidenced. Local schema verification does not establish the state of the deployed production database.
 
 ---
 
