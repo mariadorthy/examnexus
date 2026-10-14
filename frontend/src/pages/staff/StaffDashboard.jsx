@@ -178,7 +178,7 @@ setDashboardData({
                   </p>
 
                   <p className="mt-2 text-xl font-bold text-text">
-                    {dashboardUser?.department_id ?? "—"}
+                    {dashboardUser?.department_name ?? dashboardUser?.department_id ?? "—"}
                   </p>
                 </div>
 

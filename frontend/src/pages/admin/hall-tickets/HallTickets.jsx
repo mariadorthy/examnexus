@@ -433,9 +433,9 @@ function HallTickets({
                     </p>
                   </div>
                 ) : (
-                  <div className="max-h-[560px] overflow-y-auto">
+                  <div className="max-h-[560px] overflow-auto">
 
-                    <table className="w-full">
+                    <table className="w-full min-w-[420px]">
                       <thead>
                         <tr className="border-b border-border bg-surface-muted">
                           <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-text-muted">
@@ -595,9 +595,9 @@ function HallTickets({
                         Examination Entries
                       </p>
 
-                      <div className="overflow-hidden rounded-xl border border-border">
+                      <div className="overflow-x-auto rounded-xl border border-border">
 
-                        <table className="w-full">
+                        <table className="w-full min-w-[460px]">
                           <thead>
                             <tr className="border-b border-border bg-surface-muted">
                               <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-text-muted">

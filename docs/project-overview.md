@@ -282,20 +282,15 @@ Administrative operations such as allocation changes, requirement application, a
 
 ## 12. Verification Evidence
 
-The automated backend verification reported:
+Fresh verification on 2026-10-14 against the configured local test database reported:
 
-* **290 tests collected**
-* **288 passed**
-* **2 skipped**
-* **0 failed**
-* **0 errors**
+* **455 backend tests collected**
+* **449 passed, 6 skipped, 0 failed** (exit code 0)
+* **83 frontend tests passed across 15 test files**
+* Frontend production build passed, with a large-chunk advisory; Oxlint exited 0 with warnings.
+* Flask-Migrate read-only schema check reported no new operations on the test database.
 
-The focused intelligent-feature suite reported:
-
-* **116 tests collected**
-* **116 passed**
-
-Testing covers core examination workflows, allocation, validation, intelligent assistance, reallocation, and related regression behavior.
+The skips depend on fixture-data shapes. The consolidated report in `docs/audit/PROJECT_AUDIT_AND_VERIFICATION.md` lists them and records the remaining browser, accessibility, deployment, and live frontend/API verification gaps. These results do not establish production or submission readiness.
 
 ---
 

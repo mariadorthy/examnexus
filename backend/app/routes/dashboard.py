@@ -361,6 +361,14 @@ def get_staff_dashboard():
             "status": duty.status
         })
 
+    # Resolve department name so the frontend can display it
+    # directly without a second API call.
+    department = (
+        Department.query.get(staff.department_id)
+        if staff.department_id
+        else None
+    )
+
     return {
         "success": True,
 
@@ -371,6 +379,11 @@ def get_staff_dashboard():
             "role": "staff",
             "designation": staff.designation,
             "department_id": staff.department_id,
+            "department_name": (
+                department.department_name
+                if department
+                else None
+            ),
             "availability": staff.availability,
             "assigned_batch": staff.assigned_batch
         },

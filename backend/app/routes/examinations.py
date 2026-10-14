@@ -1,4 +1,4 @@
-from flask import Blueprint, request
+from flask import Blueprint, current_app, request
 from app import db
 from app.models.examination import Examination
 from app.models.course import Course
@@ -559,3 +559,111 @@ def mark_published(examination_id):
     result = transition_status(examination_id, "PUBLISHED")
 
     return result, (200 if result["success"] else 400)
+
+
+# =========================================================
+# DELETE — DRAFT-only hard delete
+#
+# An examination may only be deleted while it is still in
+# DRAFT status and has no persisted allocations or tickets.
+# Once the examination moves past DRAFT the system has
+# committed resources to it; deletion is blocked.
+# =========================================================
+
+@examinations_bp.route(
+    "/<int:examination_id>",
+    methods=["DELETE"]
+)
+@roles_required("admin")
+def delete_examination(examination_id):
+    examination = db.session.get(
+        Examination,
+        examination_id
+    )
+
+    if not examination:
+        return {
+            "success": False,
+            "message": "Examination not found."
+        }, 404
+
+    # Only DRAFT examinations may be deleted.
+    if examination.status != "DRAFT":
+        return {
+            "success": False,
+            "message": (
+                f"Examination cannot be deleted because its "
+                f"status is '{examination.status}'. "
+                f"Only DRAFT examinations may be deleted."
+            ),
+            "status": examination.status
+        }, 409
+
+    # Guard: no persisted allocations.
+    from app.models.hall_allocation import HallAllocation
+    from app.models.timetable import Timetable
+    from app.models.exam_registration import ExamRegistration
+
+    hall_alloc_count = (
+        HallAllocation.query
+        .filter_by(examination_id=examination_id)
+        .count()
+    )
+
+    if hall_alloc_count > 0:
+        return {
+            "success": False,
+            "message": (
+                "Examination has persisted hall allocations. "
+                "Clear allocations before deleting."
+            )
+        }, 409
+
+    # Guard: no issued hall tickets.
+    from app.models.hall_ticket import HallTicket
+
+    ticket_count = (
+        HallTicket.query
+        .filter_by(examination_id=examination_id)
+        .count()
+    )
+
+    if ticket_count > 0:
+        return {
+            "success": False,
+            "message": (
+                "Examination has issued hall tickets. "
+                "Examinations with issued tickets cannot be deleted."
+            )
+        }, 409
+
+    try:
+        # Cascade: delete timetable entries and registrations
+        # first to avoid FK violations.
+        Timetable.query.filter_by(
+            examination_id=examination_id
+        ).delete(synchronize_session=False)
+
+        ExamRegistration.query.filter_by(
+            examination_id=examination_id
+        ).delete(synchronize_session=False)
+
+        db.session.delete(examination)
+        db.session.commit()
+
+        return {
+            "success": True,
+            "message": "Examination deleted successfully.",
+            "id": examination_id
+        }, 200
+
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "Failed to delete draft examination %s",
+            examination_id,
+        )
+        return {
+            "success": False,
+            "message": "Unable to delete examination. Please try again or contact support."
+        }, 500

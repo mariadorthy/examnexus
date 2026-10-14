@@ -81,7 +81,14 @@ def download_pdf(examination_id, student_id):
 
     requester = getattr(g, "current_user", None) or {}
     role = requester.get("role")
-    requester_student_id = requester.get("student_id")
+    # Student tokens identify the account by ``sub``; they carry no
+    # separate student_id claim. The Student primary key is that subject.
+    requester_student_id = None
+    if role == "student":
+        try:
+            requester_student_id = int(requester.get("sub"))
+        except (TypeError, ValueError):
+            requester_student_id = None
 
     result = get_hall_ticket_pdf(
         student_id=student_id,

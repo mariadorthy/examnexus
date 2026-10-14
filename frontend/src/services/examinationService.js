@@ -1,4 +1,5 @@
 import {
+  del,
   get,
   post,
   put,
@@ -35,4 +36,8 @@ export async function updateExamination(
     `/examinations/${id}`,
     data
   );
+}
+
+export async function deleteExamination(id) {
+  return await del(`/examinations/${id}`);
 }

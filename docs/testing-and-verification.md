@@ -348,8 +348,12 @@ Intelligent capabilities are therefore verified not only for correct output, but
 
 ## 14. Verification Status
 
-The current verified backend result is:
+The latest full verification on 2026-10-14 reported:
 
-**290 tests collected → 288 passed → 2 skipped → 0 failed → 0 errors.**
+* Backend: **455 collected, 449 passed, 6 skipped, 0 failed**, exit code 0.
+* Frontend: **83 passed across 15 test files**.
+* Production build: passed, with a large JavaScript chunk advisory.
+* Oxlint: exit code 0 with warnings.
+* Read-only Flask-Migrate schema check: no new upgrade operations on `examnexus_test`.
 
-The testing evidence demonstrates that ExamNexus's deterministic examination workflows and intelligent-assistance features operate within defined constraints while preserving validation, safety, and administrator control.
+The backend skips depend on available test data. The frontend suite uses mocked API responses. Browser-based responsive/accessibility and live browser-to-API flows remain unverified, so passing automated tests alone do not establish submission readiness. See `audit/PROJECT_AUDIT_AND_VERIFICATION.md` for commands, skip reasons, fixes, and remaining gaps.

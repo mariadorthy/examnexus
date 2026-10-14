@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   X,
   Building2,
@@ -33,6 +33,7 @@ function AllocationForm({
     useState(true);
 
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
 
   const [error, setError] = useState("");
 
@@ -104,6 +105,10 @@ function AllocationForm({
       return;
     }
 
+    // A ref closes the same-frame gap before React applies disabled state.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
     try {
 
       setLoading(true);
@@ -133,6 +138,7 @@ function AllocationForm({
 
     } finally {
 
+      submittingRef.current = false;
       setLoading(false);
 
     }

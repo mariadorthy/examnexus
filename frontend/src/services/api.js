@@ -171,6 +171,26 @@ export async function patch(
 
   return parseResponse(response);
 }
+
+export async function del(endpoint) {
+  const token = getToken();
+  const headers = {};
+
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetchWithTimeout(
+    `${API_URL}/api${endpoint}`,
+    {
+      method: "DELETE",
+      headers,
+    }
+  );
+
+  return parseResponse(response);
+}
+
 export async function uploadCsv(endpoint, file) {
   const token = getToken();
 

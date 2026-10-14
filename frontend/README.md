@@ -153,24 +153,16 @@ Database constraints provide an additional integrity layer, while transactional 
 
 ## Verification
 
-The backend test suite currently verifies:
+The most recent local verification (2026-10-14) reported:
 
 ```text
-290 tests collected
-288 passed
-2 skipped
-0 failed
-0 errors
+Backend: 455 collected, 449 passed, 6 skipped, 0 failed (exit 0)
+Frontend: 83 passed across 15 test files
+Production build: passed; large JavaScript chunk advisory
+Oxlint: exit 0 with warnings
 ```
 
-A focused intelligent-feature suite also verifies:
-
-```text
-116 tests
-116 passed
-```
-
-Coverage includes allocation, accessibility, validation, requirements, natural-language queries, dynamic reallocation, explainability, CSV validation, lifecycle controls, and end-to-end regression.
+Backend tests use the configured local test database. Frontend tests use mocked API responses and do not verify live browser-to-backend integration. The six backend skips are fixture-data-dependent. See `../docs/audit/PROJECT_AUDIT_AND_VERIFICATION.md` for exact commands, skip reasons, and remaining verification gaps.
 
 ## Technology Stack
 

@@ -14,6 +14,7 @@ import ExaminationFilters from "./ExaminationFilters";
 import ExaminationForm from "./ExaminationForm";
 import ExaminationDetails from "./ExaminationDetails";
 import { get } from "../../../services/api";
+import { deleteExamination } from "../../../services/examinationService";
 import AdminSidebar from "../../../components/AdminSidebar";
 import AdminTopbar from "../../../components/AdminTopbar";
 
@@ -27,6 +28,7 @@ function Examinations({
   const [examinations, setExaminations] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState(null);
 
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -102,26 +104,33 @@ function Examinations({
   };
 
   const handleDelete = async (id) => {
+    const examination = examinations.find((e) => e.id === id);
+
+    if (examination && examination.status !== "DRAFT") {
+      setError(
+        `Cannot delete: examination is "${examination.status}". Only DRAFT examinations may be deleted.`
+      );
+      return;
+    }
+
     const confirmed = window.confirm(
-      "Are you sure you want to delete this examination?"
+      "Are you sure you want to delete this examination? This will also remove its timetable and registrations. This cannot be undone."
     );
 
     if (!confirmed) {
       return;
     }
 
-    /*
-     * NOTE:
-     * Your current backend does not yet have
-     * a DELETE /api/examinations/<id> route.
-     *
-     * This is intentionally left disabled until
-     * the backend DELETE route is added.
-     */
-
-    alert(
-      "Delete functionality will be enabled after the backend DELETE route is added."
-    );
+    try {
+      setError("");
+      setDeletingId(id);
+      await deleteExamination(id);
+      await loadExaminations();
+    } catch (err) {
+      setError(err.message || "Unable to delete examination.");
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const courseOptionsFromData = (() => {
@@ -169,7 +178,7 @@ function Examinations({
     ];
     return fromData.length
       ? fromData.sort()
-      : ["SCHEDULED", "ONGOING", "COMPLETED", "CANCELLED"];
+      : ["DRAFT", "GENERATED", "VALIDATED", "REVIEW", "APPROVED", "PUBLISHED"];
   })();
   const filteredExaminations = examinations.filter((examination) => {
     // Search (unchanged)
@@ -409,7 +418,7 @@ function Examinations({
 
                 <div>
                   <p className="text-xs font-medium text-text-muted">
-                    Scheduled
+                    Published
                   </p>
 
                   <p className="mt-1 text-2xl font-bold text-text">
@@ -417,7 +426,7 @@ function Examinations({
                       ? "..."
                       : examinations.filter(
                         (item) =>
-                          item.status === "SCHEDULED"
+                          item.status === "PUBLISHED"
                       ).length}
                   </p>
                 </div>
@@ -619,7 +628,9 @@ function Examinations({
                                 onClick={() =>
                                   handleDelete(examination.id)
                                 }
-                                className="rounded-lg p-2 text-danger transition hover:bg-red-50"
+                                disabled={deletingId === examination.id}
+                                aria-label={`Delete ${examination.name}`}
+                                className="rounded-lg p-2 text-danger transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                                 title="Delete examination"
                               >
                                 <Trash2 size={17} />

@@ -353,6 +353,58 @@ def test_download_endpoint_returns_pdf(
     if student is not None and student.student_id:
         # The sanitized roll number should be in the filename.
         assert student.student_id.replace(" ", "_") in cd
+
+
+def test_student_can_download_own_hall_ticket_pdf(
+    app_context, examination_id, client
+):
+    """The JWT subject is the student primary key used for ownership."""
+    from app.auth.security import create_access_token
+
+    _prepare_state(examination_id)
+    generate_hall_tickets(examination_id, force=True)
+    student_id, ticket = _sample_student_and_ticket(examination_id)
+    if student_id is None or ticket is None:
+        pytest.skip("no allocated student with a hall ticket")
+
+    token = create_access_token(student_id, "student")
+    resp = client.get(
+        f"/api/hall-tickets/download/{examination_id}/{student_id}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200
+    assert resp.data[:4] == b"%PDF"
+
+
+def test_student_cannot_download_another_students_pdf(
+    app_context, examination_id, client
+):
+    from app.auth.security import create_access_token
+    from app.models.seat_allocation import SeatAllocation
+
+    _prepare_state(examination_id)
+    students = [
+        row[0]
+        for row in (
+            db.session.query(SeatAllocation.student_id)
+            .filter_by(examination_id=examination_id)
+            .distinct()
+            .limit(2)
+            .all()
+        )
+    ]
+    if len(students) < 2:
+        pytest.skip("fewer than two allocated students are available")
+
+    token = create_access_token(students[0], "student")
+    resp = client.get(
+        f"/api/hall-tickets/download/{examination_id}/{students[1]}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 403
+    assert resp.get_json()["message"] == "Not authorized to download this hall ticket"
         
 def test_download_rejects_unknown_student(
     app_context, examination_id, admin_client

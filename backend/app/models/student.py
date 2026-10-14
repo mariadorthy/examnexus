@@ -97,7 +97,7 @@ class Student(db.Model):
 
     two_factor_enabled = db.Column(
         db.Boolean,
-        default=True,
+        default=False,
         nullable=False
     )
 

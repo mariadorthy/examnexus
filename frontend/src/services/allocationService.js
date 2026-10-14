@@ -19,6 +19,19 @@ async function fetchWithTimeout(url, options = {}) {
   }
 }
 
+/**
+ * Mirrors the 401-handling in api.js → parseResponse.
+ * Clears stored credentials and fires the global unauthorized
+ * event so App.jsx redirects to Login, just like api.js does.
+ */
+function handle401IfNeeded(response) {
+  if (response.status === 401) {
+    localStorage.removeItem("examnexus_token");
+    localStorage.removeItem("examnexus_user");
+    window.dispatchEvent(new Event("examnexus:unauthorized"));
+  }
+}
+
   export async function generateAllocation(
   examinationId
 ) {
@@ -37,6 +50,7 @@ async function fetchWithTimeout(url, options = {}) {
   const result = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Failed to generate allocation."
@@ -71,6 +85,7 @@ export async function getAllocations(
   const result = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Failed to load allocations."
@@ -95,6 +110,7 @@ export async function validateAllocation(
   const result = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Allocation validation failed."
@@ -117,6 +133,7 @@ export async function getAllocationSummary(
   );
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       "Failed to load allocation summary."
     );
@@ -145,6 +162,7 @@ export async function generateBulkAllocation(
   const result = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Failed to generate bulk allocation."
@@ -178,6 +196,7 @@ export async function generateBulkSeatAllocation(
   const result = await response.json();
 
   if (!response.ok && !result.results) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Failed to generate bulk seat allocation."
@@ -210,6 +229,7 @@ const response = await fetchWithTimeout(
   const result = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Failed to bulk validate examinations."
@@ -245,6 +265,7 @@ export async function simulateReallocation(
   const result = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Failed to simulate reallocation."
@@ -278,6 +299,7 @@ export async function applyReallocation(
   const result = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Failed to apply reallocation."
@@ -307,6 +329,7 @@ const response = await fetchWithTimeout(
   const data = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       data?.message ||
         "Failed to fetch allocation explanation"
@@ -340,6 +363,7 @@ const response = await fetchWithTimeout(
   const data = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       data?.message ||
         "Failed to fetch hall explanation"
@@ -378,6 +402,7 @@ export async function simulateEmergencyReallocation(
   const result = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Failed to simulate emergency reallocation."
@@ -415,6 +440,7 @@ export async function applyEmergencyReallocation(
   const result = await response.json();
 
   if (!response.ok) {
+    handle401IfNeeded(response);
     throw new Error(
       result.message ||
         "Failed to apply emergency reallocation."
