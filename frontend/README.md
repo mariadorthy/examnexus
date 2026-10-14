@@ -4,6 +4,49 @@ ExamNexus is a web-based examination resource orchestration platform that helps 
 
 It connects examination data, timetables, student eligibility, halls, seating, invigilators, validation, hall tickets, reporting, and controlled intelligent assistance into one workflow.
 
+## Live Demo
+
+- **Live Application:** [Open ExamNexus](https://examnexus-sigma.vercel.app/)
+- **Source Code:** [GitHub Repository](https://github.com/mariadorthy/examnexus)
+- **Demo Video:** [Watch the ExamNexus walkthrough](https://canva.link/k26mc1ce3dyutio)
+- **Project Presentation:** [View the project PPT](https://drive.google.com/file/d/100PCpF2ooyal4NWUWiB1sFPA8FjD-0m7/view?usp=sharing)
+
+> The live demo may depend on deployment availability and configured demo data. Use the recorded walkthrough if the live application is temporarily unavailable.
+
+## Application Walkthrough
+
+The demo demonstrates the examination management workflow, including examination setup, resource allocation, validation, administrator review, hall-ticket generation, QR verification, and intelligent what-if planning.
+
+[**▶ Watch the full ExamNexus demo video**](https://canva.link/k26mc1ce3dyutio)
+
+## Application Screenshots
+
+Selected screenshots are included below to illustrate the main application workflows.
+
+### Admin Dashboard
+
+![ExamNexus Admin Dashboard](docs/screenshots/admin-dashboard.png)
+
+### Examination Resource Allocation
+
+![ExamNexus Allocation Workflow](docs/screenshots/allocation-workflow.png)
+
+### Hall Ticket Verification
+
+![ExamNexus Hall Ticket Verification](docs/screenshots/hall-ticket-verification.png)
+
+For additional screenshots and supporting evidence, see [`docs/screenshots/`](docs/screenshots/).
+
+## Project Documentation
+
+- [Project Overview](docs/project-overview.md)
+- [System Architecture](docs/system-architecture.md)
+- [Features and Workflows](docs/features-and-workflows.md)
+- [AI and Intelligent Orchestration](docs/ai-and-intelligent-orchestration.md)
+- [Development Setup](docs/development-setup.md)
+- [Testing and Verification](docs/testing-and-verification.md)
+- [Documentation Index](docs/README.md)
+
 ## Project Vision
 
 ExamNexus supports the complete examination planning lifecycle:
